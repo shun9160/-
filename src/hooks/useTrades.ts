@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import type { DayNote, EnrichedTrade } from '../lib/types'
 import { enrichAll } from '../lib/analytics'
+import { demoTrades } from '../lib/demo'
 import { fetchDayNotes, fetchTrades } from '../lib/repo'
 import { isSupabaseConfigured } from '../lib/supabase'
 
@@ -10,6 +11,8 @@ interface State {
   loading: boolean
   error: string | null
   configured: boolean
+  /** Supabase 未設定でデモデータを表示中か (編集は無効) */
+  demo: boolean
   reload: () => Promise<void>
 }
 
@@ -21,6 +24,9 @@ export function useTrades(): State {
 
   const reload = useCallback(async () => {
     if (!isSupabaseConfigured) {
+      // デモモード: 仮データで UI を表示
+      setRawTrades(enrichAll(demoTrades()))
+      setDayNotes({})
       setLoading(false)
       return
     }
@@ -52,6 +58,7 @@ export function useTrades(): State {
       loading,
       error,
       configured: isSupabaseConfigured,
+      demo: !isSupabaseConfigured,
       reload,
     }),
     [rawTrades, dayNotes, loading, error, reload],

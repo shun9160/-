@@ -8,9 +8,10 @@ interface Props {
   trades: EnrichedTrade[]
   onChanged: () => void
   filterDay?: string | null
+  readOnly?: boolean
 }
 
-export default function TradesTable({ trades, onChanged, filterDay }: Props) {
+export default function TradesTable({ trades, onChanged, filterDay, readOnly }: Props) {
   const [editing, setEditing] = useState<string | null>(null)
   const [draft, setDraft] = useState('')
 
@@ -88,7 +89,13 @@ export default function TradesTable({ trades, onChanged, filterDay }: Props) {
 
           {/* メモ */}
           <div className="mt-3 border-t border-border pt-3">
-            {editing === t.id ? (
+            {readOnly ? (
+              t.note ? (
+                <span className="whitespace-pre-wrap text-sm text-gray-300">📝 {t.note}</span>
+              ) : (
+                <span className="text-sm text-gray-600">メモなし</span>
+              )
+            ) : editing === t.id ? (
               <div className="flex flex-col gap-2">
                 <textarea
                   className="min-h-[70px] rounded-lg border border-border bg-panel-2 p-2 text-sm outline-none focus:border-accent"

@@ -9,7 +9,7 @@ import Diary from './components/Diary'
 type Tab = 'dashboard' | 'trades' | 'diary'
 
 export default function App() {
-  const { trades, dayNotes, loading, error, configured, reload } = useTrades()
+  const { trades, dayNotes, loading, error, configured, demo, reload } = useTrades()
   const [tab, setTab] = useState<Tab>('dashboard')
   const [focusDay, setFocusDay] = useState<string | null>(null)
 
@@ -35,7 +35,7 @@ export default function App() {
         </button>
       </header>
 
-      {!configured && <ConfigNotice />}
+      {demo && <DemoNotice />}
       {error && (
         <div className="mb-4 rounded-xl border border-down/40 bg-down/10 p-4 text-sm text-down">
           読み込みエラー: {error}
@@ -75,11 +75,17 @@ export default function App() {
           {tab === 'trades' && (
             <div className="space-y-4">
               <UploadPanel onChanged={reload} disabled={!configured} />
-              <TradesTable trades={trades} onChanged={reload} />
+              <TradesTable trades={trades} onChanged={reload} readOnly={demo} />
             </div>
           )}
           {tab === 'diary' && (
-            <Diary trades={trades} dayNotes={dayNotes} onChanged={reload} focusDay={focusDay} />
+            <Diary
+              trades={trades}
+              dayNotes={dayNotes}
+              onChanged={reload}
+              focusDay={focusDay}
+              readOnly={demo}
+            />
           )}
         </>
       )}
@@ -91,15 +97,15 @@ export default function App() {
   )
 }
 
-function ConfigNotice() {
+function DemoNotice() {
   return (
     <div className="mb-4 rounded-xl border border-yellow-600/40 bg-yellow-500/10 p-4 text-sm">
-      <div className="font-semibold text-yellow-400">Supabase が未設定です</div>
+      <div className="font-semibold text-yellow-400">🧪 デモモード（仮データ表示中）</div>
       <p className="mt-1 text-gray-300">
-        <code className="rounded bg-panel-2 px-1">VITE_SUPABASE_URL</code> と{' '}
-        <code className="rounded bg-panel-2 px-1">VITE_SUPABASE_ANON_KEY</code> を設定してください。
-        ローカルは <code className="rounded bg-panel-2 px-1">.env</code>、Netlify は環境変数に登録します。
-        手順は README を参照してください。
+        Supabase が未設定のため、サンプル取引でUIを表示しています（編集・保存は無効）。
+        実データを使うには <code className="rounded bg-panel-2 px-1">VITE_SUPABASE_URL</code> と{' '}
+        <code className="rounded bg-panel-2 px-1">VITE_SUPABASE_ANON_KEY</code> を設定してください
+        （ローカルは <code className="rounded bg-panel-2 px-1">.env</code>、Netlify は環境変数）。手順は README 参照。
       </p>
     </div>
   )

@@ -11,9 +11,10 @@ interface Props {
   dayNotes: Record<string, string>
   onChanged: () => void
   focusDay?: string | null
+  readOnly?: boolean
 }
 
-export default function Diary({ trades, dayNotes, onChanged, focusDay }: Props) {
+export default function Diary({ trades, dayNotes, onChanged, focusDay, readOnly }: Props) {
   const days = useMemo(() => dailySeries(trades).reverse(), [trades]) // 新しい日付が上
   const [selected, setSelected] = useState<string | null>(focusDay ?? days[0]?.day ?? null)
 
@@ -54,16 +55,30 @@ export default function Diary({ trades, dayNotes, onChanged, focusDay }: Props) 
       <div>
         {selected && (
           <>
-            <DayNoteEditor
-              key={selected}
-              day={selected}
-              initial={dayNotes[selected] ?? ''}
-              onChanged={onChanged}
-            />
+            {readOnly ? (
+              <div className="card p-4">
+                <h3 className="mb-2 text-sm font-semibold text-gray-300">📔 その日の振り返り</h3>
+                <p className="text-sm text-gray-500">
+                  {dayNotes[selected] || 'デモモードでは日記の保存はできません。'}
+                </p>
+              </div>
+            ) : (
+              <DayNoteEditor
+                key={selected}
+                day={selected}
+                initial={dayNotes[selected] ?? ''}
+                onChanged={onChanged}
+              />
+            )}
             <h3 className="mb-2 mt-4 text-sm font-semibold text-gray-300">
               {fmtJst(selected + 'T00:00:00+09:00', 'yyyy年M月d日')} の取引 ({dayTrades.length}件)
             </h3>
-            <TradesTable trades={dayTrades} onChanged={onChanged} filterDay={selected} />
+            <TradesTable
+              trades={dayTrades}
+              onChanged={onChanged}
+              filterDay={selected}
+              readOnly={readOnly}
+            />
           </>
         )}
       </div>
