@@ -1,0 +1,13 @@
+# Netlify ビルド設定
+[build]
+  command = "npm run build"
+  publish = "dist"
+
+[build.environment]
+  NODE_VERSION = "20"
+
+# SPA なので全ルートを index.html に流す
+[[redirects]]
+  from = "/*"
+  to = "/index.html"
+  status = 200

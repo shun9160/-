@@ -1,0 +1,59 @@
+import { useCallback, useEffect, useMemo, useState } from 'react'
+import type { DayNote, EnrichedTrade } from '../lib/types'
+import { enrichAll } from '../lib/analytics'
+import { fetchDayNotes, fetchTrades } from '../lib/repo'
+import { isSupabaseConfigured } from '../lib/supabase'
+
+interface State {
+  trades: EnrichedTrade[]
+  dayNotes: Record<string, string>
+  loading: boolean
+  error: string | null
+  configured: boolean
+  reload: () => Promise<void>
+}
+
+export function useTrades(): State {
+  const [rawTrades, setRawTrades] = useState<EnrichedTrade[]>([])
+  const [dayNotes, setDayNotes] = useState<Record<string, string>>({})
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState<string | null>(null)
+
+  const reload = useCallback(async () => {
+    if (!isSupabaseConfigured) {
+      setLoading(false)
+      return
+    }
+    setLoading(true)
+    setError(null)
+    try {
+      const [trades, notes] = await Promise.all([fetchTrades(), fetchDayNotes()])
+      setRawTrades(enrichAll(trades))
+      const map: Record<string, string> = {}
+      ;(notes as DayNote[]).forEach((n) => {
+        if (n.note) map[n.day] = n.note
+      })
+      setDayNotes(map)
+    } catch (e) {
+      setError(e instanceof Error ? e.message : String(e))
+    } finally {
+      setLoading(false)
+    }
+  }, [])
+
+  useEffect(() => {
+    void reload()
+  }, [reload])
+
+  return useMemo(
+    () => ({
+      trades: rawTrades,
+      dayNotes,
+      loading,
+      error,
+      configured: isSupabaseConfigured,
+      reload,
+    }),
+    [rawTrades, dayNotes, loading, error, reload],
+  )
+}
