@@ -2,6 +2,7 @@ import { useRef, useState } from 'react'
 import type { Side, Trade, TradeInput } from '../lib/types'
 import { friendlyError } from '../lib/errors'
 import { fileToDownscaledDataUrl } from '../lib/image'
+import { readTradeFromImage } from '../lib/ocr'
 import { getTradeScreenshot } from '../lib/repo'
 import { fmtDubai, parseMt5DateTime } from '../lib/timezone'
 import Icon from './Icon'
@@ -43,6 +44,12 @@ export default function TradeForm({ mode, trade, onSubmit, onCancel }: Props) {
   const [preview, setPreview] = useState<string | null>(null)
   const [loadingShot, setLoadingShot] = useState(false)
 
+  // 文字認識は縮小前の元画像に対して行うので保持しておく
+  const [sourceFile, setSourceFile] = useState<File | null>(null)
+  const [ocrBusy, setOcrBusy] = useState(false)
+  const [ocrProgress, setOcrProgress] = useState(0)
+  const [ocrFilled, setOcrFilled] = useState<string[] | null>(null)
+
   const set =
     (k: keyof typeof f) =>
     (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) =>
@@ -52,14 +59,68 @@ export default function TradeForm({ mode, trade, onSubmit, onCancel }: Props) {
     const file = e.target.files?.[0]
     if (!file) return
     setErr(null)
+    setOcrFilled(null)
     try {
       const dataUrl = await fileToDownscaledDataUrl(file)
       setShot(dataUrl)
       setPreview(dataUrl)
+      setSourceFile(file)
+      // 画像を選んだらそのまま読み取りに進む（手間を減らす）
+      void runOcr(file)
     } catch (e) {
       setErr(friendlyError(e))
     } finally {
       if (fileRef.current) fileRef.current.value = ''
+    }
+  }
+
+  /** 画像から項目を読み取ってフォームに入れる */
+  async function runOcr(file: File) {
+    setOcrBusy(true)
+    setOcrProgress(0)
+    setErr(null)
+    try {
+      const { parsed } = await readTradeFromImage(file, setOcrProgress)
+
+      // 読み取れた項目を先に確定させる。
+      // setF の更新関数の中で数えると、実行が後回しになるため件数を判定できない。
+      const patch: Partial<typeof f> = {}
+      const filled: string[] = []
+      const put = (key: keyof typeof f, value: string | undefined, label: string) => {
+        if (value == null || value === '') return
+        patch[key] = value as never
+        filled.push(label)
+      }
+      put('symbol', parsed.symbol, '通貨ペア')
+      if (parsed.side) {
+        patch.side = parsed.side
+        filled.push('売買')
+      }
+      put('volume', parsed.volume?.toString(), 'ロット')
+      put('ticket', parsed.ticket, 'ポジション番号')
+      put('open_price', parsed.openPrice?.toString(), '建値')
+      put('close_price', parsed.closePrice?.toString(), '決済価格')
+      put('sl', parsed.sl?.toString(), '損切り')
+      put('tp', parsed.tp?.toString(), '利確')
+      put('open_time', parsed.openTime, 'エントリー時刻')
+      put('close_time', parsed.closeTime, '決済時刻')
+      put('profit', parsed.profit?.toString(), '損益')
+      put('commission', parsed.commission?.toString(), '手数料')
+
+      setF((prev) => ({ ...prev, ...patch }))
+
+      if (filled.length) {
+        setOcrFilled(filled)
+        setShowDetail(true)
+      } else {
+        setErr(
+          '画像から数字を読み取れませんでした。MT5のポジション詳細（S/L・T/Pが見える画面）だと読み取りやすくなります。お手数ですが手入力をお願いします。',
+        )
+      }
+    } catch (e) {
+      setErr(`読み取りに失敗しました: ${friendlyError(e)}`)
+    } finally {
+      setOcrBusy(false)
     }
   }
 
@@ -138,11 +199,55 @@ export default function TradeForm({ mode, trade, onSubmit, onCancel }: Props) {
     <div className="flex flex-col gap-4">
       {/* 画像 */}
       <div>
-        <p className="label mb-1.5">スクリーンショット（任意）</p>
+        <p className="label mb-1.5">
+          MT5のスクリーンショット
+          <span className="ml-1 font-normal text-ink3">選ぶと数字を自動で読み取ります</span>
+        </p>
         {preview ? (
           <div className="overflow-hidden rounded-2xl border border-line">
             <img src={preview} alt="添付画像" className="max-h-72 w-full object-contain bg-sunken" />
-            <div className="flex gap-1.5 border-t border-line p-2">
+
+            {/* 読み取りの状態 */}
+            {ocrBusy && (
+              <div className="border-t border-line px-3 py-2.5">
+                <p className="text-xs font-semibold text-brand">
+                  画像から数字を読み取っています… {Math.round(ocrProgress * 100)}%
+                </p>
+                <div className="mt-1.5 h-1.5 overflow-hidden rounded-full bg-sunken">
+                  <div
+                    className="h-full rounded-full bg-brand transition-all"
+                    style={{ width: `${Math.max(ocrProgress * 100, 4)}%` }}
+                  />
+                </div>
+                <p className="mt-1 text-[11px] text-ink3">初回は準備に少し時間がかかります</p>
+              </div>
+            )}
+            {!ocrBusy && ocrFilled && (
+              <div className="flex gap-2 border-t border-line bg-up-soft px-3 py-2.5">
+                <Icon name="check" size={16} className="mt-0.5 shrink-0 text-up" />
+                <p className="text-xs text-ink2">
+                  <span className="font-semibold text-up">
+                    {ocrFilled.length}項目を読み取りました
+                  </span>
+                  <br />
+                  {ocrFilled.join('・')}
+                  <br />
+                  <span className="text-ink3">数字が違う場合は下の欄で直してください</span>
+                </p>
+              </div>
+            )}
+
+            <div className="flex flex-wrap gap-1.5 border-t border-line p-2">
+              {sourceFile && !ocrBusy && (
+                <button
+                  className="btn btn-quiet"
+                  type="button"
+                  onClick={() => runOcr(sourceFile)}
+                >
+                  <Icon name="refresh" size={16} />
+                  もう一度読み取る
+                </button>
+              )}
               <button className="btn btn-quiet" onClick={() => fileRef.current?.click()} type="button">
                 差し替え
               </button>
@@ -152,6 +257,8 @@ export default function TradeForm({ mode, trade, onSubmit, onCancel }: Props) {
                 onClick={() => {
                   setShot(null)
                   setPreview(null)
+                  setSourceFile(null)
+                  setOcrFilled(null)
                 }}
               >
                 削除
