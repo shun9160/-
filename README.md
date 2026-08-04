@@ -53,7 +53,7 @@ npm run dev               # http://localhost:5173
 
 ### 3. GitHub
 
-このリポジトリの `claude/fx-trading-history-analysis-obo1wx` ブランチに実装済みです。`main` にマージするか、そのままNetlifyに接続します。
+このリポジトリの `main` ブランチに実装済みです。Netlify はこの `main` を本番ブランチとして接続します。
 
 ### 4. Netlify デプロイ
 
