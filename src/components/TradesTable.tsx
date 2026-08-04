@@ -122,29 +122,35 @@ export default function TradesTable({ trades, onChanged, filterDay, readOnly }: 
                   />
                 </div>
 
-                <div className="mt-2 flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-gray-500">
-                  <span>
-                    エントリー {fmtJst(t.open_time, 'yyyy/MM/dd HH:mm:ss')}
-                    {t.close_time && <> ／ 決済 {fmtJst(t.close_time, 'yyyy/MM/dd HH:mm:ss')}</>}
-                    <span className="ml-1 text-gray-700">(日本時間)</span>
-                  </span>
-                  {!readOnly && (
-                    <>
-                      <button
-                        className="text-accent hover:underline"
-                        onClick={() => setEditingTrade(t.id)}
-                      >
-                        ✏️ 編集
-                      </button>
-                      <button
-                        className="text-gray-400 hover:text-gray-200"
-                        onClick={() => toggleImage(t.id)}
-                      >
-                        📷 画像
-                      </button>
-                    </>
-                  )}
+                <div className="mt-2 text-xs text-gray-500">
+                  エントリー {fmtJst(t.open_time, 'yyyy/MM/dd HH:mm:ss')}
+                  {t.close_time && <> ／ 決済 {fmtJst(t.close_time, 'yyyy/MM/dd HH:mm:ss')}</>}
+                  <span className="ml-1 text-gray-700">(日本時間)</span>
                 </div>
+
+                {/* 操作ボタン */}
+                {!readOnly && (
+                  <div className="mt-3 flex flex-wrap gap-2 border-t border-border pt-3">
+                    <button
+                      className="btn border border-accent/60 bg-accent/15 text-accent hover:bg-accent/25"
+                      onClick={() => setEditingTrade(t.id)}
+                    >
+                      ✏️ 内容を編集
+                    </button>
+                    <button
+                      className="btn border border-border bg-panel-2 text-gray-200 hover:bg-border"
+                      onClick={() => toggleImage(t.id)}
+                    >
+                      📷 {imgOf[t.id] !== undefined ? '画像を閉じる' : 'スクショを見る'}
+                    </button>
+                    <button
+                      className="btn ml-auto border border-transparent text-gray-500 hover:border-down/50 hover:text-down"
+                      onClick={() => remove(t.id)}
+                    >
+                      🗑 削除
+                    </button>
+                  </div>
+                )}
 
                 {/* 添付画像 */}
                 {imgOf[t.id] !== undefined && (
@@ -192,12 +198,6 @@ export default function TradesTable({ trades, onChanged, filterDay, readOnly }: 
                           onClick={() => setEditingNote(null)}
                         >
                           キャンセル
-                        </button>
-                        <button
-                          className="btn ml-auto text-down hover:bg-down/10"
-                          onClick={() => remove(t.id)}
-                        >
-                          取引を削除
                         </button>
                       </div>
                     </div>
