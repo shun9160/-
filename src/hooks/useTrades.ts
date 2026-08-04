@@ -21,20 +21,25 @@ interface State {
 
 /** デモ表示用の原資 */
 const DEMO_SETTINGS: Settings = {
-  id: 1,
+  user_id: 'demo',
   initial_capital: 100000,
   capital_note: 'サンプルの原資',
 }
 
-export function useTrades(): State {
+/**
+ * @param authed ログイン済みか。未ログイン時はサンプルデータを表示する。
+ */
+export function useTrades(authed: boolean): State {
   const [rawTrades, setRawTrades] = useState<EnrichedTrade[]>([])
   const [dayNotes, setDayNotes] = useState<Record<string, string>>({})
   const [settings, setSettings] = useState<Settings | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
 
+  const live = isSupabaseConfigured && authed
+
   const reload = useCallback(async () => {
-    if (!isSupabaseConfigured) {
+    if (!live) {
       // デモモード: 仮データで UI を表示
       setRawTrades(enrichAll(demoTrades()))
       setDayNotes({})
@@ -64,7 +69,7 @@ export function useTrades(): State {
     } catch {
       setSettings(null)
     }
-  }, [])
+  }, [live])
 
   useEffect(() => {
     void reload()
@@ -78,9 +83,9 @@ export function useTrades(): State {
       loading,
       error,
       configured: isSupabaseConfigured,
-      demo: !isSupabaseConfigured,
+      demo: !live,
       reload,
     }),
-    [rawTrades, dayNotes, settings, loading, error, reload],
+    [rawTrades, dayNotes, settings, loading, error, live, reload],
   )
 }

@@ -2,6 +2,17 @@ import { supabase } from './supabase'
 import type { DayNote, Settings, Trade, TradeInput } from './types'
 
 const NO_CLIENT = 'Supabase が未設定です (.env / Netlify の環境変数を確認してください)'
+const NO_USER = 'ログインが必要です'
+
+/** ログイン中の利用者ID。データは利用者ごとに分かれている。 */
+async function requireUserId(): Promise<string> {
+  if (!supabase) throw new Error(NO_CLIENT)
+  const { data, error } = await supabase.auth.getUser()
+  if (error) throw error
+  const id = data.user?.id
+  if (!id) throw new Error(NO_USER)
+  return id
+}
 
 // 一覧取得では重い screenshot 列を除外して転送量を抑える。
 const LIST_COLUMNS =
@@ -47,14 +58,17 @@ export async function insertTrades(rows: TradeInput[]): Promise<number> {
   if (!supabase) throw new Error(NO_CLIENT)
   if (rows.length === 0) return 0
 
-  const withTicket = rows.filter((r) => r.ticket)
-  const withoutTicket = rows.filter((r) => !r.ticket)
+  const userId = await requireUserId()
+  const owned = rows.map((r) => ({ ...r, user_id: userId }))
+
+  const withTicket = owned.filter((r) => r.ticket)
+  const withoutTicket = owned.filter((r) => !r.ticket)
   let affected = 0
 
   if (withTicket.length) {
     const { data, error } = await supabase
       .from('trades')
-      .upsert(withTicket, { onConflict: 'ticket' })
+      .upsert(withTicket, { onConflict: 'user_id,ticket' })
       .select('id')
     if (error) throw error
     affected += data?.length ?? 0
@@ -84,7 +98,8 @@ export async function deleteTrade(id: string): Promise<void> {
 
 export async function deleteAllTrades(): Promise<void> {
   if (!supabase) throw new Error(NO_CLIENT)
-  const { error } = await supabase.from('trades').delete().neq('id', '')
+  const userId = await requireUserId()
+  const { error } = await supabase.from('trades').delete().eq('user_id', userId)
   if (error) throw error
 }
 
@@ -97,9 +112,13 @@ export async function fetchDayNotes(): Promise<DayNote[]> {
 
 export async function upsertDayNote(day: string, note: string): Promise<void> {
   if (!supabase) throw new Error(NO_CLIENT)
+  const userId = await requireUserId()
   const { error } = await supabase
     .from('day_notes')
-    .upsert({ day, note, updated_at: new Date().toISOString() }, { onConflict: 'day' })
+    .upsert(
+      { user_id: userId, day, note, updated_at: new Date().toISOString() },
+      { onConflict: 'user_id,day' },
+    )
   if (error) throw error
 }
 
@@ -110,10 +129,11 @@ export async function upsertDayNote(day: string, note: string): Promise<void> {
 /** 設定を取得。未登録なら null。重いスクショ列は含めない。 */
 export async function fetchSettings(): Promise<Settings | null> {
   if (!supabase) throw new Error(NO_CLIENT)
+  const userId = await requireUserId()
   const { data, error } = await supabase
     .from('settings')
-    .select('id,initial_capital,capital_note,updated_at')
-    .eq('id', 1)
+    .select('user_id,initial_capital,capital_note,updated_at')
+    .eq('user_id', userId)
     .maybeSingle()
   if (error) throw error
   return (data as Settings | null) ?? null
@@ -122,10 +142,11 @@ export async function fetchSettings(): Promise<Settings | null> {
 /** 原資のスクショ (data URL) を取得。無ければ null。 */
 export async function getCapitalScreenshot(): Promise<string | null> {
   if (!supabase) throw new Error(NO_CLIENT)
+  const userId = await requireUserId()
   const { data, error } = await supabase
     .from('settings')
     .select('capital_screenshot')
-    .eq('id', 1)
+    .eq('user_id', userId)
     .maybeSingle()
   if (error) throw error
   return (data?.capital_screenshot as string | null) ?? null
@@ -138,8 +159,9 @@ export async function saveCapital(patch: {
   capital_screenshot?: string | null
 }): Promise<void> {
   if (!supabase) throw new Error(NO_CLIENT)
+  const userId = await requireUserId()
   const row: Record<string, unknown> = {
-    id: 1,
+    user_id: userId,
     initial_capital: patch.initial_capital,
     capital_note: patch.capital_note,
     updated_at: new Date().toISOString(),
@@ -147,6 +169,62 @@ export async function saveCapital(patch: {
   if (patch.capital_screenshot !== undefined) {
     row.capital_screenshot = patch.capital_screenshot
   }
-  const { error } = await supabase.from('settings').upsert(row, { onConflict: 'id' })
+  const { error } = await supabase.from('settings').upsert(row, { onConflict: 'user_id' })
   if (error) throw error
+}
+
+// ---------------------------------------------------------------
+// 連携コード（MT5のEAなどから書き込むための鍵）
+// ---------------------------------------------------------------
+
+export interface IngestToken {
+  token: string
+  label: string | null
+  created_at: string
+  last_used_at: string | null
+}
+
+export async function fetchIngestTokens(): Promise<IngestToken[]> {
+  if (!supabase) throw new Error(NO_CLIENT)
+  const userId = await requireUserId()
+  const { data, error } = await supabase
+    .from('ingest_tokens')
+    .select('token,label,created_at,last_used_at')
+    .eq('user_id', userId)
+    .order('created_at', { ascending: false })
+  if (error) throw error
+  return (data ?? []) as IngestToken[]
+}
+
+/** 連携コードを新しく発行する */
+export async function createIngestToken(label = 'MT5'): Promise<IngestToken> {
+  if (!supabase) throw new Error(NO_CLIENT)
+  const userId = await requireUserId()
+  const token = generateToken()
+  const { data, error } = await supabase
+    .from('ingest_tokens')
+    .insert({ token, user_id: userId, label })
+    .select('token,label,created_at,last_used_at')
+    .single()
+  if (error) throw error
+  return data as IngestToken
+}
+
+export async function deleteIngestToken(token: string): Promise<void> {
+  if (!supabase) throw new Error(NO_CLIENT)
+  const { error } = await supabase.from('ingest_tokens').delete().eq('token', token)
+  if (error) throw error
+}
+
+/** 読み間違えにくい文字だけで連携コードを作る */
+function generateToken(): string {
+  const alphabet = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789' // I,O,0,1 は除外
+  const bytes = new Uint8Array(20)
+  crypto.getRandomValues(bytes)
+  let out = ''
+  for (let i = 0; i < bytes.length; i++) {
+    if (i > 0 && i % 5 === 0) out += '-'
+    out += alphabet[bytes[i] % alphabet.length]
+  }
+  return out // 例: ABCDE-FGHJK-LMNPQ-RSTUV
 }

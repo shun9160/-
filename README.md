@@ -56,7 +56,18 @@ MT5（MetaTrader 5）の取引履歴をアップロードして、**リスクリ
    - `Project URL` → `VITE_SUPABASE_URL`
    - `anon public` キー → `VITE_SUPABASE_ANON_KEY`
 
-> ⚠️ 本構成は「個人利用・認証なし」で anon キーを使います。anon キーはフロントに露出するため、**URLとキーを知る人は誰でも読み書き可能**です。公開範囲を絞りたい場合は Supabase Auth を導入し、`schema.sql` のポリシーを `auth.uid()` ベースへ変更してください。
+### ログイン（必須）
+
+メールアドレスとパスワードでログインします。**データはログインした人ごとに分かれ、他人の取引は見えません**。
+
+Supabase の **Authentication → Providers → Email** が有効であることを確認してください。
+確認メールを省きたい場合は、同画面の **Confirm email** をオフにします。
+
+### すでに旧バージョンで動かしている場合
+
+`supabase/migrations/` の中を、日付順に SQL Editor で実行してください。
+最後の `2026-08-05_multi_user.sql` は**アプリでアカウント登録を済ませてから**実行すると、
+これまでのデータがそのアカウントに引き継がれます。
 
 ### 2. ローカル開発
 
@@ -75,8 +86,17 @@ npm run dev               # http://localhost:5173
 1. Netlify で **Add new site → Import from GitHub** → このリポジトリを選択
 2. ビルド設定は [`netlify.toml`](./netlify.toml) が自動適用（`npm run build` / publish `dist`）
 3. **Site settings → Environment variables** に次を登録
-   - `VITE_SUPABASE_URL`
-   - `VITE_SUPABASE_ANON_KEY`
+
+   | キー | 値 | 用途 |
+   |---|---|---|
+   | `VITE_SUPABASE_URL` | Project URL | 画面から接続 |
+   | `VITE_SUPABASE_ANON_KEY` | anon public キー | 画面から接続 |
+   | `SUPABASE_URL` | Project URL | MT5からの受信 |
+   | `SUPABASE_SERVICE_ROLE_KEY` | **service_role** キー | MT5からの受信 |
+
+   > `SUPABASE_SERVICE_ROLE_KEY` は `VITE_` を付けません。付けると画面側に埋め込まれて漏れます。
+   > これは `/api/ingest`（MT5からの受信）だけがサーバー側で使います。
+
 4. Deploy
 
 ---

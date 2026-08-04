@@ -65,9 +65,9 @@ export interface DayNote {
   updated_at?: string
 }
 
-/** 設定（原資など）。id=1 の1行だけを使う */
+/** 設定（原資など）。利用者ごとに1行 */
 export interface Settings {
-  id: number
+  user_id: string
   /** 原資（元本, 円） */
   initial_capital: number
   capital_note: string | null

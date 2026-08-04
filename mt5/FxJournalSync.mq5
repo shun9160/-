@@ -1,6 +1,6 @@
 //+------------------------------------------------------------------+
 //|                                              FxJournalSync.mq5   |
-//|  MT5の取引履歴を FX Trading Journal (Supabase) へ自動送信する      |
+//|  MT5の取引履歴を FX Trading Journal へ自動送信する                 |
 //|                                                                  |
 //|  使い方は mt5/README.md を参照してください。                       |
 //+------------------------------------------------------------------+
@@ -8,8 +8,8 @@
 #property version   "1.00"
 
 //--- 設定 ------------------------------------------------------------
-input string  SupabaseUrl      = "https://xxxx.supabase.co"; // Supabase の Project URL
-input string  SupabaseAnonKey  = "";                          // anon public キー
+input string  AppUrl           = "https://fx-daily.netlify.app"; // アプリのURL
+input string  LinkCode         = "";      // 連携コード（アプリのアカウント画面で発行）
 input int     DaysToSync       = 30;      // 何日前までを同期するか
 input int     SyncEveryMinutes = 5;       // 定期同期の間隔(分)。0で定期同期しない
 input bool    SyncOnTradeClose = true;    // 決済のたびに送信する
@@ -21,9 +21,10 @@ input bool    VerboseLog       = true;    // 詳細ログを出す
 //+------------------------------------------------------------------+
 int OnInit()
   {
-   if(StringLen(SupabaseAnonKey) < 20 || StringFind(SupabaseUrl, "http") != 0)
+   if(StringLen(LinkCode) < 8 || StringFind(AppUrl, "http") != 0)
      {
-      Print("[FxJournal] 設定が未入力です。SupabaseUrl と SupabaseAnonKey を入れてください。");
+      Print("[FxJournal] 設定が未入力です。AppUrl と LinkCode を入れてください。");
+      Print("[FxJournal] 連携コードは、アプリ右上のアカウント画面で発行できます。");
       return(INIT_FAILED);
      }
 
@@ -310,24 +311,21 @@ string BuildPositionJson(long posId, long offset, string currency)
   }
 
 //+------------------------------------------------------------------+
-//| Supabase へ送信する                                               |
+//| アプリへ送信する                                                  |
 //|                                                                  |
-//| 取り込み済みの取引は「無視」する設定にしている。決済済みの取引は     |
-//| 内容が変わらない一方、上書きにするとアプリで書いたメモや添付画像が   |
-//| 消えてしまうため。                                                |
+//| 連携コードだけで本人が特定されるので、データベースの鍵は不要。      |
+//| 取り込み済みの取引はアプリ側で無視される（メモや画像を守るため）。   |
 //+------------------------------------------------------------------+
 bool PostTrades(string jsonArray)
   {
-   string url = SupabaseUrl;
+   string url = AppUrl;
    if(StringSubstr(url, StringLen(url) - 1, 1) == "/")
       url = StringSubstr(url, 0, StringLen(url) - 1);
-   url += "/rest/v1/trades?on_conflict=ticket";
+   url += "/api/ingest";
 
    string headers = "";
-   headers += "apikey: "        + SupabaseAnonKey + "\r\n";
-   headers += "Authorization: Bearer " + SupabaseAnonKey + "\r\n";
+   headers += "Authorization: Bearer " + LinkCode + "\r\n";
    headers += "Content-Type: application/json\r\n";
-   headers += "Prefer: resolution=ignore-duplicates,return=minimal\r\n";
 
    char post[];
    int  len = StringToCharArray(jsonArray, post, 0, WHOLE_ARRAY, CP_UTF8);
@@ -345,7 +343,7 @@ bool PostTrades(string jsonArray)
       int err = GetLastError();
       if(err == 4014)
          Print("[FxJournal] 送信できません。MT5の [ツール]→[オプション]→[エキスパートアドバイザ] で "
-               + SupabaseUrl + " を許可URLに追加してください。");
+               + AppUrl + " を許可URLに追加してください。");
       else
          PrintFormat("[FxJournal] 送信エラー (コード %d)", err);
       return(false);

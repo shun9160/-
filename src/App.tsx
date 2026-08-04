@@ -1,7 +1,11 @@
 import { useState } from 'react'
 import { useTrades } from './hooks/useTrades'
+import { useAuth } from './hooks/useAuth'
+import { isSupabaseConfigured } from './lib/supabase'
 import { BottomNav, NAV_ITEMS, TopNav, type ScreenKey } from './components/Nav'
 import Icon from './components/Icon'
+import AuthScreen from './components/AuthScreen'
+import AccountPanel from './components/AccountPanel'
 import Home from './components/Home'
 import CalendarScreen from './components/CalendarScreen'
 import StatsPanel from './components/StatsPanel'
@@ -10,15 +14,22 @@ import TradesTable from './components/TradesTable'
 import Diary from './components/Diary'
 
 export default function App() {
-  const { trades, dayNotes, settings, loading, error, configured, demo, reload } = useTrades()
+  const { session, ready, userEmail, signOut } = useAuth()
+  const [previewMode, setPreviewMode] = useState(false)
+  const authed = Boolean(session)
+
+  const { trades, dayNotes, settings, loading, error, configured, demo, reload } =
+    useTrades(authed)
   const [screen, setScreen] = useState<ScreenKey>('home')
   const [focusDay, setFocusDay] = useState<string | null>(null)
   /** ホームから開く「すべての取引」。タブではなくサブ画面 */
   const [showAllTrades, setShowAllTrades] = useState(false)
+  const [showAccount, setShowAccount] = useState(false)
 
   function go(k: ScreenKey) {
     setScreen(k)
     setShowAllTrades(false)
+    setShowAccount(false)
     window.scrollTo({ top: 0 })
   }
 
@@ -26,10 +37,21 @@ export default function App() {
     setFocusDay(day)
     setScreen('diary')
     setShowAllTrades(false)
+    setShowAccount(false)
     window.scrollTo({ top: 0 })
   }
 
   const item = NAV_ITEMS.find((i) => i.key === screen)!
+
+  // 認証状態の確認中
+  if (!ready) {
+    return <div className="py-32 text-center text-sm text-ink3">読み込み中…</div>
+  }
+
+  // 未ログイン。Supabase未設定のときはサンプル閲覧だけ許す。
+  if (isSupabaseConfigured && !authed && !previewMode) {
+    return <AuthScreen onSkip={() => setPreviewMode(true)} />
+  }
 
   return (
     <div className="min-h-full pb-24 md:pb-10">
@@ -50,13 +72,27 @@ export default function App() {
             >
               <Icon name="refresh" size={17} />
             </button>
+            {authed && (
+              <button
+                onClick={() => {
+                  setShowAccount(true)
+                  setShowAllTrades(false)
+                  window.scrollTo({ top: 0 })
+                }}
+                className="btn btn-quiet px-2.5"
+                title="アカウントと連携設定"
+                aria-label="アカウント"
+              >
+                <Icon name="info" size={17} />
+              </button>
+            )}
           </div>
         </div>
       </header>
 
       <main className="mx-auto max-w-5xl px-4 py-5">
         {/* 画面タイトル: いま何の画面かを常に明示する */}
-        {!showAllTrades && (
+        {!showAllTrades && !showAccount && (
           <div className="mb-4 flex items-baseline gap-2">
             <h2 className="text-xl font-bold tracking-tight">{item.label}</h2>
             <span className="text-sm text-ink3">{item.blurb}</span>
@@ -72,6 +108,14 @@ export default function App() {
 
         {loading ? (
           <div className="py-24 text-center text-sm text-ink3">読み込み中…</div>
+        ) : showAccount ? (
+          <>
+            <button className="btn btn-ghost mb-3 -ml-2" onClick={() => setShowAccount(false)}>
+              <Icon name="back" size={17} />
+              戻る
+            </button>
+            <AccountPanel email={userEmail} onSignOut={signOut} />
+          </>
         ) : showAllTrades ? (
           <>
             <button className="btn btn-ghost mb-3 -ml-2" onClick={() => setShowAllTrades(false)}>
@@ -132,7 +176,7 @@ function DemoNotice() {
       <div className="text-sm">
         <p className="font-semibold text-ink">サンプルデータを表示中</p>
         <p className="mt-0.5 text-ink2">
-          データベースに接続していないため、動きを確認するための仮データです（保存はできません）。
+          ログインしていないため、動きを確認するための仮データです（保存はできません）。
         </p>
       </div>
     </div>
