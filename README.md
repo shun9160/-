@@ -26,6 +26,8 @@ MT5（MetaTrader 5）の取引履歴をアップロードして、**リスクリ
   - 勝率・プロフィットファクター・**ロット**（平均/合計）
   - **時間帯セッション別**（東京/ロンドン/NY, 日本時間）・時間帯別（0〜23時）損益
 - **取引一覧**：1件ごとにRR・実現R・獲得率・決済結果・メモを表示/編集
+  - **✏️ 編集**：登録後にロット・価格・SL/TP・時刻・損益などを修正可能
+  - **📷 スクショ添付**：取引に画像を添付（自動で縮小してDB保存）／表示・差し替え・削除
 - **日記**：日付ごとの振り返りメモ（Supabaseに保存）
 - **取込**：MT5 HTMLレポート / CSV / 手入力。アップロードいただいたスクショ2件はワンクリックで投入可
 
@@ -37,6 +39,7 @@ MT5（MetaTrader 5）の取引履歴をアップロードして、**リスクリ
 
 1. [supabase.com](https://supabase.com) でプロジェクトを作成
 2. **SQL Editor** で [`supabase/schema.sql`](./supabase/schema.sql) を実行（テーブルとRLSを作成）
+   - すでに旧スキーマで作成済みの場合は、[`supabase/migrations/2026-08-04_add_screenshot.sql`](./supabase/migrations/2026-08-04_add_screenshot.sql) を実行してスクショ列を追加してください
 3. **Project Settings → API** から次を控える
    - `Project URL` → `VITE_SUPABASE_URL`
    - `anon public` キー → `VITE_SUPABASE_ANON_KEY`

@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react'
 import type { DayNote, EnrichedTrade } from '../lib/types'
 import { enrichAll } from '../lib/analytics'
 import { demoTrades } from '../lib/demo'
+import { friendlyError } from '../lib/errors'
 import { fetchDayNotes, fetchTrades } from '../lib/repo'
 import { isSupabaseConfigured } from '../lib/supabase'
 
@@ -41,7 +42,7 @@ export function useTrades(): State {
       })
       setDayNotes(map)
     } catch (e) {
-      setError(e instanceof Error ? e.message : String(e))
+      setError(friendlyError(e))
     } finally {
       setLoading(false)
     }

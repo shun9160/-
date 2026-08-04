@@ -25,7 +25,8 @@ create table if not exists public.trades (
   profit       numeric default 0,                 -- 損益(手数料・スワップ除く グロス)
   currency     text default 'JPY',
   note         text,                              -- トレード単位の日記メモ
-  source       text default 'manual',             -- 取込元 (manual / html / csv / seed)
+  screenshot   text,                              -- 添付スクショ (縮小した data URL)
+  source       text default 'manual',             -- 取込元 (manual / html / csv / seed / screenshot)
   created_at   timestamptz default now()
 );
 

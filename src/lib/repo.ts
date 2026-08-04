@@ -3,14 +3,40 @@ import type { DayNote, Trade, TradeInput } from './types'
 
 const NO_CLIENT = 'Supabase が未設定です (.env / Netlify の環境変数を確認してください)'
 
+// 一覧取得では重い screenshot 列を除外して転送量を抑える。
+const LIST_COLUMNS =
+  'id,ticket,symbol,side,volume,open_price,close_price,sl,tp,open_time,close_time,commission,swap,profit,currency,note,source,created_at'
+
 export async function fetchTrades(): Promise<Trade[]> {
   if (!supabase) throw new Error(NO_CLIENT)
   const { data, error } = await supabase
     .from('trades')
-    .select('*')
+    .select(LIST_COLUMNS)
     .order('open_time', { ascending: true })
   if (error) throw error
-  return (data ?? []) as Trade[]
+  return (data ?? []) as unknown as Trade[]
+}
+
+/** 個別トレードの添付スクショ (data URL) を取得。無ければ null。 */
+export async function getTradeScreenshot(id: string): Promise<string | null> {
+  if (!supabase) throw new Error(NO_CLIENT)
+  const { data, error } = await supabase
+    .from('trades')
+    .select('screenshot')
+    .eq('id', id)
+    .single()
+  if (error) throw error
+  return (data?.screenshot as string | null) ?? null
+}
+
+/** 既存トレードの項目を更新する。patch に含めたキーだけ更新。 */
+export async function updateTrade(
+  id: string,
+  patch: Partial<TradeInput>,
+): Promise<void> {
+  if (!supabase) throw new Error(NO_CLIENT)
+  const { error } = await supabase.from('trades').update(patch).eq('id', id)
+  if (error) throw error
 }
 
 /**

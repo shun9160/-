@@ -35,6 +35,14 @@ export function fmtJst(value: Date | string | null | undefined, pattern = 'yyyy/
   return formatInTimeZone(d, JST_TZ, pattern)
 }
 
+/** ソースTZ(ドバイ)の壁時計文字列に戻す。編集フォームの初期値用。 */
+export function fmtDubai(value: Date | string | null | undefined): string {
+  if (!value) return ''
+  const d = typeof value === 'string' ? new Date(value) : value
+  if (isNaN(d.getTime())) return ''
+  return formatInTimeZone(d, 'Asia/Dubai', 'yyyy.MM.dd HH:mm:ss')
+}
+
 /** 日本時間の日付キー (YYYY-MM-DD) */
 export function jstDayKey(value: Date | string): string {
   const d = typeof value === 'string' ? new Date(value) : value

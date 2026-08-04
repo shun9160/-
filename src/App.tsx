@@ -37,7 +37,7 @@ export default function App() {
 
       {demo && <DemoNotice />}
       {error && (
-        <div className="mb-4 rounded-xl border border-down/40 bg-down/10 p-4 text-sm text-down">
+        <div className="mb-4 whitespace-pre-wrap rounded-xl border border-down/40 bg-down/10 p-4 text-sm text-down">
           読み込みエラー: {error}
         </div>
       )}

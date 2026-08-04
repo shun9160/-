@@ -19,6 +19,8 @@ export interface Trade {
   profit: number
   currency: string
   note: string | null
+  /** 添付スクショ (縮小した data URL)。一覧取得では省略され undefined になる */
+  screenshot?: string | null
   source: string
   created_at?: string
 }
