@@ -1,112 +1,137 @@
 import { useState } from 'react'
 import { useTrades } from './hooks/useTrades'
-import Overview from './components/Overview'
+import { BottomNav, NAV_ITEMS, TopNav, type ScreenKey } from './components/Nav'
+import Icon from './components/Icon'
+import Home from './components/Home'
+import CalendarScreen from './components/CalendarScreen'
 import StatsPanel from './components/StatsPanel'
 import UploadPanel from './components/UploadPanel'
 import TradesTable from './components/TradesTable'
 import Diary from './components/Diary'
 
-type Tab = 'dashboard' | 'trades' | 'diary'
-
 export default function App() {
   const { trades, dayNotes, loading, error, configured, demo, reload } = useTrades()
-  const [tab, setTab] = useState<Tab>('dashboard')
+  const [screen, setScreen] = useState<ScreenKey>('home')
   const [focusDay, setFocusDay] = useState<string | null>(null)
+  /** ホームから開く「すべての取引」。タブではなくサブ画面 */
+  const [showAllTrades, setShowAllTrades] = useState(false)
+
+  function go(k: ScreenKey) {
+    setScreen(k)
+    setShowAllTrades(false)
+    window.scrollTo({ top: 0 })
+  }
 
   function openDay(day: string) {
     setFocusDay(day)
-    setTab('diary')
+    setScreen('diary')
+    setShowAllTrades(false)
+    window.scrollTo({ top: 0 })
   }
 
+  const item = NAV_ITEMS.find((i) => i.key === screen)!
+
   return (
-    <div className="mx-auto max-w-4xl px-4 pb-24 pt-6">
-      {/* ヘッダ */}
-      <header className="mb-5 flex items-center justify-between">
-        <div>
-          <h1 className="text-xl font-bold">FX Trading Journal</h1>
-          <p className="text-xs text-gray-500">MT5取引履歴の分析・日記 — 日本時間で記録</p>
+    <div className="min-h-full pb-24 md:pb-10">
+      {/* ヘッダー */}
+      <header className="sticky top-0 z-20 border-b border-line bg-page/90 backdrop-blur">
+        <div className="mx-auto flex max-w-5xl items-center gap-4 px-4 py-3">
+          <div className="min-w-0">
+            <h1 className="truncate text-[15px] font-bold tracking-tight">FX Trading Journal</h1>
+            <p className="truncate text-xs text-ink3">日本時間で記録・分析</p>
+          </div>
+          <div className="ml-auto flex items-center gap-2">
+            <TopNav current={screen} onChange={go} />
+            <button
+              onClick={() => reload()}
+              className="btn btn-quiet px-2.5"
+              title="最新の状態に更新"
+              aria-label="更新"
+            >
+              <Icon name="refresh" size={17} />
+            </button>
+          </div>
         </div>
-        <button
-          onClick={() => reload()}
-          className="btn bg-panel-2 text-gray-300 hover:bg-border"
-          title="再読込"
-        >
-          ⟳ 更新
-        </button>
       </header>
 
-      {demo && <DemoNotice />}
-      {error && (
-        <div className="mb-4 whitespace-pre-wrap rounded-xl border border-down/40 bg-down/10 p-4 text-sm text-down">
-          読み込みエラー: {error}
-        </div>
-      )}
+      <main className="mx-auto max-w-5xl px-4 py-5">
+        {/* 画面タイトル: いま何の画面かを常に明示する */}
+        {!showAllTrades && (
+          <div className="mb-4 flex items-baseline gap-2">
+            <h2 className="text-xl font-bold tracking-tight">{item.label}</h2>
+            <span className="text-sm text-ink3">{item.blurb}</span>
+          </div>
+        )}
 
-      {/* ナビ */}
-      <nav className="mb-5 flex gap-2">
-        {(
-          [
-            ['dashboard', 'ダッシュボード'],
-            ['trades', '取引一覧'],
-            ['diary', '日記'],
-          ] as [Tab, string][]
-        ).map(([k, label]) => (
-          <button
-            key={k}
-            onClick={() => setTab(k)}
-            className={`chip ${tab === k ? 'chip-on' : 'chip-off'}`}
-          >
-            {label}
-          </button>
-        ))}
-      </nav>
+        {demo && <DemoNotice />}
+        {error && (
+          <div className="mb-4 rounded-2xl border border-down/25 bg-down-soft px-4 py-3 text-sm text-down">
+            読み込みエラー: {error}
+          </div>
+        )}
 
-      {loading ? (
-        <div className="py-20 text-center text-sm text-gray-500">読み込み中…</div>
-      ) : (
-        <>
-          {tab === 'dashboard' && (
-            <div className="space-y-4">
-              <Overview trades={trades} onSelectDay={openDay} />
-              <StatsPanel trades={trades} />
-              <UploadPanel onChanged={reload} disabled={!configured} />
-            </div>
-          )}
-          {tab === 'trades' && (
-            <div className="space-y-4">
-              <UploadPanel onChanged={reload} disabled={!configured} />
-              <TradesTable trades={trades} onChanged={reload} readOnly={demo} />
-            </div>
-          )}
-          {tab === 'diary' && (
-            <Diary
-              trades={trades}
-              dayNotes={dayNotes}
-              onChanged={reload}
-              focusDay={focusDay}
-              readOnly={demo}
-            />
-          )}
-        </>
-      )}
+        {loading ? (
+          <div className="py-24 text-center text-sm text-ink3">読み込み中…</div>
+        ) : showAllTrades ? (
+          <>
+            <button className="btn btn-ghost mb-3 -ml-2" onClick={() => setShowAllTrades(false)}>
+              <Icon name="back" size={17} />
+              ホームに戻る
+            </button>
+            <h2 className="mb-3 text-xl font-bold tracking-tight">
+              すべての取引
+              <span className="ml-2 text-sm font-medium text-ink3">{trades.length}件</span>
+            </h2>
+            <TradesTable trades={trades} onChanged={reload} readOnly={demo} />
+          </>
+        ) : (
+          <>
+            {screen === 'home' && (
+              <Home
+                trades={trades}
+                onShowAll={() => setShowAllTrades(true)}
+                onAdd={() => go('add')}
+              />
+            )}
+            {screen === 'calendar' && (
+              <CalendarScreen trades={trades} onSelectDay={openDay} />
+            )}
+            {screen === 'add' && (
+              <UploadPanel onChanged={reload} disabled={!configured} onDone={() => go('home')} />
+            )}
+            {screen === 'stats' && <StatsPanel trades={trades} />}
+            {screen === 'diary' && (
+              <Diary
+                trades={trades}
+                dayNotes={dayNotes}
+                onChanged={reload}
+                focusDay={focusDay}
+                readOnly={demo}
+              />
+            )}
+          </>
+        )}
 
-      <footer className="mt-12 text-center text-xs text-gray-700">
-        時刻はドバイ時間 (UTC+4) で取り込み、日本時間 (UTC+9) に変換して記録しています。
-      </footer>
+        <p className="mt-10 text-center text-xs text-ink3">
+          MT5の時刻（ドバイ / UTC+4）を日本時間に変換して記録しています
+        </p>
+      </main>
+
+      <BottomNav current={screen} onChange={go} />
     </div>
   )
 }
 
 function DemoNotice() {
   return (
-    <div className="mb-4 rounded-xl border border-yellow-600/40 bg-yellow-500/10 p-4 text-sm">
-      <div className="font-semibold text-yellow-400">🧪 デモモード（仮データ表示中）</div>
-      <p className="mt-1 text-gray-300">
-        Supabase が未設定のため、サンプル取引でUIを表示しています（編集・保存は無効）。
-        実データを使うには <code className="rounded bg-panel-2 px-1">VITE_SUPABASE_URL</code> と{' '}
-        <code className="rounded bg-panel-2 px-1">VITE_SUPABASE_ANON_KEY</code> を設定してください
-        （ローカルは <code className="rounded bg-panel-2 px-1">.env</code>、Netlify は環境変数）。手順は README 参照。
-      </p>
+    <div className="mb-4 flex gap-3 rounded-2xl border border-line bg-brand-soft/60 px-4 py-3">
+      <Icon name="info" size={18} className="mt-0.5 shrink-0 text-brand" />
+      <div className="text-sm">
+        <p className="font-semibold text-ink">サンプルデータを表示中</p>
+        <p className="mt-0.5 text-ink2">
+          データベースに接続していないため、動きを確認するための仮データです（保存はできません）。
+        </p>
+      </div>
     </div>
   )
 }

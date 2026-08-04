@@ -5,30 +5,38 @@ import { parseAuto } from '../lib/mt5Parser'
 import { insertTrades } from '../lib/repo'
 import { seedTrades } from '../lib/seed'
 import TradeForm from './TradeForm'
+import Icon from './Icon'
 
 interface Props {
   onChanged: () => void
   disabled?: boolean
+  /** 保存後にホームへ戻すなど */
+  onDone?: () => void
 }
 
-export default function UploadPanel({ onChanged, disabled }: Props) {
+type Method = 'manual' | 'file'
+
+export default function UploadPanel({ onChanged, disabled, onDone }: Props) {
   const fileRef = useRef<HTMLInputElement>(null)
+  const [method, setMethod] = useState<Method>('manual')
   const [busy, setBusy] = useState(false)
   const [msg, setMsg] = useState<{ text: string; ok: boolean } | null>(null)
-  const [showManual, setShowManual] = useState(false)
 
   async function commit(rows: TradeInput[], label: string) {
     if (rows.length === 0) {
-      setMsg({ text: '取り込める取引が見つかりませんでした。形式をご確認ください。', ok: false })
+      setMsg({
+        text: '取引を読み取れませんでした。MT5の「レポート → HTML」で書き出したファイルをお試しください。',
+        ok: false,
+      })
       return
     }
     setBusy(true)
     try {
       const n = await insertTrades(rows)
-      setMsg({ text: `${label}: ${n}件を保存しました。`, ok: true })
+      setMsg({ text: `${label} ${n}件を保存しました`, ok: true })
       onChanged()
     } catch (e) {
-      setMsg({ text: `保存エラー: ${friendlyError(e)}`, ok: false })
+      setMsg({ text: friendlyError(e), ok: false })
     } finally {
       setBusy(false)
     }
@@ -42,70 +50,146 @@ export default function UploadPanel({ onChanged, disabled }: Props) {
     try {
       const all: TradeInput[] = []
       for (const file of files) {
-        const text = await file.text()
-        all.push(...parseAuto(file.name, text))
+        all.push(...parseAuto(file.name, await file.text()))
       }
-      await commit(all, 'ファイル取込')
+      await commit(all, 'ファイルから')
     } finally {
       if (fileRef.current) fileRef.current.value = ''
     }
   }
 
   return (
-    <div className="card p-5">
-      <h2 className="text-base font-semibold">データ取込</h2>
-      <p className="mt-1 text-xs text-gray-500">
-        PC版MT5の「口座履歴 → レポート → HTML」/ CSV をアップロード、または「スクショ＋手入力」で1件ずつ追加。
-        時刻はドバイ時間として取り込み、日本時間に変換して記録します。
-      </p>
-
-      <div className="mt-4 flex flex-wrap gap-2">
-        <button
-          className="btn bg-panel-2 text-gray-200 hover:bg-border disabled:opacity-40"
-          onClick={() => fileRef.current?.click()}
-          disabled={disabled || busy}
-        >
-          {busy ? '処理中…' : 'HTML / CSV を選択'}
-        </button>
-        <input
-          ref={fileRef}
-          type="file"
-          accept=".html,.htm,.csv,.tsv,.txt"
-          multiple
-          className="hidden"
-          onChange={onFile}
+    <div className="flex flex-col gap-4">
+      {/* 方法を選ぶ */}
+      <div className="grid grid-cols-2 gap-2.5">
+        <MethodCard
+          active={method === 'manual'}
+          onClick={() => setMethod('manual')}
+          icon="camera"
+          title="スクショ／手入力"
+          desc="1件ずつ記録する"
         />
-        <button
-          className="btn bg-accent text-white hover:bg-blue-500 disabled:opacity-40"
-          onClick={() => setShowManual((v) => !v)}
-          disabled={disabled}
-        >
-          {showManual ? '入力フォームを閉じる' : '＋ スクショ／手入力で追加'}
-        </button>
-        <button
-          className="btn bg-panel-2 text-gray-200 hover:bg-border disabled:opacity-40"
-          onClick={() => commit(seedTrades, 'サンプル2件を投入')}
-          disabled={disabled || busy}
-          title="スクショ(画像1・2)の2トレードを投入します"
-        >
-          サンプル2件を投入
-        </button>
+        <MethodCard
+          active={method === 'file'}
+          onClick={() => setMethod('file')}
+          icon="upload"
+          title="MT5レポート"
+          desc="まとめて取り込む"
+        />
       </div>
 
-      {msg && <div className={`mt-3 text-sm ${msg.ok ? 'text-up' : 'text-down'}`}>{msg.text}</div>}
+      {msg && (
+        <div
+          className={`flex items-start gap-2 rounded-2xl border px-4 py-3 text-sm ${
+            msg.ok
+              ? 'border-up/25 bg-up-soft text-up'
+              : 'border-down/25 bg-down-soft text-down'
+          }`}
+        >
+          <Icon name={msg.ok ? 'check' : 'info'} size={17} className="mt-0.5 shrink-0" />
+          <div className="flex-1">
+            <p className="font-semibold">{msg.text}</p>
+            {msg.ok && onDone && (
+              <button className="mt-1 font-semibold underline" onClick={onDone}>
+                ホームで確認する
+              </button>
+            )}
+          </div>
+        </div>
+      )}
 
-      {showManual && (
-        <div className="mt-4 border-t border-border pt-4">
+      {method === 'manual' ? (
+        <div className="card p-4 sm:p-5">
           <TradeForm
             mode="add"
             onSubmit={async (input) => {
-              await commit([input], input.screenshot ? 'スクショから追加' : '手入力')
-              setShowManual(false)
+              await commit([input], '取引を')
             }}
-            onCancel={() => setShowManual(false)}
           />
+        </div>
+      ) : (
+        <div className="card p-5">
+          <h3 className="text-base font-bold">MT5のレポートを読み込む</h3>
+          <ol className="mt-3 flex flex-col gap-2 text-sm text-ink2">
+            <Step n={1}>パソコン版MT5の下部にある「口座履歴」タブを右クリック</Step>
+            <Step n={2}>「レポート」→「HTML」を選んで保存</Step>
+            <Step n={3}>下のボタンでそのファイルを選ぶ</Step>
+          </ol>
+          <button
+            className="btn btn-primary mt-4 w-full sm:w-auto"
+            onClick={() => fileRef.current?.click()}
+            disabled={disabled || busy}
+          >
+            <Icon name="upload" size={17} />
+            {busy ? '読み込み中…' : 'ファイルを選ぶ'}
+          </button>
+          <input
+            ref={fileRef}
+            type="file"
+            accept=".html,.htm,.csv,.tsv,.txt"
+            multiple
+            className="hidden"
+            onChange={onFile}
+          />
+          <p className="mt-2 text-xs text-ink3">
+            CSVにも対応しています。同じ取引を二重に登録することはありません。
+          </p>
+
+          <div className="mt-5 border-t border-line pt-4">
+            <p className="text-xs text-ink3">動作を試したいときは</p>
+            <button
+              className="btn btn-quiet mt-1.5"
+              onClick={() => commit(seedTrades, 'サンプルを')}
+              disabled={disabled || busy}
+            >
+              サンプル2件を入れる
+            </button>
+          </div>
         </div>
       )}
     </div>
+  )
+}
+
+function MethodCard({
+  active,
+  onClick,
+  icon,
+  title,
+  desc,
+}: {
+  active: boolean
+  onClick: () => void
+  icon: 'camera' | 'upload'
+  title: string
+  desc: string
+}) {
+  return (
+    <button
+      onClick={onClick}
+      aria-pressed={active}
+      className={`flex flex-col items-start gap-1 rounded-2xl border p-4 text-left transition-colors ${
+        active
+          ? 'border-brand bg-brand-soft'
+          : 'border-line bg-surface hover:bg-sunken'
+      }`}
+    >
+      <span className={active ? 'text-brand' : 'text-ink3'}>
+        <Icon name={icon} size={22} />
+      </span>
+      <span className={`text-sm font-bold ${active ? 'text-brand' : 'text-ink'}`}>{title}</span>
+      <span className="text-xs text-ink2">{desc}</span>
+    </button>
+  )
+}
+
+function Step({ n, children }: { n: number; children: React.ReactNode }) {
+  return (
+    <li className="flex gap-2.5">
+      <span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-sunken text-[11px] font-bold text-ink2">
+        {n}
+      </span>
+      {children}
+    </li>
   )
 }

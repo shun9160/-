@@ -4,10 +4,10 @@ import { friendlyError } from '../lib/errors'
 import { fileToDownscaledDataUrl } from '../lib/image'
 import { getTradeScreenshot } from '../lib/repo'
 import { fmtDubai, parseMt5DateTime } from '../lib/timezone'
+import Icon from './Icon'
 
 interface Props {
   mode: 'add' | 'edit'
-  /** edit 時の元データ */
   trade?: Trade
   onSubmit: (input: TradeInput, opts: { screenshotChanged: boolean }) => Promise<void>
   onCancel?: () => void
@@ -19,6 +19,7 @@ export default function TradeForm({ mode, trade, onSubmit, onCancel }: Props) {
   const fileRef = useRef<HTMLInputElement>(null)
   const [busy, setBusy] = useState(false)
   const [err, setErr] = useState<string | null>(null)
+  const [showDetail, setShowDetail] = useState(mode === 'edit')
 
   const [f, setF] = useState({
     ticket: trade?.ticket ?? '',
@@ -39,7 +40,7 @@ export default function TradeForm({ mode, trade, onSubmit, onCancel }: Props) {
 
   // 画像: undefined=未変更 / string=新規 / null=削除
   const [shot, setShot] = useState<string | null | undefined>(undefined)
-  const [shotPreview, setShotPreview] = useState<string | null>(null)
+  const [preview, setPreview] = useState<string | null>(null)
   const [loadingShot, setLoadingShot] = useState(false)
 
   const set =
@@ -54,7 +55,7 @@ export default function TradeForm({ mode, trade, onSubmit, onCancel }: Props) {
     try {
       const dataUrl = await fileToDownscaledDataUrl(file)
       setShot(dataUrl)
-      setShotPreview(dataUrl)
+      setPreview(dataUrl)
     } catch (e) {
       setErr(friendlyError(e))
     } finally {
@@ -67,8 +68,8 @@ export default function TradeForm({ mode, trade, onSubmit, onCancel }: Props) {
     setLoadingShot(true)
     try {
       const url = await getTradeScreenshot(trade.id)
-      setShotPreview(url)
-      if (!url) setErr('この取引に画像はありません')
+      setPreview(url)
+      if (!url) setErr('この取引に画像は登録されていません')
     } catch (e) {
       setErr(friendlyError(e))
     } finally {
@@ -76,17 +77,12 @@ export default function TradeForm({ mode, trade, onSubmit, onCancel }: Props) {
     }
   }
 
-  function removeImage() {
-    setShot(null)
-    setShotPreview(null)
-  }
-
   async function submit() {
     setErr(null)
     const openT = parseMt5DateTime(f.open_time)
-    if (!f.symbol.trim()) return setErr('シンボルを入力してください')
+    if (!f.symbol.trim()) return setErr('通貨ペアを入力してください')
     if (!openT)
-      return setErr('エントリー時刻を「2026.08.03 17:23:23」の形式で入力してください（ドバイ時間）')
+      return setErr('エントリー時刻は「2026.08.03 17:23:23」の形式で入力してください')
     if (!(Number(f.volume) > 0)) return setErr('ロットを入力してください')
 
     const closeT = parseMt5DateTime(f.close_time)
@@ -106,9 +102,8 @@ export default function TradeForm({ mode, trade, onSubmit, onCancel }: Props) {
       profit: Number(f.profit) || 0,
       currency: f.currency.trim() || 'JPY',
       note: trade?.note ?? null,
-      source: mode === 'add' ? (shot ? 'screenshot' : 'manual') : trade?.source ?? 'manual',
+      source: mode === 'add' ? (shot ? 'screenshot' : 'manual') : (trade?.source ?? 'manual'),
     }
-    // 画像の反映: 変更があるときだけ含める
     const screenshotChanged = shot !== undefined
     if (screenshotChanged) input.screenshot = shot
 
@@ -121,56 +116,65 @@ export default function TradeForm({ mode, trade, onSubmit, onCancel }: Props) {
     }
   }
 
-  const field = (label: string, k: keyof typeof f, ph = '', mono = false) => (
-    <label className="flex flex-col gap-1 text-xs text-gray-400">
-      {label}
+  const field = (label: string, k: keyof typeof f, ph = '', hint?: string) => (
+    <label className="flex flex-col gap-1">
+      <span className="label">{label}</span>
       <input
-        className={`rounded-lg border border-border bg-panel-2 px-2 py-1.5 text-sm text-gray-100 outline-none focus:border-accent ${
-          mono ? 'tabular-nums' : ''
-        }`}
+        className="input tabular-nums"
         value={f[k] as string}
         onChange={set(k)}
         placeholder={ph}
-        inputMode={mono ? 'decimal' : undefined}
+        inputMode={
+          ['volume', 'open_price', 'close_price', 'sl', 'tp', 'profit', 'commission'].includes(k)
+            ? 'decimal'
+            : undefined
+        }
       />
+      {hint && <span className="text-[11px] text-ink3">{hint}</span>}
     </label>
   )
 
   return (
     <div className="flex flex-col gap-4">
       {/* 画像 */}
-      <div className="rounded-xl border border-dashed border-border bg-panel-2/50 p-3">
-        <div className="mb-2 flex items-center justify-between">
-          <span className="text-xs font-semibold text-gray-300">📷 スクショ（任意）</span>
-          <div className="flex gap-2">
-            {mode === 'edit' && shot === undefined && (
-              <button
-                className="btn bg-panel-2 text-xs text-gray-300 hover:bg-border"
-                onClick={showExisting}
-                disabled={loadingShot}
-                type="button"
-              >
-                {loadingShot ? '読込中…' : '現在の画像を表示'}
+      <div>
+        <p className="label mb-1.5">スクリーンショット（任意）</p>
+        {preview ? (
+          <div className="overflow-hidden rounded-2xl border border-line">
+            <img src={preview} alt="添付画像" className="max-h-72 w-full object-contain bg-sunken" />
+            <div className="flex gap-1.5 border-t border-line p-2">
+              <button className="btn btn-quiet" onClick={() => fileRef.current?.click()} type="button">
+                差し替え
               </button>
-            )}
-            <button
-              className="btn bg-accent text-xs text-white hover:bg-blue-500"
-              onClick={() => fileRef.current?.click()}
-              type="button"
-            >
-              画像を選ぶ
-            </button>
-            {(shotPreview || shot) && (
               <button
-                className="btn text-xs text-down hover:bg-down/10"
-                onClick={removeImage}
+                className="btn btn-danger ml-auto"
                 type="button"
+                onClick={() => {
+                  setShot(null)
+                  setPreview(null)
+                }}
               >
                 削除
               </button>
+            </div>
+          </div>
+        ) : (
+          <div className="flex flex-wrap gap-2">
+            <button
+              className="btn btn-quiet"
+              onClick={() => fileRef.current?.click()}
+              type="button"
+            >
+              <Icon name="camera" size={17} />
+              画像を選ぶ
+            </button>
+            {mode === 'edit' && shot === undefined && (
+              <button className="btn btn-ghost" onClick={showExisting} disabled={loadingShot} type="button">
+                {loadingShot ? '読み込み中…' : '登録済みの画像を見る'}
+              </button>
             )}
           </div>
-        </div>
+        )}
         <input
           ref={fileRef}
           type="file"
@@ -178,62 +182,70 @@ export default function TradeForm({ mode, trade, onSubmit, onCancel }: Props) {
           className="hidden"
           onChange={onPickImage}
         />
-        {shotPreview ? (
-          <img
-            src={shotPreview}
-            alt="スクショ"
-            className="max-h-72 w-full rounded-lg object-contain"
-          />
-        ) : (
-          <p className="text-xs text-gray-600">
-            スマホなら写真・カメラから選べます。画像は自動で縮小して保存されます。
-          </p>
-        )}
       </div>
 
-      {/* 入力欄 */}
-      <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
-        <label className="flex flex-col gap-1 text-xs text-gray-400">
-          売買
-          <select
-            className="rounded-lg border border-border bg-panel-2 px-2 py-1.5 text-sm text-gray-100 outline-none focus:border-accent"
-            value={f.side}
-            onChange={set('side')}
-          >
-            <option value="buy">buy</option>
-            <option value="sell">sell</option>
-          </select>
+      {/* 必須の3項目 */}
+      <div className="grid grid-cols-2 gap-3">
+        <label className="flex flex-col gap-1">
+          <span className="label">売買</span>
+          <div className="flex rounded-xl bg-sunken p-1">
+            {(
+              [
+                ['buy', '買い'],
+                ['sell', '売り'],
+              ] as const
+            ).map(([v, l]) => (
+              <button
+                key={v}
+                type="button"
+                onClick={() => setF({ ...f, side: v })}
+                className={`seg flex-1 ${f.side === v ? 'seg-on' : 'seg-off'}`}
+              >
+                {l}
+              </button>
+            ))}
+          </div>
         </label>
-        {field('シンボル', 'symbol')}
-        {field('ロット', 'volume', '0.02', true)}
-        {field('ポジション番号', 'ticket', '19235918')}
-        {field('建値', 'open_price', '4033.89', true)}
-        {field('決済価格', 'close_price', '4036.50', true)}
-        {field('S/L', 'sl', '4034.14', true)}
-        {field('T/P', 'tp', '', true)}
-        {field('エントリー時刻(ドバイ)', 'open_time', '2026.08.03 17:23:23')}
-        {field('決済時刻(ドバイ)', 'close_time', '2026.08.03 17:35:36')}
-        {field('損益', 'profit', '817', true)}
-        {field('手数料', 'commission', '-8', true)}
+        {field('ロット', 'volume', '0.02')}
+        {field('エントリー時刻', 'open_time', '2026.08.03 17:23:23', 'MT5の表示（ドバイ時間）のまま')}
+        {field('損益（円）', 'profit', '817')}
       </div>
 
-      {err && <div className="text-sm text-down">{err}</div>}
+      {/* 詳細 */}
+      {showDetail ? (
+        <div className="grid grid-cols-2 gap-3 border-t border-line pt-4">
+          {field('通貨ペア', 'symbol')}
+          {field('決済時刻', 'close_time', '2026.08.03 17:35:36')}
+          {field('建値', 'open_price', '4033.89')}
+          {field('決済価格', 'close_price', '4036.50')}
+          {field('損切り S/L', 'sl', '4034.14', '入れるとリスクリワードを計算')}
+          {field('利確 T/P', 'tp', '4040.00', '入れると達成率を計算')}
+          {field('手数料', 'commission', '-8')}
+          {field('ポジション番号', 'ticket', '19235918')}
+        </div>
+      ) : (
+        <button
+          type="button"
+          className="btn btn-quiet self-start"
+          onClick={() => setShowDetail(true)}
+        >
+          <Icon name="plus" size={16} />
+          価格・損切り・利確も入力する
+        </button>
+      )}
+
+      {err && (
+        <p className="rounded-xl border border-down/25 bg-down-soft px-3 py-2 text-sm text-down">
+          {err}
+        </p>
+      )}
 
       <div className="flex gap-2">
-        <button
-          className="btn bg-accent text-white hover:bg-blue-500 disabled:opacity-40"
-          onClick={submit}
-          disabled={busy}
-          type="button"
-        >
-          {busy ? '保存中…' : mode === 'add' ? '追加' : '更新を保存'}
+        <button className="btn btn-primary flex-1 sm:flex-none" onClick={submit} disabled={busy} type="button">
+          {busy ? '保存中…' : mode === 'add' ? '記録する' : '変更を保存'}
         </button>
         {onCancel && (
-          <button
-            className="btn bg-panel-2 text-gray-300 hover:bg-border"
-            onClick={onCancel}
-            type="button"
-          >
+          <button className="btn btn-ghost" onClick={onCancel} type="button">
             キャンセル
           </button>
         )}

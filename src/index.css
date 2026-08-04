@@ -2,8 +2,9 @@
 @tailwind components;
 @tailwind utilities;
 
+/* 白基調に意図的に統一している（ダークテーマは持たない） */
 :root {
-  color-scheme: dark;
+  color-scheme: light;
 }
 
 html,
@@ -14,19 +15,25 @@ body,
 
 body {
   margin: 0;
-  background: #0b0e11;
-  color: #e6edf3;
+  background: #fafafc;
+  color: #18171f;
   -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
 }
 
-/* スクロールバー (webkit) */
+/* iOS のセーフエリアぶんだけ下タブを持ち上げる */
+.pb-safe {
+  padding-bottom: env(safe-area-inset-bottom, 0px);
+}
+
 ::-webkit-scrollbar {
-  width: 8px;
-  height: 8px;
+  width: 10px;
+  height: 10px;
 }
 ::-webkit-scrollbar-thumb {
-  background: #2a333d;
-  border-radius: 4px;
+  background: #dcdce6;
+  border-radius: 6px;
+  border: 3px solid #fafafc;
 }
 ::-webkit-scrollbar-track {
   background: transparent;
@@ -34,18 +41,64 @@ body {
 
 @layer components {
   .card {
-    @apply rounded-2xl border border-border bg-panel;
+    @apply rounded-2xl border border-line bg-surface shadow-card;
   }
-  .chip {
-    @apply rounded-full px-4 py-1.5 text-sm font-medium transition-colors;
-  }
-  .chip-on {
-    @apply bg-accent text-white;
-  }
-  .chip-off {
-    @apply bg-panel-2 text-gray-400 hover:text-gray-200;
-  }
+
+  /* ボタン */
   .btn {
-    @apply rounded-lg px-3 py-1.5 text-sm font-medium transition-colors;
+    @apply inline-flex items-center justify-center gap-1.5 rounded-xl px-3.5 py-2 text-sm font-semibold transition-colors;
+  }
+  .btn-primary {
+    @apply bg-brand text-white hover:bg-brand2;
+  }
+  .btn-quiet {
+    @apply border border-line bg-surface text-ink hover:bg-sunken;
+  }
+  .btn-ghost {
+    @apply text-ink2 hover:bg-sunken hover:text-ink;
+  }
+  .btn-danger {
+    @apply text-down hover:bg-down-soft;
+  }
+  .btn:disabled {
+    @apply cursor-not-allowed opacity-40;
+  }
+
+  /* セグメント切替 */
+  .seg {
+    @apply rounded-lg px-3 py-1.5 text-sm font-semibold transition-colors;
+  }
+  .seg-on {
+    @apply bg-surface text-ink shadow-card;
+  }
+  .seg-off {
+    @apply text-ink2 hover:text-ink;
+  }
+
+  /* 入力 */
+  .input {
+    @apply w-full rounded-xl border border-line bg-surface px-3 py-2 text-sm text-ink outline-none transition-colors placeholder:text-ink3 focus:border-brand focus:ring-2 focus:ring-brand/15;
+  }
+  .label {
+    @apply text-xs font-medium text-ink2;
+  }
+
+  /* 見出しのかぶせラベル */
+  .eyebrow {
+    @apply text-xs font-semibold uppercase tracking-wider text-ink3;
+  }
+}
+
+/* キーボード操作時のフォーカスを必ず見せる */
+:focus-visible {
+  outline: 2px solid #6d4aff;
+  outline-offset: 2px;
+  border-radius: 6px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  * {
+    animation-duration: 0.01ms !important;
+    transition-duration: 0.01ms !important;
   }
 }

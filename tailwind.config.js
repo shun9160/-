@@ -4,16 +4,53 @@ export default {
   theme: {
     extend: {
       colors: {
-        bg: '#0b0e11',
-        panel: '#161b22',
-        'panel-2': '#1c2530',
-        border: '#232b36',
-        up: '#16c784',
-        down: '#ea3943',
-        accent: '#3b82f6',
+        // 面 — 白基調。ニュートラルはアクセント(紫)寄りにわずかに振っている
+        page: '#FAFAFC',
+        surface: '#FFFFFF',
+        sunken: '#F4F4F8',
+        line: '#E9E9F0',
+
+        // 文字
+        ink: '#18171F',
+        ink2: '#6B6A7B',
+        ink3: '#9C9BAA',
+
+        // ブランド(紫)
+        brand: '#6D4AFF',
+        brand2: '#8B6DFF',
+        'brand-soft': '#F1EDFF',
+
+        // 損益 — 検証済み(色覚多様性ΔE 11.6 / コントラスト合格)。
+        // 色だけに頼らず、数値には必ず +/- 記号を併記すること。
+        up: '#16A34A',
+        'up-soft': '#E8F6ED',
+        down: '#B42318',
+        'down-soft': '#FCECEA',
       },
       fontFamily: {
-        sans: ['-apple-system', 'BlinkMacSystemFont', 'Segoe UI', 'Roboto', 'Helvetica Neue', 'Arial', 'sans-serif'],
+        sans: [
+          '-apple-system',
+          'BlinkMacSystemFont',
+          '"Hiragino Sans"',
+          '"Hiragino Kaku Gothic ProN"',
+          '"Noto Sans JP"',
+          '"Segoe UI"',
+          'Roboto',
+          'sans-serif',
+        ],
+      },
+      fontSize: {
+        // 数字を大きく見せるための追加ステップ
+        stat: ['2rem', { lineHeight: '1.1', letterSpacing: '-0.02em' }],
+        hero: ['2.75rem', { lineHeight: '1.05', letterSpacing: '-0.03em' }],
+      },
+      boxShadow: {
+        card: '0 1px 2px rgba(24, 23, 31, 0.04)',
+        raised: '0 4px 16px rgba(24, 23, 31, 0.08)',
+        nav: '0 -1px 0 #E9E9F0',
+      },
+      borderRadius: {
+        xl2: '1rem',
       },
     },
   },
