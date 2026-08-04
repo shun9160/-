@@ -49,6 +49,7 @@ export default function TradeForm({ mode, trade, onSubmit, onCancel }: Props) {
   const [ocrBusy, setOcrBusy] = useState(false)
   const [ocrProgress, setOcrProgress] = useState(0)
   const [ocrFilled, setOcrFilled] = useState<string[] | null>(null)
+  const [ocrMissing, setOcrMissing] = useState<string[]>([])
 
   const set =
     (k: keyof typeof f) =>
@@ -111,6 +112,14 @@ export default function TradeForm({ mode, trade, onSubmit, onCancel }: Props) {
 
       if (filled.length) {
         setOcrFilled(filled)
+        // 読み取れなかった項目は自分で入れてもらう必要があるので明示する
+        const missLabels: [keyof typeof f, string][] = [
+          ['sl', '損切り S/L'],
+          ['tp', '利確 T/P'],
+          ['commission', '手数料'],
+          ['profit', '損益'],
+        ]
+        setOcrMissing(missLabels.filter(([k]) => patch[k] == null).map(([, l]) => l))
         setShowDetail(true)
       } else {
         setErr(
@@ -232,7 +241,13 @@ export default function TradeForm({ mode, trade, onSubmit, onCancel }: Props) {
                   <br />
                   {ocrFilled.join('・')}
                   <br />
-                  <span className="text-ink3">数字が違う場合は下の欄で直してください</span>
+                  {ocrMissing.length > 0 ? (
+                    <span className="font-semibold text-ink2">
+                      {ocrMissing.join('・')} は読み取れませんでした。必要なら入力してください
+                    </span>
+                  ) : (
+                    <span className="text-ink3">数字が違う場合は下の欄で直してください</span>
+                  )}
                 </p>
               </div>
             )}

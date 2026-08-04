@@ -59,12 +59,43 @@ function num(s: string | undefined): number | undefined {
   return isNaN(v) ? undefined : v
 }
 
+/** ラベルの後ろにある値を探す。列が崩れて次の行に落ちている場合も拾う。 */
+function findLabelValue(
+  lines: string[],
+  label: RegExp,
+  value: RegExp,
+): string | undefined {
+  for (let i = 0; i < lines.length; i++) {
+    const at = lines[i].search(label)
+    if (at < 0) continue
+
+    // 同じ行のラベルより後ろを見る
+    const after = lines[i].slice(at).replace(label, ' ')
+    const inLine = after.match(value)
+    if (inLine) return inLine[1]
+
+    // 次の行に落ちている場合（ラベルだけの行 → 値だけの行）。
+    // ただし次の行が別のラベル行なら取り違えるので使わない。
+    const next = lines[i + 1]
+    if (next && !/[A-Za-z]{4,}|S\s*[\/|]\s*L|T\s*[\/|]\s*P/i.test(next)) {
+      const m = next.match(value)
+      if (m) return m[1]
+    }
+  }
+  return undefined
+}
+
 export function parseMt5Screenshot(rawText: string): ParsedTrade {
-  const text = normalize(rawText)
-  const lines = text
+  const allLines = normalize(rawText)
     .split(/\r?\n/)
     .map((l) => l.trim())
     .filter(Boolean)
+
+  // スクショに一覧と詳細パネルが両方写っていることが多い。
+  // 一覧の他トレードを拾わないよう、詳細パネル(ポジション番号の行から下)だけを見る。
+  const detailAt = allLines.findIndex((l) => /#\s*\d{5,}/.test(l))
+  const lines = detailAt >= 0 ? allLines.slice(detailAt) : allLines
+  const text = lines.join('\n')
   const out: ParsedTrade = {}
 
   // --- 銘柄 / 売買 / ロット -------------------------------------
@@ -99,22 +130,20 @@ export function parseMt5Screenshot(rawText: string): ParsedTrade {
 
   // --- S/L と T/P ------------------------------------------------
   // "S/L: 4063.48" / OCRが S|L, SIL などと読むことがある
-  const sl = text.match(/S\s*[\/|Il1]\s*L\s*[:.]?\s*([\d.]+)/i)
-  if (sl) out.sl = num(sl[1])
-  const tp = text.match(/T\s*[\/|Il1]\s*P\s*[:.]?\s*([\d.]+)/i)
-  if (tp) out.tp = num(tp[1])
+  const SL_LABEL = /S\s*[\/|Il1]\s*L\s*[:.]?/i
+  const TP_LABEL = /T\s*[\/|Il1]\s*P\s*[:.]?/i
+  const PRICE_RE = /(\d{2,7}\.\d{1,3})/
+  out.sl = num(findLabelValue(lines, SL_LABEL, PRICE_RE))
+  out.tp = num(findLabelValue(lines, TP_LABEL, PRICE_RE))
 
   // --- 手数料 ----------------------------------------------------
   // ラベルは "Charges" / "Commission"。OCRで g→q, e→o などに化けても拾えるようにする。
-  // 値は改行を挟むこともあるので \s* で受ける。
-  const feePatterns = [
-    new RegExp(`Ch[a@]r[gq][e0o]s?\\s*[:.]?\\s*(${NUM})`, 'i'),
-    new RegExp(`C[o0]mm[il1]ss[il1][o0]n\\s*[:.]?\\s*(${NUM})`, 'i'),
-  ]
-  for (const re of feePatterns) {
-    const m = text.match(re)
-    if (m) {
-      out.commission = num(m[1])
+  const FEE_LABELS = [/Ch[a@]r[gq][e0o]s?\s*[:.]?/i, /C[o0]mm[il1]ss[il1][o0]n\s*[:.]?/i]
+  const FEE_RE = new RegExp(`(${NUM})`)
+  for (const label of FEE_LABELS) {
+    const v = num(findLabelValue(lines, label, FEE_RE))
+    if (v != null) {
+      out.commission = v
       break
     }
   }
@@ -182,6 +211,39 @@ export interface OcrResult {
  * 認識用のデータ(約6MB)は public/tesseract/ から自前で配信している。
  * 外部CDNに頼らないので、回線や配信元の状況に左右されない。
  */
+/** これより小さい画像は拡大してから認識する */
+const OCR_MIN_LONG_EDGE = 1400
+
+/**
+ * 小さい画像だけ拡大してから認識する。
+ *
+ * 以前はグレースケール化とコントラスト強調も行っていたが、
+ * MT5の詳細パネルにある薄い灰色のラベル("S/L:" "Charges:" など)が
+ * 飛んでしまい、かえって読み取れなくなったので拡大だけにしている。
+ */
+async function enhanceForOcr(file: File): Promise<string | File> {
+  try {
+    const bitmap = await createImageBitmap(file)
+    const long = Math.max(bitmap.width, bitmap.height)
+    if (long >= OCR_MIN_LONG_EDGE) return file // 十分大きいのでそのまま
+
+    const scale = Math.min(3, OCR_MIN_LONG_EDGE / long)
+    const w = Math.round(bitmap.width * scale)
+    const h = Math.round(bitmap.height * scale)
+
+    const canvas = document.createElement('canvas')
+    canvas.width = w
+    canvas.height = h
+    const ctx = canvas.getContext('2d')
+    if (!ctx) return file
+    ctx.imageSmoothingQuality = 'high'
+    ctx.drawImage(bitmap, 0, 0, w, h)
+    return canvas.toDataURL('image/png')
+  } catch {
+    return file // 加工できなければ元画像で認識する
+  }
+}
+
 export async function readTradeFromImage(
   image: File | string,
   onProgress?: (ratio: number) => void,
@@ -197,7 +259,8 @@ export async function readTradeFromImage(
     },
   })
   try {
-    const { data } = await worker.recognize(image)
+    const target = typeof image === 'string' ? image : await enhanceForOcr(image)
+    const { data } = await worker.recognize(target)
     return { parsed: parseMt5Screenshot(data.text), text: data.text }
   } finally {
     await worker.terminate()
