@@ -1,5 +1,5 @@
 import { supabase } from './supabase'
-import type { DayNote, Trade, TradeInput } from './types'
+import type { DayNote, Settings, Trade, TradeInput } from './types'
 
 const NO_CLIENT = 'Supabase が未設定です (.env / Netlify の環境変数を確認してください)'
 
@@ -100,5 +100,53 @@ export async function upsertDayNote(day: string, note: string): Promise<void> {
   const { error } = await supabase
     .from('day_notes')
     .upsert({ day, note, updated_at: new Date().toISOString() }, { onConflict: 'day' })
+  if (error) throw error
+}
+
+// ---------------------------------------------------------------
+// 設定（原資）
+// ---------------------------------------------------------------
+
+/** 設定を取得。未登録なら null。重いスクショ列は含めない。 */
+export async function fetchSettings(): Promise<Settings | null> {
+  if (!supabase) throw new Error(NO_CLIENT)
+  const { data, error } = await supabase
+    .from('settings')
+    .select('id,initial_capital,capital_note,updated_at')
+    .eq('id', 1)
+    .maybeSingle()
+  if (error) throw error
+  return (data as Settings | null) ?? null
+}
+
+/** 原資のスクショ (data URL) を取得。無ければ null。 */
+export async function getCapitalScreenshot(): Promise<string | null> {
+  if (!supabase) throw new Error(NO_CLIENT)
+  const { data, error } = await supabase
+    .from('settings')
+    .select('capital_screenshot')
+    .eq('id', 1)
+    .maybeSingle()
+  if (error) throw error
+  return (data?.capital_screenshot as string | null) ?? null
+}
+
+/** 原資を保存。screenshot は undefined なら据え置き、null なら削除。 */
+export async function saveCapital(patch: {
+  initial_capital: number
+  capital_note: string | null
+  capital_screenshot?: string | null
+}): Promise<void> {
+  if (!supabase) throw new Error(NO_CLIENT)
+  const row: Record<string, unknown> = {
+    id: 1,
+    initial_capital: patch.initial_capital,
+    capital_note: patch.capital_note,
+    updated_at: new Date().toISOString(),
+  }
+  if (patch.capital_screenshot !== undefined) {
+    row.capital_screenshot = patch.capital_screenshot
+  }
+  const { error } = await supabase.from('settings').upsert(row, { onConflict: 'id' })
   if (error) throw error
 }

@@ -64,3 +64,14 @@ export interface DayNote {
   note: string | null
   updated_at?: string
 }
+
+/** 設定（原資など）。id=1 の1行だけを使う */
+export interface Settings {
+  id: number
+  /** 原資（元本, 円） */
+  initial_capital: number
+  capital_note: string | null
+  /** 証拠スクショ。一覧取得では省略され undefined になる */
+  capital_screenshot?: string | null
+  updated_at?: string
+}

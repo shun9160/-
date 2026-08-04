@@ -40,6 +40,17 @@ create table if not exists public.day_notes (
   updated_at timestamptz default now()
 );
 
+-- 設定 (原資など) ----------------------------------------------
+-- id = 1 の1行だけを使う
+create table if not exists public.settings (
+  id                 smallint primary key default 1,
+  initial_capital    numeric default 0,           -- 原資（円）
+  capital_note       text,                        -- 入金日などのメモ
+  capital_screenshot text,                        -- 証拠のスクショ (縮小した data URL)
+  updated_at         timestamptz default now(),
+  constraint settings_singleton check (id = 1)
+);
+
 -- =============================================================
 -- RLS (Row Level Security)
 -- -------------------------------------------------------------
@@ -51,6 +62,7 @@ create table if not exists public.day_notes (
 -- =============================================================
 alter table public.trades enable row level security;
 alter table public.day_notes enable row level security;
+alter table public.settings enable row level security;
 
 drop policy if exists "anon full access trades" on public.trades;
 create policy "anon full access trades" on public.trades
@@ -58,4 +70,8 @@ create policy "anon full access trades" on public.trades
 
 drop policy if exists "anon full access day_notes" on public.day_notes;
 create policy "anon full access day_notes" on public.day_notes
+  for all to anon using (true) with check (true);
+
+drop policy if exists "anon full access settings" on public.settings;
+create policy "anon full access settings" on public.settings
   for all to anon using (true) with check (true);

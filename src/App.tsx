@@ -10,7 +10,7 @@ import TradesTable from './components/TradesTable'
 import Diary from './components/Diary'
 
 export default function App() {
-  const { trades, dayNotes, loading, error, configured, demo, reload } = useTrades()
+  const { trades, dayNotes, settings, loading, error, configured, demo, reload } = useTrades()
   const [screen, setScreen] = useState<ScreenKey>('home')
   const [focusDay, setFocusDay] = useState<string | null>(null)
   /** ホームから開く「すべての取引」。タブではなくサブ画面 */
@@ -89,8 +89,11 @@ export default function App() {
             {screen === 'home' && (
               <Home
                 trades={trades}
+                settings={settings}
                 onShowAll={() => setShowAllTrades(true)}
                 onAdd={() => go('add')}
+                onChanged={reload}
+                readOnly={demo}
               />
             )}
             {screen === 'calendar' && (

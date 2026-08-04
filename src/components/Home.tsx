@@ -1,16 +1,20 @@
 import { useMemo, useState } from 'react'
-import type { EnrichedTrade } from '../lib/types'
+import type { EnrichedTrade, Settings } from '../lib/types'
 import { summarize } from '../lib/analytics'
 import { jstDayKey } from '../lib/timezone'
 import { colorOf, fmtMoney, fmtPct } from '../lib/format'
+import CapitalCard from './CapitalCard'
 import PnlCharts from './PnlCharts'
 import TradesTable from './TradesTable'
 import Icon from './Icon'
 
 interface Props {
   trades: EnrichedTrade[]
+  settings: Settings | null
   onShowAll: () => void
   onAdd: () => void
+  onChanged: () => void
+  readOnly?: boolean
 }
 
 type RangeKey = 7 | 30 | 90 | 0
@@ -28,7 +32,14 @@ function withinDays(trades: EnrichedTrade[], days: number) {
   return trades.filter((t) => t.openJst.getTime() >= cutoff)
 }
 
-export default function Home({ trades, onShowAll, onAdd }: Props) {
+export default function Home({
+  trades,
+  settings,
+  onShowAll,
+  onAdd,
+  onChanged,
+  readOnly,
+}: Props) {
   const [range, setRange] = useState<RangeKey>(30)
   const [chart, setChart] = useState<'cumulative' | 'daily'>('cumulative')
 
@@ -48,20 +59,31 @@ export default function Home({ trades, onShowAll, onAdd }: Props) {
   )
 
   if (trades.length === 0) {
-    return <EmptyState onAdd={onAdd} />
+    return (
+      <div className="flex flex-col gap-4">
+        <CapitalCard
+          settings={settings}
+          netTotal={0}
+          onChanged={onChanged}
+          readOnly={readOnly}
+        />
+        <EmptyState onAdd={onAdd} />
+      </div>
+    )
   }
 
   return (
     <div className="flex flex-col gap-4">
-      {/* 合計損益 — この画面の主役 */}
-      <section className="card p-5">
-        <p className="eyebrow">累計損益（手数料込み）</p>
-        <p className={`mt-1 text-hero font-bold tabular-nums ${colorOf(all.netTotal)}`}>
-          {fmtMoney(all.netTotal, { sign: true })}
-          <span className="ml-1.5 text-base font-semibold text-ink3">円</span>
-        </p>
+      {/* 残高と原資 — この画面の主役 */}
+      <CapitalCard
+        settings={settings}
+        netTotal={all.netTotal}
+        onChanged={onChanged}
+        readOnly={readOnly}
+      />
 
-        <dl className="mt-4 grid grid-cols-3 gap-3 border-t border-line pt-4">
+      <section className="card p-5">
+        <dl className="grid grid-cols-3 gap-3">
           <Metric label="今日" value={fmtMoney(todayNet, { sign: true })} cls={colorOf(todayNet)} />
           <Metric label="勝率" value={fmtPct(all.winRate)} />
           <Metric label="取引数" value={`${all.count}件`} />
