@@ -94,6 +94,12 @@ PC版MT5 → **ツールボックスの「口座履歴」タブを右クリッ�
 `ticket, symbol, side(type), volume(lot), open_price, close_price, sl, tp, open_time, close_time, commission, swap, profit`
 日時は `2026.08.03 17:23:23` 形式（ドバイ時間として解釈）。
 
+### MT5から自動連携（EA）★もっとも正確
+
+MT5にEA（`mt5/FxJournalSync.mq5`）を入れると、決済のたびに自動で記録されます。
+S/L・T/P・手数料・スワップが正確な数値で入り、時刻もUTCで送られるため変換のズレがありません。
+導入手順は [`mt5/README.md`](./mt5/README.md) を参照してください。
+
 ### 手入力 / スクショ
 
 モバイルのポジション詳細（S/L・T/P・時刻）から1件ずつ手入力できます。今回アップロードいただいた画像1・2の2トレードは「スクショ2件を投入」ボタンで登録されます。
