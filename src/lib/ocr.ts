@@ -23,6 +23,9 @@ export interface ParsedTrade {
   commission?: number
 }
 
+/** マイナス記号として使われうる文字（OCRはハイフンをダッシュと読むことがある） */
+const DASH = '-–—−‒'
+
 /** OCR結果にありがちな崩れをならす */
 function normalize(raw: string): string {
   return (
@@ -31,20 +34,28 @@ function normalize(raw: string): string {
       .replace(/[Ａ-Ｚａ-ｚ０-９]/g, (c) => String.fromCharCode(c.charCodeAt(0) - 0xfee0))
       .replace(/[：]/g, ':')
       .replace(/[．]/g, '.')
-      // 各種の矢印を統一
-      .replace(/[→⇒➔➜»—–~>]+/g, '→')
+      // 明確な矢印は矢印に寄せる
+      .replace(/[→⇒➔➜»]+/g, '→')
+      // ダッシュ類は「数字 ─ 数字」の形のときだけ矢印とみなす（価格や時刻の区切り）。
+      // "Charges: —8" のようにラベルの後に来る場合はマイナス記号なので変換しない。
+      .replace(new RegExp(`(\\d)\\s*[${DASH}~>]{1,2}\\s*(\\d)`, 'g'), '$1 → $2')
   )
   // ここで桁区切りをまとめて消すと "4063.48 101"(価格+損益) を
   // 1つの数値に繋げてしまうため、数値を取り出す時に個別に処理する。
 }
 
-/** 桁区切りを含む数値表現。例: "2 044" "1,234.5" "-8" */
-const NUM = String.raw`-?\d{1,3}(?:[ ,]\d{3})+(?:\.\d+)?|-?\d+(?:\.\d+)?`
+/** 桁区切り・各種マイナスを含む数値表現。例: "2 044" "1,234.5" "—8" */
+const SIGN = `[${DASH}]?\\s?`
+const NUM = `${SIGN}\\d{1,3}(?:[ ,]\\d{3})+(?:\\.\\d+)?|${SIGN}\\d+(?:\\.\\d+)?`
 
-/** "2 044" のような文字列を数値へ */
+/** "2 044" "—8" のような文字列を数値へ */
 function num(s: string | undefined): number | undefined {
   if (!s) return undefined
-  const v = parseFloat(s.replace(/[ ,]/g, '').replace(/[^\d.-]/g, ''))
+  const cleaned = s
+    .replace(new RegExp(`[${DASH}]`, 'g'), '-') // マイナスを統一
+    .replace(/[ ,]/g, '')
+    .replace(/[^\d.-]/g, '')
+  const v = parseFloat(cleaned)
   return isNaN(v) ? undefined : v
 }
 
@@ -88,17 +99,24 @@ export function parseMt5Screenshot(rawText: string): ParsedTrade {
 
   // --- S/L と T/P ------------------------------------------------
   // "S/L: 4063.48" / OCRが S|L, SIL などと読むことがある
-  const sl = text.match(/S\s*[\/|Il1]\s*L\s*:?\s*([\d.]+)/i)
+  const sl = text.match(/S\s*[\/|Il1]\s*L\s*[:.]?\s*([\d.]+)/i)
   if (sl) out.sl = num(sl[1])
-  const tp = text.match(/T\s*[\/|Il1]\s*P\s*:?\s*([\d.]+)/i)
+  const tp = text.match(/T\s*[\/|Il1]\s*P\s*[:.]?\s*([\d.]+)/i)
   if (tp) out.tp = num(tp[1])
 
   // --- 手数料 ----------------------------------------------------
-  const charges = text.match(/Charges?\s*:?\s*(-?\d+(?:\.\d+)?)/i)
-  if (charges) out.commission = num(charges[1])
-  else {
-    const comm = text.match(/Commission\s*:?\s*(-?\d+(?:\.\d+)?)/i)
-    if (comm) out.commission = num(comm[1])
+  // ラベルは "Charges" / "Commission"。OCRで g→q, e→o などに化けても拾えるようにする。
+  // 値は改行を挟むこともあるので \s* で受ける。
+  const feePatterns = [
+    new RegExp(`Ch[a@]r[gq][e0o]s?\\s*[:.]?\\s*(${NUM})`, 'i'),
+    new RegExp(`C[o0]mm[il1]ss[il1][o0]n\\s*[:.]?\\s*(${NUM})`, 'i'),
+  ]
+  for (const re of feePatterns) {
+    const m = text.match(re)
+    if (m) {
+      out.commission = num(m[1])
+      break
+    }
   }
 
   // --- 価格 (建値 → 決済) と 損益 --------------------------------
