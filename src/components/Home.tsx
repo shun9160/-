@@ -76,9 +76,21 @@ export default function Home({ trades, settings, onShowAll, onAdd, onChanged, re
   }
 
   return (
-    <div className="flex flex-col gap-4">
+    // スマホでは縦に積み、順番は order で決める（残高を一番上に出す）。
+    // 広い画面では2列に置き直し、残高は右上に来る。
+    <div className="flex flex-col gap-4 xl:grid xl:grid-cols-[1.6fr_1fr] xl:items-start">
+      {/* 残高と原資 — スマホでは最初に見せる */}
+      <div className="order-1 xl:order-none xl:col-start-2 xl:row-start-3">
+        <CapitalCard
+          settings={settings}
+          netTotal={all.netTotal}
+          onChanged={onChanged}
+          readOnly={readOnly}
+        />
+      </div>
+
       {/* 期間の切り替え */}
-      <div className="flex flex-wrap items-center justify-between gap-3">
+      <div className="order-2 flex flex-wrap items-center justify-between gap-3 xl:order-none xl:col-span-2 xl:row-start-1">
         <SegmentedControl value={range} onChange={setRange} options={RANGES} />
         <button className="btn btn-quiet" onClick={onAdd}>
           <Icon name="plus" size={16} />
@@ -87,7 +99,7 @@ export default function Home({ trades, settings, onShowAll, onAdd, onChanged, re
       </div>
 
       {/* 主要な数値 */}
-      <div className="grid grid-cols-2 gap-3 xl:grid-cols-4">
+      <div className="order-3 grid grid-cols-2 gap-3 xl:order-none xl:col-span-2 xl:row-start-2 xl:grid-cols-4">
         <StatCard
           icon="chart"
           label={`${rangeLabel}の損益`}
@@ -121,9 +133,8 @@ export default function Home({ trades, settings, onShowAll, onAdd, onChanged, re
         />
       </div>
 
-      {/* 推移と口座状況 */}
-      <div className="grid gap-4 xl:grid-cols-[1.6fr_1fr]">
-        <section className="card p-5">
+      {/* 損益の推移 */}
+      <section className="order-4 card p-5 xl:order-none xl:col-start-1 xl:row-start-3 xl:row-span-2">
           <SectionHeader
             title="損益の推移"
             sub={rangeLabel}
@@ -151,42 +162,34 @@ export default function Home({ trades, settings, onShowAll, onAdd, onChanged, re
           <div className="mt-4">
             <PnlCharts trades={ranged} kind={chart} />
           </div>
-        </section>
+      </section>
 
-        <div className="flex flex-col gap-4">
-          <CapitalCard
-            settings={settings}
-            netTotal={all.netTotal}
-            onChanged={onChanged}
-            readOnly={readOnly}
+      {/* 平均のすがた */}
+      <section className="order-5 card p-5 xl:order-none xl:col-start-2 xl:row-start-4 xl:self-start">
+        <SectionHeader title="平均のすがた" sub={rangeLabel} />
+        <dl className="flex flex-col gap-3">
+          <Row label="平均ロット" value={fmtNum(sum.avgVolume, 2)} />
+          <Row
+            label="損益比"
+            value={
+              sum.profitFactor == null
+                ? '—'
+                : sum.profitFactor === Infinity
+                  ? '∞'
+                  : fmtNum(sum.profitFactor)
+            }
           />
-          <section className="card p-5">
-            <SectionHeader title="平均のすがた" sub={rangeLabel} />
-            <dl className="flex flex-col gap-3">
-              <Row label="平均ロット" value={fmtNum(sum.avgVolume, 2)} />
-              <Row
-                label="損益比"
-                value={
-                  sum.profitFactor == null
-                    ? '—'
-                    : sum.profitFactor === Infinity
-                      ? '∞'
-                      : fmtNum(sum.profitFactor)
-                }
-              />
-              <Row
-                label="実際の損益倍率"
-                value={sum.avgRMultiple != null ? `${fmtNum(sum.avgRMultiple)} R` : '—'}
-                cls={sum.avgRMultiple != null ? colorOf(sum.avgRMultiple) : undefined}
-              />
-              <Row label="TPまで届いた割合" value={fmtPct(sum.tpHitRate)} />
-            </dl>
-          </section>
-        </div>
-      </div>
+          <Row
+            label="実際の損益倍率"
+            value={sum.avgRMultiple != null ? `${fmtNum(sum.avgRMultiple)} R` : '—'}
+            cls={sum.avgRMultiple != null ? colorOf(sum.avgRMultiple) : undefined}
+          />
+          <Row label="TPまで届いた割合" value={fmtPct(sum.tpHitRate)} />
+        </dl>
+      </section>
 
       {/* 最近の取引 */}
-      <section>
+      <section className="order-6 xl:order-none xl:col-span-2 xl:row-start-5">
         <SectionHeader
           title="最近の取引"
           sub={`全${trades.length}件のうち直近${recent.length}件`}
