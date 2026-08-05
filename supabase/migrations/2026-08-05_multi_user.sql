@@ -30,7 +30,7 @@ create index if not exists day_notes_user_idx on public.day_notes (user_id);
 -- 以前は ticket 単体で重複禁止だったが、利用者ごとに分ける
 alter table public.trades drop constraint if exists trades_ticket_key;
 create unique index if not exists trades_user_ticket_uidx
-  on public.trades (user_id, ticket) where ticket is not null;
+  on public.trades (user_id, ticket);
 
 -- 3) 日記は「利用者 × 日付」で1件にする -------------------------
 alter table public.day_notes drop constraint if exists day_notes_pkey;

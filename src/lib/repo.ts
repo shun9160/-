@@ -4,6 +4,15 @@ import type { DayNote, Settings, Trade, TradeInput } from './types'
 const NO_CLIENT = 'Supabase が未設定です (.env / Netlify の環境変数を確認してください)'
 const NO_USER = 'ログインが必要です'
 
+/** 重複判定に使える索引が無いときのエラーか */
+function isMissingConflictTarget(e: unknown): boolean {
+  const o = e as { code?: string; message?: string }
+  return (
+    o?.code === '42P10' ||
+    /no unique or exclusion constraint matching the ON CONFLICT/i.test(o?.message ?? '')
+  )
+}
+
 /** ログイン中の利用者ID。データは利用者ごとに分かれている。 */
 async function requireUserId(): Promise<string> {
   if (!supabase) throw new Error(NO_CLIENT)
@@ -70,8 +79,35 @@ export async function insertTrades(rows: TradeInput[]): Promise<number> {
       .from('trades')
       .upsert(withTicket, { onConflict: 'user_id,ticket' })
       .select('id')
-    if (error) throw error
-    affected += data?.length ?? 0
+
+    if (error) {
+      // 重複判定用の索引が無い環境でも保存できるようにする。
+      // 既に入っている取引番号を調べ、まだ無いものだけ登録する。
+      if (isMissingConflictTarget(error)) {
+        const tickets = withTicket.map((r) => r.ticket as string)
+        const { data: existing, error: readErr } = await supabase
+          .from('trades')
+          .select('ticket')
+          .eq('user_id', userId)
+          .in('ticket', tickets)
+        if (readErr) throw readErr
+
+        const already = new Set((existing ?? []).map((r) => (r as { ticket: string }).ticket))
+        const fresh = withTicket.filter((r) => !already.has(r.ticket as string))
+        if (fresh.length) {
+          const { data: added, error: insErr } = await supabase
+            .from('trades')
+            .insert(fresh)
+            .select('id')
+          if (insErr) throw insErr
+          affected += added?.length ?? 0
+        }
+      } else {
+        throw error
+      }
+    } else {
+      affected += data?.length ?? 0
+    }
   }
   if (withoutTicket.length) {
     const { data, error } = await supabase

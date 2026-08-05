@@ -40,7 +40,7 @@ create index if not exists trades_symbol_idx    on public.trades (symbol);
 
 -- 同じ取引を二重に取り込まない（利用者ごとに判定）
 create unique index if not exists trades_user_ticket_uidx
-  on public.trades (user_id, ticket) where ticket is not null;
+  on public.trades (user_id, ticket);
 
 -- 日次の日記メモ ----------------------------------------------
 create table if not exists public.day_notes (
