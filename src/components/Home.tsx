@@ -76,11 +76,11 @@ export default function Home({ trades, settings, onShowAll, onAdd, onChanged, re
   }
 
   return (
-    // スマホでは縦に積み、順番は order で決める（残高を一番上に出す）。
-    // 広い画面では2列に置き直し、残高は右上に来る。
+    // 画面幅にかかわらず、口座の残高を一番上に置く。
+    // 広い画面では、その下を2列（グラフ／内訳）に分ける。
     <div className="flex flex-col gap-4 xl:grid xl:grid-cols-[1.6fr_1fr] xl:items-start">
-      {/* 残高と原資 — スマホでは最初に見せる */}
-      <div className="order-1 xl:order-none xl:col-start-2 xl:row-start-3">
+      {/* 残高と原資 — 最初に見たい数字 */}
+      <div className="order-1 xl:order-none xl:col-span-2 xl:row-start-1">
         <CapitalCard
           settings={settings}
           netTotal={all.netTotal}
@@ -90,7 +90,7 @@ export default function Home({ trades, settings, onShowAll, onAdd, onChanged, re
       </div>
 
       {/* 期間の切り替え */}
-      <div className="order-2 flex flex-wrap items-center justify-between gap-3 xl:order-none xl:col-span-2 xl:row-start-1">
+      <div className="order-2 flex flex-wrap items-center justify-between gap-3 xl:order-none xl:col-span-2 xl:row-start-2">
         <SegmentedControl value={range} onChange={setRange} options={RANGES} />
         <button className="btn btn-quiet" onClick={onAdd}>
           <Icon name="plus" size={16} />
@@ -99,7 +99,7 @@ export default function Home({ trades, settings, onShowAll, onAdd, onChanged, re
       </div>
 
       {/* 主要な数値 */}
-      <div className="order-3 grid grid-cols-2 gap-3 xl:order-none xl:col-span-2 xl:row-start-2 xl:grid-cols-4">
+      <div className="order-3 grid grid-cols-2 gap-3 xl:order-none xl:col-span-2 xl:row-start-3 xl:grid-cols-4">
         <StatCard
           icon="chart"
           label={`${rangeLabel}の損益`}
@@ -134,7 +134,7 @@ export default function Home({ trades, settings, onShowAll, onAdd, onChanged, re
       </div>
 
       {/* 損益の推移 */}
-      <section className="order-4 card p-5 xl:order-none xl:col-start-1 xl:row-start-3 xl:row-span-2">
+      <section className="order-4 card p-5 xl:order-none xl:col-start-1 xl:row-start-4 xl:row-span-2">
           <SectionHeader
             title="損益の推移"
             sub={rangeLabel}
@@ -189,7 +189,7 @@ export default function Home({ trades, settings, onShowAll, onAdd, onChanged, re
       </section>
 
       {/* 最近の取引 */}
-      <section className="order-6 xl:order-none xl:col-span-2 xl:row-start-5">
+      <section className="order-6 xl:order-none xl:col-span-2 xl:row-start-6">
         <SectionHeader
           title="最近の取引"
           sub={`全${trades.length}件のうち直近${recent.length}件`}
