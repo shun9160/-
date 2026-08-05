@@ -60,41 +60,45 @@ export default function BatchImport({ onSaved, disabled }: Props) {
       const made: Draft[] = []
       for (let i = 0; i < results.length; i++) {
         const r = results[i]
-        const p = r.parsed
         const shot = await fileToDownscaledDataUrl(r.file)
-        const filled = [
-          p.symbol,
-          p.side,
-          p.volume,
-          p.openTime,
-          p.closeTime,
-          p.openPrice,
-          p.closePrice,
-          p.sl,
-          p.tp,
-          p.profit,
-          p.commission,
-          p.ticket,
-        ].filter((v) => v != null && v !== '').length
 
-        made.push({
-          key: `${Date.now()}-${i}`,
-          include: true,
-          thumb: shot,
-          screenshot: shot,
-          filled,
-          symbol: p.symbol ?? getAppConfig().defaultSymbol,
-          side: p.side ?? 'buy',
-          volume: p.volume?.toString() ?? '',
-          open_time: p.openTime ?? '',
-          close_time: p.closeTime ?? '',
-          open_price: p.openPrice?.toString() ?? '',
-          close_price: p.closePrice?.toString() ?? '',
-          sl: p.sl?.toString() ?? '',
-          tp: p.tp?.toString() ?? '',
-          profit: p.profit?.toString() ?? '',
-          commission: p.commission?.toString() ?? '',
-          ticket: p.ticket ?? '',
+        // 一覧画面には複数の取引が写っているので、1枚から何件でも作る
+        r.trades.forEach((p, j) => {
+          const filled = [
+            p.symbol,
+            p.side,
+            p.volume,
+            p.openTime,
+            p.closeTime,
+            p.openPrice,
+            p.closePrice,
+            p.sl,
+            p.tp,
+            p.profit,
+            p.commission,
+            p.ticket,
+          ].filter((v) => v != null && v !== '').length
+
+          made.push({
+            key: `${Date.now()}-${i}-${j}`,
+            include: true,
+            thumb: shot,
+            // 同じ画像を何件にも付けると重くなるので、添付は1件目だけにする
+            screenshot: j === 0 ? shot : '',
+            filled,
+            symbol: p.symbol ?? getAppConfig().defaultSymbol,
+            side: p.side ?? 'buy',
+            volume: p.volume?.toString() ?? '',
+            open_time: p.openTime ?? '',
+            close_time: p.closeTime ?? '',
+            open_price: p.openPrice?.toString() ?? '',
+            close_price: p.closePrice?.toString() ?? '',
+            sl: p.sl?.toString() ?? '',
+            tp: p.tp?.toString() ?? '',
+            profit: p.profit?.toString() ?? '',
+            commission: p.commission?.toString() ?? '',
+            ticket: p.ticket ?? '',
+          })
         })
       }
       setDrafts((prev) => [...prev, ...made])
@@ -143,7 +147,7 @@ export default function BatchImport({ onSaved, disabled }: Props) {
           profit: Number(d.profit) || 0,
           currency: getAppConfig().accountCurrency,
           note: null,
-          screenshot: d.screenshot,
+          screenshot: d.screenshot || null,
           source: 'screenshot',
         }
       })

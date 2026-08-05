@@ -42,7 +42,8 @@ function normalize(raw: string): string {
       //   "05:50:54 -1520"（時刻の後ろのマイナス損益）
       // のマイナスまで矢印に変えてしまい、損失がプラスとして読まれる。
       // 区切りの矢印は前後が空いていて、マイナス記号は数字に密着している。
-      .replace(new RegExp(`(\\d)\\s+[${DASH}~>]{1,2}\\s+(\\d)`, 'g'), '$1 → $2')
+      // 矢印は "-." "—." のように、点や読点が付いて認識されることがある
+      .replace(new RegExp(`(\\d)\\s+[${DASH}~>]{1,2}[.,]?\\s+(\\d)`, 'g'), '$1 → $2')
   )
   // ここで桁区切りをまとめて消すと "4063.48 101"(価格+損益) を
   // 1つの数値に繋げてしまうため、数値を取り出す時に個別に処理する。
@@ -204,8 +205,125 @@ export function parseMt5Screenshot(rawText: string): ParsedTrade {
 
 export interface OcrResult {
   parsed: ParsedTrade
+  /** 一覧画面のように複数の取引が写っている場合、そのすべて */
+  trades: ParsedTrade[]
   /** 認識した生テキスト (デバッグ・確認用) */
   text: string
+}
+
+interface OcrWord {
+  text: string
+  bbox: Bbox
+}
+interface OcrLine {
+  text: string
+  words: OcrWord[]
+}
+
+/** 認識結果から、行と単語の位置を取り出す */
+function toLines(data: unknown): OcrLine[] {
+  const out: OcrLine[] = []
+  const blocks = (data as { blocks?: unknown[] }).blocks ?? []
+  for (const b of blocks as { paragraphs?: unknown[] }[]) {
+    for (const p of (b.paragraphs ?? []) as { lines?: unknown[] }[]) {
+      for (const l of (p.lines ?? []) as { text?: string; words?: OcrWord[] }[]) {
+        const words = (l.words ?? []).map((w) => ({ text: w.text, bbox: w.bbox }))
+        out.push({ text: (l.text ?? '').trim(), words })
+      }
+    }
+  }
+  return out
+}
+
+/**
+ * 一覧画面から取引を1件ずつ取り出す。
+ *
+ * MT5の履歴一覧は2行で1件になっている。
+ *   XAUUSD.raw sell 0.02              -1 766
+ *   4129.46 → 4135.07   2026.08.05 06:08:17
+ */
+function parseListRows(lines: OcrLine[]): { trade: ParsedTrade; profitWord?: OcrWord }[] {
+  const head = new RegExp(
+    `([A-Z][A-Z0-9]{2,}(?:\\.[A-Za-z]+)?)\\s+(buy|sell)\\s+(\\d+(?:\\.\\d+)?)`,
+    'i',
+  )
+  const tailNum = new RegExp(`(?:^|[^\\d.,])(${NUM})\\s*$`)
+  const PRICE = String.raw`\d{2,7}\.\d{1,3}`
+  const priceRow = new RegExp(`(${PRICE})\\s*→\\s*(${PRICE})`)
+
+  const out: { trade: ParsedTrade; profitWord?: OcrWord }[] = []
+
+  for (let i = 0; i < lines.length; i++) {
+    const raw = normalize(lines[i].text)
+    const m = raw.match(head)
+    if (!m) continue
+
+    const t: ParsedTrade = {
+      symbol: m[1],
+      side: m[2].toLowerCase() as 'buy' | 'sell',
+      volume: num(m[3]),
+    }
+
+    // 行末の数値が損益
+    const pm = raw.match(tailNum)
+    if (pm) {
+      const v = num(pm[1])
+      // ロットそのものを拾わないよう確認する
+      if (v != null && v !== t.volume) t.profit = v
+    }
+
+    // 損益が書かれている単語を探す（色を見るため）
+    let profitWord: OcrWord | undefined
+    if (t.profit != null) {
+      profitWord = findWordForNumber(lines[i].words, t.profit)
+    }
+
+    // 次の行に価格と決済時刻がある
+    const next = lines[i + 1] ? normalize(lines[i + 1].text) : ''
+    const pr = next.match(priceRow)
+    if (pr) {
+      t.openPrice = num(pr[1])
+      t.closePrice = num(pr[2])
+      const dt = next.match(
+        /(\d{4})[.\/-](\d{1,2})[.\/-](\d{1,2})\s+(\d{1,2}):(\d{2})(?::(\d{2}))?/,
+      )
+      if (dt) {
+        const s =
+          `${dt[1]}.${dt[2].padStart(2, '0')}.${dt[3].padStart(2, '0')} ` +
+          `${dt[4].padStart(2, '0')}:${dt[5]}:${(dt[6] ?? '00').padStart(2, '0')}`
+        // 一覧に出ているのは決済時刻。エントリー時刻は分からないので同じ値を入れる
+        t.closeTime = s
+        t.openTime = s
+      }
+      i++ // 価格行は消費した
+    }
+
+    out.push({ trade: t, profitWord })
+  }
+  return out
+}
+
+/** その数値が書かれている単語を探す（桁区切りで分かれている場合もつなげる） */
+function findWordForNumber(words: OcrWord[], value: number): OcrWord | undefined {
+  const norm = (s: string) => s.replace(new RegExp(`[${DASH}\\s,]`, 'g'), '')
+  const wanted = String(Math.abs(value))
+  for (let i = words.length - 1; i >= 0; i--) {
+    if (norm(words[i].text) === wanted) return words[i]
+  }
+  for (let i = words.length - 1; i > 0; i--) {
+    if (norm(words[i - 1].text) + norm(words[i].text) === wanted) {
+      return {
+        text: words[i - 1].text + words[i].text,
+        bbox: {
+          x0: Math.min(words[i - 1].bbox.x0, words[i].bbox.x0),
+          y0: Math.min(words[i - 1].bbox.y0, words[i].bbox.y0),
+          x1: Math.max(words[i - 1].bbox.x1, words[i].bbox.x1),
+          y1: Math.max(words[i - 1].bbox.y1, words[i].bbox.y1),
+        },
+      }
+    }
+  }
+  return undefined
 }
 
 /**
@@ -218,34 +336,57 @@ export interface OcrResult {
 /** これより小さい画像は拡大してから認識する */
 const OCR_MIN_LONG_EDGE = 1400
 
+interface Bbox {
+  x0: number
+  y0: number
+  x1: number
+  y1: number
+}
+
 /**
- * 小さい画像だけ拡大してから認識する。
+ * その範囲の文字が赤系かどうかを見る。
  *
- * 以前はグレースケール化とコントラスト強調も行っていたが、
- * MT5の詳細パネルにある薄い灰色のラベル("S/L:" "Charges:" など)が
- * 飛んでしまい、かえって読み取れなくなったので拡大だけにしている。
+ * MT5は損失を赤、利益を青(または緑)で表示する。マイナス記号が細くて
+ * 読み取れないことがあるので、色からも符号を判定できるようにしている。
  */
-async function enhanceForOcr(file: File): Promise<string | File> {
+function isRedText(canvas: HTMLCanvasElement, box: Bbox): boolean | null {
+  const ctx = canvas.getContext('2d', { willReadFrequently: true })
+  if (!ctx) return null
+
+  const x = Math.max(0, Math.floor(box.x0))
+  const y = Math.max(0, Math.floor(box.y0))
+  const w = Math.min(canvas.width - x, Math.ceil(box.x1 - box.x0))
+  const h = Math.min(canvas.height - y, Math.ceil(box.y1 - box.y0))
+  if (w <= 0 || h <= 0) return null
+
+  let img: ImageData
   try {
-    const bitmap = await createImageBitmap(file)
-    const long = Math.max(bitmap.width, bitmap.height)
-    if (long >= OCR_MIN_LONG_EDGE) return file // 十分大きいのでそのまま
-
-    const scale = Math.min(3, OCR_MIN_LONG_EDGE / long)
-    const w = Math.round(bitmap.width * scale)
-    const h = Math.round(bitmap.height * scale)
-
-    const canvas = document.createElement('canvas')
-    canvas.width = w
-    canvas.height = h
-    const ctx = canvas.getContext('2d')
-    if (!ctx) return file
-    ctx.imageSmoothingQuality = 'high'
-    ctx.drawImage(bitmap, 0, 0, w, h)
-    return canvas.toDataURL('image/png')
+    img = ctx.getImageData(x, y, w, h)
   } catch {
-    return file // 加工できなければ元画像で認識する
+    return null
   }
+
+  const d = img.data
+  let red = 0
+  let other = 0
+
+  for (let i = 0; i < d.length; i += 4) {
+    const r = d[i]
+    const g = d[i + 1]
+    const b = d[i + 2]
+    const max = Math.max(r, g, b)
+    const min = Math.min(r, g, b)
+
+    // 背景(白や黒に近い無彩色)は文字ではないので数えない
+    if (max - min < 40) continue
+
+    if (r === max && r - g > 35 && r - b > 25) red++
+    else other++
+  }
+
+  const inked = red + other
+  if (inked < 12) return null // 色を判断できるだけの画素がない
+  return red / inked > 0.6
 }
 
 export async function readTradeFromImage(
@@ -254,11 +395,84 @@ export async function readTradeFromImage(
 ): Promise<OcrResult> {
   const worker = await makeWorker(onProgress)
   try {
-    const target = typeof image === 'string' ? image : await enhanceForOcr(image)
-    const { data } = await worker.recognize(target)
-    return { parsed: parseMt5Screenshot(data.text), text: data.text }
+    return await recognizeOne(worker, image)
   } finally {
     await worker.terminate()
+  }
+}
+
+/** 1枚を認識して、色も見ながら取引を組み立てる */
+type OcrWorker = Awaited<ReturnType<typeof makeWorker>>
+
+async function recognizeOne(
+  worker: OcrWorker,
+  image: File | string,
+): Promise<OcrResult> {
+  const prepared = await prepareForOcr(image)
+  const { data } = await worker.recognize(
+    prepared.target as never,
+    {},
+    { blocks: true, text: true },
+  )
+  const text = (data as { text?: string }).text ?? ''
+  const lines = toLines(data)
+
+  // 色から損益の符号を決める。読めない場合は文字どおりの値を使う。
+  const redOf = (box: Bbox): boolean | null =>
+    prepared.canvas ? isRedText(prepared.canvas, box) : null
+
+  // 詳細パネル（ポジション番号あり）は1件として詳しく読む
+  const single = parseMt5Screenshot(text)
+  const hasDetail = single.ticket != null
+
+  if (hasDetail) {
+    const all = lines.flatMap((l) => l.words)
+    if (single.profit != null) {
+      const w = findWordForNumber(all, single.profit)
+      if (w && redOf(w.bbox) === true) single.profit = -Math.abs(single.profit)
+    }
+    return { parsed: single, trades: [single], text }
+  }
+
+  // 一覧画面は、写っている取引をすべて取り出す
+  const rows = parseListRows(lines)
+  const trades = rows.map(({ trade, profitWord }) => {
+    if (trade.profit != null && profitWord && redOf(profitWord.bbox) === true) {
+      trade.profit = -Math.abs(trade.profit)
+    }
+    return trade
+  })
+
+  if (trades.length === 0) return { parsed: single, trades: [single], text }
+  return { parsed: trades[0], trades, text }
+}
+
+/** 認識に使う画像と、色を調べるためのキャンバスを用意する */
+async function prepareForOcr(
+  image: File | string,
+): Promise<{ target: string | File; canvas: HTMLCanvasElement | null }> {
+  try {
+    const bitmap =
+      typeof image === 'string'
+        ? await createImageBitmap(await (await fetch(image)).blob())
+        : await createImageBitmap(image)
+
+    const long = Math.max(bitmap.width, bitmap.height)
+    const scale = long >= OCR_MIN_LONG_EDGE ? 1 : Math.min(3, OCR_MIN_LONG_EDGE / long)
+    const w = Math.round(bitmap.width * scale)
+    const h = Math.round(bitmap.height * scale)
+
+    const canvas = document.createElement('canvas')
+    canvas.width = w
+    canvas.height = h
+    const ctx = canvas.getContext('2d', { willReadFrequently: true })
+    if (!ctx) return { target: image, canvas: null }
+    ctx.imageSmoothingQuality = 'high'
+    ctx.drawImage(bitmap, 0, 0, w, h)
+    // 認識にも同じ画像を渡すので、文字の位置と色の位置がぴったり合う
+    return { target: canvas.toDataURL('image/png'), canvas }
+  } catch {
+    return { target: image, canvas: null }
   }
 }
 
@@ -294,9 +508,8 @@ export async function readTradesFromImages(
   const out: BatchOcrItem[] = []
   try {
     for (const file of files) {
-      const target = await enhanceForOcr(file)
-      const { data } = await worker.recognize(target)
-      out.push({ file, parsed: parseMt5Screenshot(data.text), text: data.text })
+      const res = await recognizeOne(worker, file)
+      out.push({ file, ...res })
       done++
       onProgress?.(done, files.length, 1)
     }
