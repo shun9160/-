@@ -195,6 +195,17 @@ export default function AccountPanel({ email, onSignOut }: Props) {
   )
 }
 
+/** 登録したパスキーに付ける名前（どの端末か分かるように） */
+function deviceName(): string {
+  const ua = navigator.userAgent
+  if (/iPhone/i.test(ua)) return 'iPhone'
+  if (/iPad/i.test(ua)) return 'iPad'
+  if (/Android/i.test(ua)) return 'Android'
+  if (/Mac/i.test(ua)) return 'Mac'
+  if (/Windows/i.test(ua)) return 'Windows PC'
+  return 'この端末'
+}
+
 /** パスキー（顔認証・指紋・PIN）の登録と削除 */
 function PasskeySection() {
   const [items, setItems] = useState<PasskeyItem[]>([])
@@ -227,7 +238,7 @@ function PasskeySection() {
     setErr(null)
     setDone(false)
     try {
-      await registerPasskey(navigator.platform || 'この端末')
+      await registerPasskey(deviceName())
       setDone(true)
       await load()
     } catch (e) {

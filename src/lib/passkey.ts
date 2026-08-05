@@ -3,16 +3,24 @@ import { supabase } from './supabase'
 /**
  * パスキー（顔認証・指紋・PIN）まわり。
  *
- * Supabase では試験的機能のため、SDKの型に含まれていない。
+ * Supabase では試験的機能の扱いで、SDKの公開型に含まれていないため
  * ここで一箇所にまとめ、呼び出し側は型を意識しないで済むようにする。
  */
 
+export interface PasskeyItem {
+  id: string
+  friendly_name?: string | null
+  created_at?: string
+  last_used_at?: string
+}
+
 interface PasskeyApi {
-  registerPasskey?: (opts?: { friendlyName?: string }) => Promise<{ error: unknown }>
+  registerPasskey?: () => Promise<{ error: unknown }>
   signInWithPasskey?: () => Promise<{ error: unknown }>
   passkey?: {
-    list: () => Promise<{ data: unknown; error: unknown }>
-    delete: (args: { id: string }) => Promise<{ error: unknown }>
+    list: () => Promise<{ data: PasskeyItem[] | null; error: unknown }>
+    update: (p: { passkeyId: string; friendlyName: string }) => Promise<{ error: unknown }>
+    delete: (p: { passkeyId: string }) => Promise<{ error: unknown }>
   }
 }
 
@@ -38,18 +46,27 @@ export async function signInWithPasskey(): Promise<void> {
   if (error) throw error
 }
 
-/** 今ログイン中のアカウントにパスキーを登録する */
+/**
+ * 今ログイン中のアカウントにパスキーを登録する。
+ * 名前は登録後に付ける（登録の呼び出しは名前を受け取らないため）。
+ */
 export async function registerPasskey(friendlyName?: string): Promise<void> {
   const a = api()
   if (!a.registerPasskey) throw new Error('この環境ではパスキーを利用できません')
-  const { error } = await a.registerPasskey(friendlyName ? { friendlyName } : undefined)
+  const { error } = await a.registerPasskey()
   if (error) throw error
-}
 
-export interface PasskeyItem {
-  id: string
-  friendly_name?: string | null
-  created_at?: string
+  if (friendlyName && a.passkey) {
+    try {
+      const { data } = await a.passkey.list()
+      const newest = (data ?? [])
+        .slice()
+        .sort((x, y) => (y.created_at ?? '').localeCompare(x.created_at ?? ''))[0]
+      if (newest) await a.passkey.update({ passkeyId: newest.id, friendlyName })
+    } catch {
+      // 名前を付けられなくても登録自体は成功しているので何もしない
+    }
+  }
 }
 
 /** 登録済みのパスキー一覧 */
@@ -58,30 +75,56 @@ export async function listPasskeys(): Promise<PasskeyItem[]> {
   if (!a.passkey?.list) return []
   const { data, error } = await a.passkey.list()
   if (error) throw error
-  const rows = (data as { passkeys?: PasskeyItem[] } | PasskeyItem[] | null) ?? []
-  return Array.isArray(rows) ? rows : (rows.passkeys ?? [])
+  return data ?? []
 }
 
 /** パスキーを削除する */
-export async function deletePasskey(id: string): Promise<void> {
+export async function deletePasskey(passkeyId: string): Promise<void> {
   const a = api()
   if (!a.passkey?.delete) throw new Error('この環境ではパスキーを利用できません')
-  const { error } = await a.passkey.delete({ id })
+  const { error } = await a.passkey.delete({ passkeyId })
   if (error) throw error
 }
 
-/** ブラウザが返す WebAuthn のエラーを、日本語の案内にする */
+/** WebAuthn やサーバーのエラーを、次の一手が分かる日本語にする */
 export function passkeyErrorMessage(e: unknown): string {
-  const msg = e instanceof Error ? e.message : String(e)
-  if (/NotAllowedError|not allowed|abort/i.test(msg))
-    return 'キャンセルされました。もう一度お試しください'
-  if (/InvalidStateError|already registered/i.test(msg))
-    return 'この端末のパスキーはすでに登録済みです'
-  if (/NotSupportedError|not supported/i.test(msg))
-    return 'この端末ではパスキーを利用できません'
-  if (/SecurityError/i.test(msg))
-    return 'このURLではパスキーを利用できません（サイトの設定をご確認ください）'
-  if (/no.*credential|not found/i.test(msg))
-    return 'この端末に登録されたパスキーが見つかりません。パスワードでログインしてください'
+  const msg =
+    e instanceof Error
+      ? e.message
+      : typeof e === 'object' && e !== null && 'message' in e
+        ? String((e as { message: unknown }).message)
+        : String(e)
+
+  // サーバー側で機能が有効になっていない
+  if (/experimental and disabled/i.test(msg))
+    return 'アプリ側の設定が反映されていません。ページを再読み込みしてください。'
+  if (/not enabled|disabled|unsupported|404|501|feature/i.test(msg) && /passkey|webauthn/i.test(msg))
+    return (
+      'Supabase側でパスキーが有効になっていません。\n' +
+      'Supabase → Authentication → Passkeys で有効化し、' +
+      'サイトのURLを許可リストに追加してください。'
+    )
+
+  // 端末・ブラウザ側
+  if (/NotAllowedError|not allowed|abort|timed out/i.test(msg))
+    return 'キャンセルされたか、時間切れになりました。もう一度お試しください。'
+  if (/InvalidStateError|already registered|already exists/i.test(msg))
+    return 'この端末のパスキーはすでに登録済みです。'
+  if (/NotSupportedError|does not support|not supported/i.test(msg))
+    return 'この端末・ブラウザではパスキーを利用できません。パスワードでログインしてください。'
+  if (/SecurityError|origin|rpId|relying party/i.test(msg))
+    return (
+      'このURLではパスキーを使えません。\n' +
+      'Supabase → Authentication → Passkeys の許可URL（origin）に、' +
+      '今開いているサイトのURLが登録されているかご確認ください。'
+    )
+  if (/no.*credential|not found|no passkey/i.test(msg))
+    return (
+      'この端末に登録されたパスキーがありません。\n' +
+      'まずパスワードでログインし、アカウント画面で「この端末のパスキーを登録」を押してください。'
+    )
+  if (/session missing|not authenticated/i.test(msg))
+    return 'ログインが必要です。パスワードでログインしてからお試しください。'
+
   return msg
 }
