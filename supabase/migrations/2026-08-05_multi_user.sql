@@ -44,7 +44,8 @@ create unique index if not exists day_notes_user_day_uidx
 -- 4) 設定(原資)は利用者ごとに1行 --------------------------------
 alter table public.settings drop constraint if exists settings_singleton;
 alter table public.settings drop constraint if exists settings_pkey;
-alter table public.settings alter column id drop default;
+-- id 列は使わなくなる。残すと「必須なのに既定値なし」となり保存できなくなる。
+alter table public.settings drop column if exists id;
 -- 既存の1行を残したまま、利用者ごとの一意制約に切り替える
 create unique index if not exists settings_user_uidx on public.settings (user_id);
 

@@ -32,8 +32,17 @@ export function friendlyError(e: unknown): string {
   if (/screenshot/i.test(raw) && /column|schema cache/i.test(raw)) {
     return `${raw}\n\n→ スクショ保存用の列がまだありません。Supabase の SQL Editor で次を実行してください:\nalter table public.trades add column if not exists screenshot text;`
   }
+  if (/column "id"/i.test(raw) && /settings/i.test(raw)) {
+    return `${raw}\n\n→ settings テーブルに古い id 列が残っています。Supabase の SQL Editor で supabase/migrations/2026-08-05_fix_settings.sql を実行してください。`
+  }
+  if (
+    /(account_currency|lot_size|broker_utc_offset|onboarded_at|main_symbol)/i.test(raw) &&
+    /column|schema cache/i.test(raw)
+  ) {
+    return `${raw}\n\n→ 初期設定用の列がまだありません。Supabase の SQL Editor で supabase/migrations/2026-08-05_fix_settings.sql を実行してください。`
+  }
   if (/settings/i.test(raw) && /relation|table|schema cache|does not exist/i.test(raw)) {
-    return `${raw}\n\n→ 原資を保存する表がまだありません。Supabase の SQL Editor で supabase/migrations/2026-08-04_add_settings.sql を実行してください。`
+    return `${raw}\n\n→ 原資を保存する表がまだありません。Supabase の SQL Editor で supabase/migrations/2026-08-05_fix_settings.sql を実行してください。`
   }
   if (/Failed to fetch|NetworkError/i.test(raw)) {
     return `${raw}\n\n→ ネットワークかSupabaseの設定(URL/キー)をご確認ください。`
