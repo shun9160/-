@@ -4,6 +4,7 @@ import { friendlyError } from '../lib/errors'
 import { parseAuto } from '../lib/mt5Parser'
 import { insertTrades } from '../lib/repo'
 import { seedTrades } from '../lib/seed'
+import BatchImport from './BatchImport'
 import TradeForm from './TradeForm'
 import Icon from './Icon'
 
@@ -14,11 +15,11 @@ interface Props {
   onDone?: () => void
 }
 
-type Method = 'manual' | 'file'
+type Method = 'shots' | 'manual' | 'file'
 
 export default function UploadPanel({ onChanged, disabled, onDone }: Props) {
   const fileRef = useRef<HTMLInputElement>(null)
-  const [method, setMethod] = useState<Method>('manual')
+  const [method, setMethod] = useState<Method>('shots')
   const [busy, setBusy] = useState(false)
   const [msg, setMsg] = useState<{ text: string; ok: boolean } | null>(null)
 
@@ -61,20 +62,27 @@ export default function UploadPanel({ onChanged, disabled, onDone }: Props) {
   return (
     <div className="flex flex-col gap-4">
       {/* 方法を選ぶ */}
-      <div className="grid grid-cols-2 gap-2.5">
+      <div className="grid grid-cols-2 gap-2.5 sm:grid-cols-3">
         <MethodCard
-          active={method === 'manual'}
-          onClick={() => setMethod('manual')}
+          active={method === 'shots'}
+          onClick={() => setMethod('shots')}
           icon="camera"
-          title="スクショ／手入力"
-          desc="1件ずつ記録する"
+          title="スクショ"
+          desc="何枚でもまとめて"
         />
         <MethodCard
           active={method === 'file'}
           onClick={() => setMethod('file')}
           icon="upload"
           title="MT5レポート"
-          desc="まとめて取り込む"
+          desc="正確・一括"
+        />
+        <MethodCard
+          active={method === 'manual'}
+          onClick={() => setMethod('manual')}
+          icon="pencil"
+          title="手入力"
+          desc="1件ずつ"
         />
       </div>
 
@@ -98,7 +106,15 @@ export default function UploadPanel({ onChanged, disabled, onDone }: Props) {
         </div>
       )}
 
-      {method === 'manual' ? (
+      {method === 'shots' ? (
+        <BatchImport
+          disabled={disabled}
+          onSaved={(n) => {
+            setMsg({ text: `スクショから ${n}件を保存しました`, ok: true })
+            onChanged()
+          }}
+        />
+      ) : method === 'manual' ? (
         <div className="card p-4 sm:p-5">
           <TradeForm
             mode="add"
@@ -160,7 +176,7 @@ function MethodCard({
 }: {
   active: boolean
   onClick: () => void
-  icon: 'camera' | 'upload'
+  icon: 'camera' | 'upload' | 'pencil'
   title: string
   desc: string
 }) {

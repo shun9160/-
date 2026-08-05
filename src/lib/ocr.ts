@@ -248,16 +248,7 @@ export async function readTradeFromImage(
   image: File | string,
   onProgress?: (ratio: number) => void,
 ): Promise<OcrResult> {
-  const { createWorker } = await import('tesseract.js')
-  const base = `${window.location.origin}/tesseract`
-  const worker = await createWorker('eng', 1, {
-    langPath: base,
-    corePath: base,
-    workerPath: `${base}/worker.min.js`,
-    logger: (m: { status: string; progress: number }) => {
-      if (m.status === 'recognizing text') onProgress?.(m.progress)
-    },
-  })
+  const worker = await makeWorker(onProgress)
   try {
     const target = typeof image === 'string' ? image : await enhanceForOcr(image)
     const { data } = await worker.recognize(target)
@@ -265,4 +256,48 @@ export async function readTradeFromImage(
   } finally {
     await worker.terminate()
   }
+}
+
+/** 認識用のワーカーを1つ作る。複数枚を読むときは使い回す。 */
+async function makeWorker(onProgress?: (ratio: number) => void) {
+  const { createWorker } = await import('tesseract.js')
+  const base = `${window.location.origin}/tesseract`
+  return createWorker('eng', 1, {
+    langPath: base,
+    corePath: base,
+    workerPath: `${base}/worker.min.js`,
+    logger: (m: { status: string; progress: number }) => {
+      if (m.status === 'recognizing text') onProgress?.(m.progress)
+    },
+  })
+}
+
+export interface BatchOcrItem extends OcrResult {
+  file: File
+}
+
+/**
+ * 複数の画像をまとめて読み取る。
+ * ワーカーを1つだけ作って順に処理するので、枚数が増えても準備は1回で済む。
+ */
+export async function readTradesFromImages(
+  files: File[],
+  onProgress?: (done: number, total: number, ratioOfCurrent: number) => void,
+): Promise<BatchOcrItem[]> {
+  if (files.length === 0) return []
+  let done = 0
+  const worker = await makeWorker((r) => onProgress?.(done, files.length, r))
+  const out: BatchOcrItem[] = []
+  try {
+    for (const file of files) {
+      const target = await enhanceForOcr(file)
+      const { data } = await worker.recognize(target)
+      out.push({ file, parsed: parseMt5Screenshot(data.text), text: data.text })
+      done++
+      onProgress?.(done, files.length, 1)
+    }
+  } finally {
+    await worker.terminate()
+  }
+  return out
 }
