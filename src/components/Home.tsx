@@ -1,12 +1,14 @@
 import { useMemo, useState } from 'react'
 import type { EnrichedTrade, Settings } from '../lib/types'
-import { summarize } from '../lib/analytics'
+import { comparePeriods, netOf, summarize } from '../lib/analytics'
 import { jstDayKey } from '../lib/timezone'
-import { colorOf, fmtMoney, fmtPct } from '../lib/format'
+import { currencyLabel } from '../lib/appConfig'
+import { colorOf, fmtMoney, fmtNum, fmtPct } from '../lib/format'
 import CapitalCard from './CapitalCard'
 import PnlCharts from './PnlCharts'
 import TradesTable from './TradesTable'
 import Icon from './Icon'
+import { Delta, EmptyState, SectionHeader, SegmentedControl, StatCard } from './ui'
 
 interface Props {
   trades: EnrichedTrade[]
@@ -17,172 +19,195 @@ interface Props {
   readOnly?: boolean
 }
 
-type RangeKey = 7 | 30 | 90 | 0
+type RangeKey = '7' | '30' | '90' | '0'
 
-const RANGES: { key: RangeKey; label: string }[] = [
-  { key: 7, label: '7日' },
-  { key: 30, label: '30日' },
-  { key: 90, label: '90日' },
-  { key: 0, label: '全期間' },
+const RANGES: { value: RangeKey; label: string }[] = [
+  { value: '7', label: '7日' },
+  { value: '30', label: '30日' },
+  { value: '90', label: '90日' },
+  { value: '0', label: '全期間' },
 ]
 
-function withinDays(trades: EnrichedTrade[], days: number) {
-  if (days <= 0) return trades
-  const cutoff = Date.now() - days * 86400_000
-  return trades.filter((t) => t.openJst.getTime() >= cutoff)
-}
-
-export default function Home({
-  trades,
-  settings,
-  onShowAll,
-  onAdd,
-  onChanged,
-  readOnly,
-}: Props) {
-  const [range, setRange] = useState<RangeKey>(30)
+export default function Home({ trades, settings, onShowAll, onAdd, onChanged, readOnly }: Props) {
+  const [range, setRange] = useState<RangeKey>('30')
   const [chart, setChart] = useState<'cumulative' | 'daily'>('cumulative')
+  const days = Number(range)
 
-  const ranged = useMemo(() => withinDays(trades, range), [trades, range])
+  const cmp = useMemo(() => comparePeriods(trades, days), [trades, days])
+  const ranged = days > 0 ? cmp.current : trades
   const sum = useMemo(() => summarize(ranged), [ranged])
   const all = useMemo(() => summarize(trades), [trades])
 
   const todayKey = jstDayKey(new Date())
   const todayNet = useMemo(
-    () => trades.filter((t) => t.jstDay === todayKey).reduce((s, t) => s + t.netProfit, 0),
+    () => netOf(trades.filter((t) => t.jstDay === todayKey)),
     [trades, todayKey],
   )
 
   const recent = useMemo(
-    () => [...trades].sort((a, b) => b.openJst.getTime() - a.openJst.getTime()).slice(0, 3),
+    () => [...trades].sort((a, b) => b.openJst.getTime() - a.openJst.getTime()).slice(0, 5),
     [trades],
   )
+
+  const netDelta = cmp.ratioOf(netOf)
+  const countDelta = cmp.ratioOf((t) => t.length)
+  const winDelta = cmp.ratioOf((t) =>
+    t.length ? t.filter((x) => x.win).length / t.length : 0,
+  )
+  const rangeLabel = days > 0 ? `直近${days}日` : '全期間'
 
   if (trades.length === 0) {
     return (
       <div className="flex flex-col gap-4">
-        <CapitalCard
-          settings={settings}
-          netTotal={0}
-          onChanged={onChanged}
-          readOnly={readOnly}
+        <CapitalCard settings={settings} netTotal={0} onChanged={onChanged} readOnly={readOnly} />
+        <EmptyState
+          icon="upload"
+          title="まだ取引がありません"
+          body="MT5のレポートを読み込むか、スクリーンショットから1件ずつ記録できます。"
+          action={
+            <button className="btn btn-primary" onClick={onAdd}>
+              <Icon name="plus" size={17} />
+              最初の取引を記録する
+            </button>
+          }
         />
-        <EmptyState onAdd={onAdd} />
       </div>
     )
   }
 
   return (
     <div className="flex flex-col gap-4">
-      {/* 残高と原資 — この画面の主役 */}
-      <CapitalCard
-        settings={settings}
-        netTotal={all.netTotal}
-        onChanged={onChanged}
-        readOnly={readOnly}
-      />
+      {/* 期間の切り替え */}
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <SegmentedControl value={range} onChange={setRange} options={RANGES} />
+        <button className="btn btn-quiet" onClick={onAdd}>
+          <Icon name="plus" size={16} />
+          取引を記録
+        </button>
+      </div>
 
-      <section className="card p-5">
-        <dl className="grid grid-cols-3 gap-3">
-          <Metric label="今日" value={fmtMoney(todayNet, { sign: true })} cls={colorOf(todayNet)} />
-          <Metric label="勝率" value={fmtPct(all.winRate)} />
-          <Metric label="取引数" value={`${all.count}件`} />
-        </dl>
-      </section>
+      {/* 主要な数値 */}
+      <div className="grid grid-cols-2 gap-3 xl:grid-cols-4">
+        <StatCard
+          icon="chart"
+          label={`${rangeLabel}の損益`}
+          value={fmtMoney(sum.netTotal, { sign: true })}
+          unit={currencyLabel()}
+          valueClass={colorOf(sum.netTotal)}
+          delta={days > 0 ? <Delta ratio={netDelta} /> : undefined}
+          hint="手数料・スワップ込み"
+        />
+        <StatCard
+          icon="check"
+          label="勝率"
+          value={fmtPct(sum.winRate)}
+          delta={days > 0 ? <Delta ratio={winDelta} /> : undefined}
+          hint={`${sum.wins}勝 ${sum.losses}敗`}
+        />
+        <StatCard
+          icon="book"
+          label="取引数"
+          value={`${sum.count}`}
+          unit="件"
+          delta={days > 0 ? <Delta ratio={countDelta} /> : undefined}
+        />
+        <StatCard
+          icon="home"
+          label="今日の損益"
+          value={fmtMoney(todayNet, { sign: true })}
+          unit={currencyLabel()}
+          valueClass={colorOf(todayNet)}
+          hint={`累計 ${fmtMoney(all.netTotal, { sign: true })}`}
+        />
+      </div>
 
-      {/* 推移チャート */}
-      <section className="card p-5">
-        <div className="flex flex-wrap items-center justify-between gap-3">
-          <h3 className="text-base font-bold">損益の推移</h3>
-          <div className="flex rounded-xl bg-sunken p-1">
-            {(
-              [
-                ['cumulative', '累積'],
-                ['daily', '日別'],
-              ] as const
-            ).map(([k, label]) => (
-              <button
-                key={k}
-                onClick={() => setChart(k)}
-                className={`seg ${chart === k ? 'seg-on' : 'seg-off'}`}
-              >
-                {label}
-              </button>
-            ))}
+      {/* 推移と口座状況 */}
+      <div className="grid gap-4 xl:grid-cols-[1.6fr_1fr]">
+        <section className="card p-5">
+          <SectionHeader
+            title="損益の推移"
+            sub={rangeLabel}
+            actions={
+              <SegmentedControl
+                size="sm"
+                value={chart}
+                onChange={setChart}
+                options={[
+                  { value: 'cumulative', label: '累積' },
+                  { value: 'daily', label: '日別' },
+                ]}
+              />
+            }
+          />
+          <p className={`text-2xl font-bold tabular-nums ${colorOf(sum.netTotal)}`}>
+            {fmtMoney(sum.netTotal, { sign: true })}
+            <span className="ml-1 text-sm font-semibold text-ink3">{currencyLabel()}</span>
+          </p>
+          {days > 0 && (
+            <div className="mt-1">
+              <Delta ratio={netDelta} />
+            </div>
+          )}
+          <div className="mt-4">
+            <PnlCharts trades={ranged} kind={chart} />
           </div>
-        </div>
+        </section>
 
-        <div className="mt-3 flex flex-wrap gap-1.5">
-          {RANGES.map((r) => (
-            <button
-              key={r.key}
-              onClick={() => setRange(r.key)}
-              className={`rounded-full px-3 py-1 text-xs font-semibold transition-colors ${
-                range === r.key
-                  ? 'bg-brand text-white'
-                  : 'border border-line text-ink2 hover:bg-sunken'
-              }`}
-            >
-              {r.label}
-            </button>
-          ))}
-          <span className="ml-auto self-center text-sm font-semibold tabular-nums">
-            <span className={colorOf(sum.netTotal)}>{fmtMoney(sum.netTotal, { sign: true })}</span>
-            <span className="ml-1 text-xs font-medium text-ink3">/ {sum.count}件</span>
-          </span>
+        <div className="flex flex-col gap-4">
+          <CapitalCard
+            settings={settings}
+            netTotal={all.netTotal}
+            onChanged={onChanged}
+            readOnly={readOnly}
+          />
+          <section className="card p-5">
+            <SectionHeader title="平均のすがた" sub={rangeLabel} />
+            <dl className="flex flex-col gap-3">
+              <Row label="平均ロット" value={fmtNum(sum.avgVolume, 2)} />
+              <Row
+                label="損益比"
+                value={
+                  sum.profitFactor == null
+                    ? '—'
+                    : sum.profitFactor === Infinity
+                      ? '∞'
+                      : fmtNum(sum.profitFactor)
+                }
+              />
+              <Row
+                label="実際の損益倍率"
+                value={sum.avgRMultiple != null ? `${fmtNum(sum.avgRMultiple)} R` : '—'}
+                cls={sum.avgRMultiple != null ? colorOf(sum.avgRMultiple) : undefined}
+              />
+              <Row label="TPまで届いた割合" value={fmtPct(sum.tpHitRate)} />
+            </dl>
+          </section>
         </div>
-
-        <div className="mt-4">
-          <PnlCharts trades={ranged} kind={chart} />
-        </div>
-      </section>
+      </div>
 
       {/* 最近の取引 */}
       <section>
-        <div className="mb-2 flex items-center justify-between">
-          <h3 className="text-base font-bold">最近の取引</h3>
-          <button className="btn btn-ghost -mr-2 text-sm" onClick={onShowAll}>
-            すべて見る
-            <Icon name="right" size={15} />
-          </button>
-        </div>
-        <TradesTable trades={recent} onChanged={() => {}} readOnly compact />
-        <button className="btn btn-quiet mt-3 w-full" onClick={onAdd}>
-          <Icon name="plus" size={17} />
-          取引を記録する
-        </button>
+        <SectionHeader
+          title="最近の取引"
+          sub={`全${trades.length}件のうち直近${recent.length}件`}
+          actions={
+            <button className="btn btn-quiet" onClick={onShowAll}>
+              すべて見る
+              <Icon name="right" size={15} />
+            </button>
+          }
+        />
+        <TradesTable trades={recent} onChanged={onChanged} readOnly compact />
       </section>
-
-      <p className="text-center text-xs text-ink3">
-        カレンダーの日付をタップすると、その日の振り返りを書けます
-      </p>
     </div>
   )
 }
 
-function Metric({ label, value, cls }: { label: string; value: string; cls?: string }) {
+function Row({ label, value, cls }: { label: string; value: string; cls?: string }) {
   return (
-    <div>
-      <dt className="text-xs text-ink3">{label}</dt>
-      <dd className={`mt-0.5 text-lg font-bold tabular-nums ${cls ?? 'text-ink'}`}>{value}</dd>
-    </div>
-  )
-}
-
-function EmptyState({ onAdd }: { onAdd: () => void }) {
-  return (
-    <div className="card flex flex-col items-center px-6 py-14 text-center">
-      <span className="flex h-14 w-14 items-center justify-center rounded-2xl bg-brand-soft text-brand">
-        <Icon name="upload" size={26} />
-      </span>
-      <h3 className="mt-4 text-lg font-bold">まだ取引がありません</h3>
-      <p className="mt-1 max-w-xs text-sm text-ink2">
-        MT5のレポートを読み込むか、スクリーンショットから1件ずつ記録できます。
-      </p>
-      <button className="btn btn-primary mt-5" onClick={onAdd}>
-        <Icon name="plus" size={17} />
-        最初の取引を記録する
-      </button>
+    <div className="flex items-baseline justify-between gap-3">
+      <dt className="text-sm text-ink2">{label}</dt>
+      <dd className={`text-base font-bold tabular-nums ${cls ?? 'text-ink'}`}>{value}</dd>
     </div>
   )
 }

@@ -3,9 +3,12 @@ import { useTrades } from './hooks/useTrades'
 import { useAuth } from './hooks/useAuth'
 import { isSupabaseConfigured } from './lib/supabase'
 import { getAppConfig, updateAppConfig } from './lib/appConfig'
+import { BRAND } from './lib/brand'
 import Logo from './components/Logo'
 import Onboarding from './components/Onboarding'
-import { BottomNav, NAV_ITEMS, TopNav, type ScreenKey } from './components/Nav'
+import { BottomNav, NAV_ITEMS, type ScreenKey } from './components/Nav'
+import Sidebar from './components/Sidebar'
+import { PageHeader } from './components/ui'
 import Icon from './components/Icon'
 import AuthScreen from './components/AuthScreen'
 import AccountPanel from './components/AccountPanel'
@@ -81,114 +84,126 @@ export default function App() {
     )
   }
 
+  function openAccount() {
+    setShowAccount(true)
+    setShowAllTrades(false)
+    window.scrollTo({ top: 0 })
+  }
+
   return (
-    <div className="min-h-full pb-24 md:pb-10">
-      {/* ヘッダー */}
-      <header className="sticky top-0 z-20 border-b border-line bg-page/90 backdrop-blur">
-        <div className="mx-auto flex max-w-5xl items-center gap-4 px-4 py-3">
-          <Logo size={30} />
-          <div className="ml-auto flex items-center gap-2">
-            <TopNav current={screen} onChange={go} />
-            <button
-              onClick={() => reload()}
-              className="btn btn-quiet px-2.5"
-              title="最新の状態に更新"
-              aria-label="更新"
-            >
-              <Icon name="refresh" size={17} />
-            </button>
-            {authed && (
+    <div className="flex min-h-screen">
+      <Sidebar
+        current={screen}
+        onChange={go}
+        counts={{ home: trades.length }}
+        email={userEmail}
+        onOpenAccount={openAccount}
+        accountActive={showAccount}
+      />
+
+      <div className="flex min-w-0 flex-1 flex-col pb-24 md:pb-0">
+        {/* 上部バー */}
+        <header className="sticky top-0 z-20 border-b border-line bg-page/90 px-4 py-3 backdrop-blur">
+          <div className="mx-auto flex max-w-6xl items-center gap-3">
+            <span className="md:hidden">
+              <Logo size={28} />
+            </span>
+            <nav aria-label="現在地" className="hidden text-sm text-ink3 md:block">
+              {BRAND.name} <span className="mx-1">/</span>
+              <span className="font-semibold text-ink">
+                {showAccount ? 'アカウント' : showAllTrades ? 'すべての取引' : item.label}
+              </span>
+            </nav>
+            <div className="ml-auto flex items-center gap-2">
               <button
-                onClick={() => {
-                  setShowAccount(true)
-                  setShowAllTrades(false)
-                  window.scrollTo({ top: 0 })
-                }}
+                onClick={() => reload()}
                 className="btn btn-quiet px-2.5"
-                title="アカウントと連携設定"
-                aria-label="アカウント"
+                title="最新の状態に更新"
+                aria-label="更新"
               >
-                <Icon name="info" size={17} />
+                <Icon name="refresh" size={17} />
               </button>
-            )}
+              {authed && (
+                <button
+                  onClick={openAccount}
+                  className="btn btn-quiet px-2.5 md:hidden"
+                  title="アカウントと連携設定"
+                  aria-label="アカウント"
+                >
+                  <Icon name="info" size={17} />
+                </button>
+              )}
+            </div>
           </div>
-        </div>
-      </header>
+        </header>
 
-      <main className="mx-auto max-w-5xl px-4 py-5">
-        {/* 画面タイトル: いま何の画面かを常に明示する */}
-        {!showAllTrades && !showAccount && (
-          <div className="mb-4 flex items-baseline gap-2">
-            <h2 className="text-xl font-bold tracking-tight">{item.label}</h2>
-            <span className="text-sm text-ink3">{item.blurb}</span>
-          </div>
-        )}
+        <main className="mx-auto w-full max-w-6xl flex-1 px-4 py-5">
+          {/* 画面タイトル: いま何の画面かを常に明示する */}
+          {!showAllTrades && !showAccount && (
+            <PageHeader title={item.label} sub={item.blurb} />
+          )}
 
-        {demo && <DemoNotice />}
-        {error && (
-          <div className="mb-4 rounded-2xl border border-down/25 bg-down-soft px-4 py-3 text-sm text-down">
-            読み込みエラー: {error}
-          </div>
-        )}
+          {demo && <DemoNotice />}
+          {error && (
+            <div className="mb-4 rounded-2xl border border-down/25 bg-down-soft px-4 py-3 text-sm text-down">
+              読み込みエラー: {error}
+            </div>
+          )}
 
-        {loading ? (
-          <div className="py-24 text-center text-sm text-ink3">読み込み中…</div>
-        ) : showAccount ? (
-          <>
-            <button className="btn btn-ghost mb-3 -ml-2" onClick={() => setShowAccount(false)}>
-              <Icon name="back" size={17} />
-              戻る
-            </button>
-            <AccountPanel email={userEmail} onSignOut={signOut} />
-          </>
-        ) : showAllTrades ? (
-          <>
-            <button className="btn btn-ghost mb-3 -ml-2" onClick={() => setShowAllTrades(false)}>
-              <Icon name="back" size={17} />
-              ホームに戻る
-            </button>
-            <h2 className="mb-3 text-xl font-bold tracking-tight">
-              すべての取引
-              <span className="ml-2 text-sm font-medium text-ink3">{trades.length}件</span>
-            </h2>
-            <TradesTable trades={trades} onChanged={reload} readOnly={demo} />
-          </>
-        ) : (
-          <>
-            {screen === 'home' && (
-              <Home
-                trades={trades}
-                settings={settings}
-                onShowAll={() => setShowAllTrades(true)}
-                onAdd={() => go('add')}
-                onChanged={reload}
-                readOnly={demo}
-              />
-            )}
-            {screen === 'calendar' && (
-              <CalendarScreen trades={trades} onSelectDay={openDay} />
-            )}
-            {screen === 'add' && (
-              <UploadPanel onChanged={reload} disabled={!configured} onDone={() => go('home')} />
-            )}
-            {screen === 'stats' && <StatsPanel trades={trades} />}
-            {screen === 'diary' && (
-              <Diary
-                trades={trades}
-                dayNotes={dayNotes}
-                onChanged={reload}
-                focusDay={focusDay}
-                readOnly={demo}
-              />
-            )}
-          </>
-        )}
+          {loading ? (
+            <div className="py-24 text-center text-sm text-ink3">読み込み中…</div>
+          ) : showAccount ? (
+            <>
+              <button className="btn btn-ghost mb-3 -ml-2" onClick={() => setShowAccount(false)}>
+                <Icon name="back" size={17} />
+                戻る
+              </button>
+              <AccountPanel email={userEmail} onSignOut={signOut} />
+            </>
+          ) : showAllTrades ? (
+            <>
+              <button className="btn btn-ghost mb-3 -ml-2" onClick={() => setShowAllTrades(false)}>
+                <Icon name="back" size={17} />
+                ホームに戻る
+              </button>
+              <PageHeader title="すべての取引" sub={`${trades.length}件`} />
+              <TradesTable trades={trades} onChanged={reload} readOnly={demo} />
+            </>
+          ) : (
+            <>
+              {screen === 'home' && (
+                <Home
+                  trades={trades}
+                  settings={settings}
+                  onShowAll={() => setShowAllTrades(true)}
+                  onAdd={() => go('add')}
+                  onChanged={reload}
+                  readOnly={demo}
+                />
+              )}
+              {screen === 'calendar' && <CalendarScreen trades={trades} onSelectDay={openDay} />}
+              {screen === 'add' && (
+                <UploadPanel onChanged={reload} disabled={!configured} onDone={() => go('home')} />
+              )}
+              {screen === 'stats' && <StatsPanel trades={trades} />}
+              {screen === 'diary' && (
+                <Diary
+                  trades={trades}
+                  dayNotes={dayNotes}
+                  onChanged={reload}
+                  focusDay={focusDay}
+                  readOnly={demo}
+                />
+              )}
+            </>
+          )}
 
-        <p className="mt-10 text-center text-xs text-ink3">
-          MT5の時刻（UTC{getAppConfig().brokerUtcOffset >= 0 ? '+' : ''}
-          {getAppConfig().brokerUtcOffset}）を日本時間に変換して記録しています
-        </p>
-      </main>
+          <p className="mt-10 text-center text-xs text-ink3">
+            MT5の時刻（UTC{getAppConfig().brokerUtcOffset >= 0 ? '+' : ''}
+            {getAppConfig().brokerUtcOffset}）を日本時間に変換して記録しています
+          </p>
+        </main>
+      </div>
 
       <BottomNav current={screen} onChange={go} />
     </div>

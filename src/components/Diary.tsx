@@ -4,9 +4,11 @@ import { dailySeries } from '../lib/analytics'
 import { friendlyError } from '../lib/errors'
 import { upsertDayNote } from '../lib/repo'
 import { fmtJst } from '../lib/timezone'
+import { currencyLabel } from '../lib/appConfig'
 import { colorOf, fmtMoney } from '../lib/format'
 import TradesTable from './TradesTable'
 import Icon from './Icon'
+import { EmptyState } from './ui'
 
 interface Props {
   trades: EnrichedTrade[]
@@ -32,10 +34,11 @@ export default function Diary({ trades, dayNotes, onChanged, focusDay, readOnly 
 
   if (days.length === 0) {
     return (
-      <div className="card px-6 py-16 text-center">
-        <p className="font-semibold">まだ記録がありません</p>
-        <p className="mt-1 text-sm text-ink2">取引を追加すると、日ごとに振り返れます。</p>
-      </div>
+      <EmptyState
+        icon="book"
+        title="まだ記録がありません"
+        body="取引を追加すると、日ごとに振り返れます。"
+      />
     )
   }
 
@@ -73,7 +76,7 @@ export default function Diary({ trades, dayNotes, onChanged, focusDay, readOnly 
             <p className="text-sm text-ink2">
               {dayTrades.length}件 ・{' '}
               <span className={`font-bold tabular-nums ${colorOf(dayNet)}`}>
-                {fmtMoney(dayNet, { sign: true })} 円
+                {fmtMoney(dayNet, { sign: true })} {currencyLabel()}
               </span>
             </p>
           </div>

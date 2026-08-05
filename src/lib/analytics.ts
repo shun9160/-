@@ -138,6 +138,51 @@ export function summarize(trades: EnrichedTrade[]): Summary {
   }
 }
 
+/**
+ * 直近N日と、その1つ前の同じ長さの期間を比べる。
+ * 「前の期間から何%」を出すために使う。
+ */
+export interface PeriodCompare {
+  current: EnrichedTrade[]
+  previous: EnrichedTrade[]
+  /** 増減率。前の期間が0なら比較できないので null */
+  ratioOf: (pick: (t: EnrichedTrade[]) => number) => number | null
+}
+
+export function comparePeriods(
+  trades: EnrichedTrade[],
+  days: number,
+  now = Date.now(),
+): PeriodCompare {
+  if (days <= 0) {
+    return { current: trades, previous: [], ratioOf: () => null }
+  }
+  const span = days * 86400_000
+  const from = now - span
+  const prevFrom = from - span
+
+  const current = trades.filter((t) => t.openJst.getTime() >= from)
+  const previous = trades.filter(
+    (t) => t.openJst.getTime() >= prevFrom && t.openJst.getTime() < from,
+  )
+
+  return {
+    current,
+    previous,
+    ratioOf: (pick) => {
+      const a = pick(current)
+      const b = pick(previous)
+      if (!isFinite(a) || !isFinite(b) || b === 0) return null
+      return (a - b) / Math.abs(b)
+    },
+  }
+}
+
+/** 純損益の合計 */
+export function netOf(trades: EnrichedTrade[]): number {
+  return trades.reduce((s, t) => s + t.netProfit, 0)
+}
+
 export function groupNetByDay(trades: EnrichedTrade[]): Record<string, number> {
   const out: Record<string, number> = {}
   for (const t of trades) {

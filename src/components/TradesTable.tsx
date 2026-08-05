@@ -2,10 +2,19 @@ import { useMemo, useState } from 'react'
 import type { EnrichedTrade } from '../lib/types'
 import { deleteTrade, getTradeScreenshot, updateTrade, updateTradeNote } from '../lib/repo'
 import { fmtJst, SESSION_LABELS } from '../lib/timezone'
+import { currencyLabel } from '../lib/appConfig'
 import { colorOf, fmtMoney, fmtNum, fmtPct, fmtRR } from '../lib/format'
 import { friendlyError } from '../lib/errors'
 import TradeForm from './TradeForm'
 import Icon from './Icon'
+import { Pill, type PillTone } from './ui'
+
+/** 終わり方を、色と文字の両方で示す */
+function outcome(t: EnrichedTrade): { tone: PillTone; label: string } {
+  if (t.tpHit) return { tone: 'up', label: '利確ライン' }
+  if (t.slHit) return { tone: 'down', label: '損切りライン' }
+  return t.win ? { tone: 'up', label: '手動で利確' } : { tone: 'down', label: '手動で損切り' }
+}
 
 interface Props {
   trades: EnrichedTrade[]
@@ -72,6 +81,63 @@ export default function TradesTable({ trades, onChanged, filterDay, readOnly, co
     )
   }
 
+  // 一覧を見るだけの場面（ホームの「最近の取引」）は、表で一覧性を優先する
+  if (compact) {
+    return (
+      <div className="card overflow-hidden">
+        <div className="overflow-x-auto">
+          <table className="w-full min-w-[560px] text-sm">
+            <thead>
+              <tr className="border-b border-line text-left">
+                {['銘柄', '売買', 'ロット', '日時 (JST)', '終わり方', '損益'].map((h, i) => (
+                  <th
+                    key={h}
+                    className={`px-4 py-2.5 text-[11px] font-semibold uppercase tracking-wider text-ink3 ${
+                      i === 5 ? 'text-right' : ''
+                    }`}
+                  >
+                    {h}
+                  </th>
+                ))}
+              </tr>
+            </thead>
+            <tbody>
+              {rows.map((t) => {
+                const o = outcome(t)
+                return (
+                  <tr key={t.id} className="border-b border-line last:border-0 hover:bg-sunken/60">
+                    <td className="whitespace-nowrap px-4 py-3 font-semibold">{t.symbol}</td>
+                    <td className="px-4 py-3">
+                      <Pill tone={t.side === 'buy' ? 'brand' : 'neutral'}>
+                        {t.side === 'buy' ? '買い' : '売り'}
+                      </Pill>
+                    </td>
+                    <td className="whitespace-nowrap px-4 py-3 tabular-nums text-ink2">
+                      {fmtNum(t.volume, 2)}
+                    </td>
+                    <td className="whitespace-nowrap px-4 py-3 tabular-nums text-ink2">
+                      {fmtJst(t.open_time, 'M/d HH:mm')}
+                    </td>
+                    <td className="px-4 py-3">
+                      <Pill tone={o.tone}>{o.label}</Pill>
+                    </td>
+                    <td
+                      className={`whitespace-nowrap px-4 py-3 text-right font-bold tabular-nums ${colorOf(
+                        t.netProfit,
+                      )}`}
+                    >
+                      {fmtMoney(t.netProfit, { sign: true })}
+                    </td>
+                  </tr>
+                )
+              })}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    )
+  }
+
   return (
     <div className="flex flex-col gap-2.5">
       {err && (
@@ -99,7 +165,7 @@ export default function TradesTable({ trades, onChanged, filterDay, readOnly, co
                 className={`ml-auto shrink-0 text-base font-bold tabular-nums ${colorOf(t.netProfit)}`}
               >
                 {fmtMoney(t.netProfit, { sign: true })}
-                <span className="ml-0.5 text-[11px] font-semibold text-ink3">円</span>
+                <span className="ml-0.5 text-[11px] font-semibold text-ink3">{currencyLabel()}</span>
               </span>
             </div>
 
@@ -108,7 +174,7 @@ export default function TradesTable({ trades, onChanged, filterDay, readOnly, co
               {t.close_time && <> → {fmtJst(t.close_time, 'HH:mm')}</>}
               <span className="mx-1.5">·</span>
               {SESSION_LABELS[t.session].split(' ')[0]}
-              {!compact && <span className="ml-1.5 text-ink3">(日本時間)</span>}
+              <span className="ml-1.5">(日本時間)</span>
             </p>
 
             {isEditing ? (
@@ -126,7 +192,7 @@ export default function TradesTable({ trades, onChanged, filterDay, readOnly, co
               </div>
             ) : (
               <>
-                {!compact && (
+                {(
                   <dl className="mt-3 grid grid-cols-2 gap-x-4 gap-y-2 border-t border-line px-4 pt-3 sm:grid-cols-4">
                     <Cell
                       label="建値 → 決済"
@@ -147,19 +213,16 @@ export default function TradesTable({ trades, onChanged, filterDay, readOnly, co
                       value={fmtPct(t.capturedRatio)}
                       cls={t.capturedRatio != null ? colorOf(t.capturedRatio) : undefined}
                     />
+                    <div>
+                      <dt className="text-[11px] text-ink3">終わり方</dt>
+                      <dd className="mt-0.5">
+                        <Pill tone={outcome(t).tone}>{outcome(t).label}</Pill>
+                      </dd>
+                    </div>
                     <Cell
-                      label="終わり方"
-                      value={
-                        t.tpHit
-                          ? '利確ライン'
-                          : t.slHit
-                            ? '損切りライン'
-                            : t.win
-                              ? '手動で利確'
-                              : '手動で損切り'
-                      }
+                      label="手数料"
+                      value={`${fmtMoney(t.commission)} ${currencyLabel()}`}
                     />
-                    <Cell label="手数料" value={`${fmtMoney(t.commission)} 円`} />
                   </dl>
                 )}
 

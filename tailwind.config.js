@@ -4,8 +4,8 @@ export default {
   theme: {
     extend: {
       colors: {
-        // 面 — 白基調。ニュートラルはアクセント(紫)寄りにわずかに振っている
-        page: '#FAFAFC',
+        // 面 — 白いカードが浮くよう、下地はわずかに灰色
+        page: '#F4F4F7',
         surface: '#FFFFFF',
         sunken: '#F4F4F8',
         line: '#E9E9F0',
