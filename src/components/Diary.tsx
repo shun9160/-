@@ -118,18 +118,22 @@ function DayNoteEditor({
   initial: string
   onChanged: () => void
 }) {
+  // saved = いまデータベースに入っている内容。text = 書きかけの内容。
+  const [saved, setSaved] = useState(initial)
   const [text, setText] = useState(initial)
+  // まだ何も書いていない日は、すぐ書けるように最初から入力欄を開く。
+  const [editing, setEditing] = useState(initial === '')
   const [saving, setSaving] = useState(false)
-  const [saved, setSaved] = useState(false)
   const [err, setErr] = useState<string | null>(null)
 
   async function save() {
     setSaving(true)
-    setSaved(false)
     setErr(null)
     try {
       await upsertDayNote(day, text)
-      setSaved(true)
+      // ここまで来たら確実に保存できている。
+      setSaved(text)
+      setEditing(false)
       onChanged()
     } catch (e) {
       setErr(friendlyError(e))
@@ -138,30 +142,60 @@ function DayNoteEditor({
     }
   }
 
+  function cancel() {
+    setText(saved)
+    setErr(null)
+    setEditing(false)
+  }
+
+  // 保存済みの表示。ボタンが「編集」になっていることで、
+  // 書いた内容がちゃんと残っていると分かる。
+  if (!editing) {
+    return (
+      <div className="card p-4">
+        <div className="mb-2 flex items-center justify-between gap-3">
+          <p className="label">その日の振り返り</p>
+          {saved !== '' && (
+            <span className="flex items-center gap-1 text-xs font-semibold text-up">
+              <Icon name="check" size={14} />
+              保存済み
+            </span>
+          )}
+        </div>
+        {saved === '' ? (
+          <p className="text-sm text-ink3">まだ書いていません</p>
+        ) : (
+          <p className="whitespace-pre-wrap text-sm leading-relaxed text-ink">{saved}</p>
+        )}
+        <button className="btn btn-quiet mt-3" onClick={() => setEditing(true)}>
+          <Icon name="pencil" size={15} />
+          {saved === '' ? '書く' : '編集'}
+        </button>
+      </div>
+    )
+  }
+
   return (
     <div className="card p-4">
-      <div className="mb-2 flex items-center justify-between">
-        <p className="label">その日の振り返り</p>
-        {saved && (
-          <span className="flex items-center gap-1 text-xs font-semibold text-up">
-            <Icon name="check" size={14} />
-            保存しました
-          </span>
-        )}
-      </div>
+      <p className="label mb-2">その日の振り返り</p>
       <textarea
         className="input min-h-[110px] resize-y"
         value={text}
-        onChange={(e) => {
-          setText(e.target.value)
-          setSaved(false)
-        }}
+        autoFocus
+        onChange={(e) => setText(e.target.value)}
         placeholder="相場の印象、メンタル、良かった点、次に直すこと"
       />
       {err && <p className="mt-2 text-sm text-down">{err}</p>}
-      <button className="btn btn-primary mt-3" onClick={save} disabled={saving}>
-        {saving ? '保存中…' : '保存'}
-      </button>
+      <div className="mt-3 flex items-center gap-2">
+        <button className="btn btn-primary" onClick={save} disabled={saving}>
+          {saving ? '保存中…' : '保存'}
+        </button>
+        {saved !== '' && (
+          <button className="btn btn-quiet" onClick={cancel} disabled={saving}>
+            やめる
+          </button>
+        )}
+      </div>
     </div>
   )
 }
