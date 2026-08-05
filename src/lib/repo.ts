@@ -3,6 +3,7 @@ import type { DayNote, Settings, Trade, TradeInput } from './types'
 
 const NO_CLIENT = 'Supabase が未設定です (.env / Netlify の環境変数を確認してください)'
 const NO_USER = 'ログインが必要です'
+const WRITE_BLOCKED = '保存できませんでした (day_notes の権限設定をご確認ください)'
 
 /** 重複判定に使える索引が無いときのエラーか */
 function isMissingConflictTarget(e: unknown): boolean {
@@ -149,13 +150,45 @@ export async function fetchDayNotes(): Promise<DayNote[]> {
 export async function upsertDayNote(day: string, note: string): Promise<void> {
   if (!supabase) throw new Error(NO_CLIENT)
   const userId = await requireUserId()
-  const { error } = await supabase
+  const row = { user_id: userId, day, note, updated_at: new Date().toISOString() }
+
+  const { data, error } = await supabase
     .from('day_notes')
-    .upsert(
-      { user_id: userId, day, note, updated_at: new Date().toISOString() },
-      { onConflict: 'user_id,day' },
-    )
-  if (error) throw error
+    .upsert(row, { onConflict: 'user_id,day' })
+    .select('day')
+
+  // 1行でも書けていれば成功。
+  if (!error && (data?.length ?? 0) > 0) return
+  // 想定外のエラーはそのまま伝える（索引が無いだけなら下で救済する）。
+  if (error && !isMissingConflictTarget(error)) throw error
+
+  // 重複判定用の索引が無い環境向け。
+  // その日の行があれば書き換え、無ければ新しく作る。
+  const { data: existing, error: readErr } = await supabase
+    .from('day_notes')
+    .select('day')
+    .eq('user_id', userId)
+    .eq('day', day)
+    .maybeSingle()
+  if (readErr) throw readErr
+
+  if (existing) {
+    const { data: updated, error: upErr } = await supabase
+      .from('day_notes')
+      .update({ note, updated_at: row.updated_at })
+      .eq('user_id', userId)
+      .eq('day', day)
+      .select('day')
+    if (upErr) throw upErr
+    if (!updated?.length) throw new Error(WRITE_BLOCKED)
+  } else {
+    const { data: inserted, error: insErr } = await supabase
+      .from('day_notes')
+      .insert(row)
+      .select('day')
+    if (insErr) throw insErr
+    if (!inserted?.length) throw new Error(WRITE_BLOCKED)
+  }
 }
 
 // ---------------------------------------------------------------

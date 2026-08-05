@@ -32,6 +32,12 @@ export function friendlyError(e: unknown): string {
   if (/screenshot/i.test(raw) && /column|schema cache/i.test(raw)) {
     return `${raw}\n\n→ スクショ保存用の列がまだありません。Supabase の SQL Editor で次を実行してください:\nalter table public.trades add column if not exists screenshot text;`
   }
+  if (/user_id/i.test(raw) && /column|schema cache|does not exist/i.test(raw)) {
+    return `${raw}\n\n→ 利用者ごとにデータを分ける列がまだありません。Supabase の SQL Editor で supabase/migrations/2026-08-05_multi_user.sql を実行してください。`
+  }
+  if (/day_notes/i.test(raw) && /relation|does not exist|schema cache/i.test(raw)) {
+    return `${raw}\n\n→ 日記を保存する表がまだありません。Supabase の SQL Editor で supabase/schema.sql を実行してください。`
+  }
   if (/column "id"/i.test(raw) && /settings/i.test(raw)) {
     return `${raw}\n\n→ settings テーブルに古い id 列が残っています。Supabase の SQL Editor で supabase/migrations/2026-08-05_fix_settings.sql を実行してください。`
   }
