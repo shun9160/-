@@ -28,16 +28,21 @@ export default {
         'down-soft': '#FCECEA',
       },
       fontFamily: {
+        // 英数字は IBM Plex Sans（技術系の実直な書体）、日本語は各OSの標準に任せる。
+        // 数字の形が揃っていて、金額を並べたときに読み違えにくい。
         sans: [
+          '"IBM Plex Sans Variable"',
+          '"IBM Plex Sans"',
           '-apple-system',
           'BlinkMacSystemFont',
           '"Hiragino Sans"',
           '"Hiragino Kaku Gothic ProN"',
+          '"Yu Gothic Medium"',
           '"Noto Sans JP"',
           '"Segoe UI"',
-          'Roboto',
           'sans-serif',
         ],
+        display: ['"IBM Plex Sans Variable"', '"IBM Plex Sans"', 'system-ui', 'sans-serif'],
       },
       fontSize: {
         // 数字を大きく見せるための追加ステップ

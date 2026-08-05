@@ -1,8 +1,9 @@
 import { formatInTimeZone } from 'date-fns-tz'
+import { getAppConfig } from './appConfig'
 import type { SessionKey } from './types'
 
-// MT5 のスクショはドバイ時間 (UTC+4, 夏時間なし)。
-// 元データの壁時計をこのオフセットで UTC 瞬間に正規化する。
+// MT5 の表示時刻はブローカーのサーバー時刻。既定はドバイ時間 (UTC+4)。
+// 実際の値は初期設定で決まり、getAppConfig() から読む。
 export const SOURCE_UTC_OFFSET_HOURS = 4
 
 // 記録・表示は日本時間で行う。
@@ -14,7 +15,7 @@ export const JST_TZ = 'Asia/Tokyo'
  */
 export function parseMt5DateTime(
   raw: string | null | undefined,
-  srcOffsetHours = SOURCE_UTC_OFFSET_HOURS,
+  srcOffsetHours = getAppConfig().brokerUtcOffset,
 ): Date | null {
   if (!raw) return null
   const m = raw
@@ -35,12 +36,17 @@ export function fmtJst(value: Date | string | null | undefined, pattern = 'yyyy/
   return formatInTimeZone(d, JST_TZ, pattern)
 }
 
-/** ソースTZ(ドバイ)の壁時計文字列に戻す。編集フォームの初期値用。 */
-export function fmtDubai(value: Date | string | null | undefined): string {
+/** MT5サーバー時刻の表記に戻す。編集フォームの初期値用。 */
+export function fmtBrokerTime(value: Date | string | null | undefined): string {
   if (!value) return ''
   const d = typeof value === 'string' ? new Date(value) : value
   if (isNaN(d.getTime())) return ''
-  return formatInTimeZone(d, 'Asia/Dubai', 'yyyy.MM.dd HH:mm:ss')
+  const shifted = new Date(d.getTime() + getAppConfig().brokerUtcOffset * 3600_000)
+  const p = (n: number) => String(n).padStart(2, '0')
+  return (
+    `${shifted.getUTCFullYear()}.${p(shifted.getUTCMonth() + 1)}.${p(shifted.getUTCDate())} ` +
+    `${p(shifted.getUTCHours())}:${p(shifted.getUTCMinutes())}:${p(shifted.getUTCSeconds())}`
+  )
 }
 
 /** 日本時間の日付キー (YYYY-MM-DD) */

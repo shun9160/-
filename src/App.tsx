@@ -1,7 +1,10 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { useTrades } from './hooks/useTrades'
 import { useAuth } from './hooks/useAuth'
 import { isSupabaseConfigured } from './lib/supabase'
+import { getAppConfig, updateAppConfig } from './lib/appConfig'
+import Logo from './components/Logo'
+import Onboarding from './components/Onboarding'
 import { BottomNav, NAV_ITEMS, TopNav, type ScreenKey } from './components/Nav'
 import Icon from './components/Icon'
 import AuthScreen from './components/AuthScreen'
@@ -25,6 +28,19 @@ export default function App() {
   /** ホームから開く「すべての取引」。タブではなくサブ画面 */
   const [showAllTrades, setShowAllTrades] = useState(false)
   const [showAccount, setShowAccount] = useState(false)
+  /** 初期設定を「あとで」にした場合、この画面では出さない */
+  const [skipOnboarding, setSkipOnboarding] = useState(false)
+
+  // 初期設定の内容をアプリ全体に反映する
+  useEffect(() => {
+    if (!settings) return
+    updateAppConfig({
+      brokerUtcOffset: settings.broker_utc_offset,
+      accountCurrency: settings.account_currency,
+      lotSize: settings.lot_size,
+      defaultSymbol: settings.main_symbol ?? undefined,
+    })
+  }, [settings])
 
   function go(k: ScreenKey) {
     setScreen(k)
@@ -53,15 +69,24 @@ export default function App() {
     return <AuthScreen onSkip={() => setPreviewMode(true)} />
   }
 
+  // ログイン直後で初期設定がまだのとき
+  if (authed && !loading && !skipOnboarding && settings?.onboarded_at == null) {
+    return (
+      <Onboarding
+        onDone={() => {
+          setSkipOnboarding(true)
+          void reload()
+        }}
+      />
+    )
+  }
+
   return (
     <div className="min-h-full pb-24 md:pb-10">
       {/* ヘッダー */}
       <header className="sticky top-0 z-20 border-b border-line bg-page/90 backdrop-blur">
         <div className="mx-auto flex max-w-5xl items-center gap-4 px-4 py-3">
-          <div className="min-w-0">
-            <h1 className="truncate text-[15px] font-bold tracking-tight">FX Trading Journal</h1>
-            <p className="truncate text-xs text-ink3">日本時間で記録・分析</p>
-          </div>
+          <Logo size={30} />
           <div className="ml-auto flex items-center gap-2">
             <TopNav current={screen} onChange={go} />
             <button
@@ -160,7 +185,8 @@ export default function App() {
         )}
 
         <p className="mt-10 text-center text-xs text-ink3">
-          MT5の時刻（ドバイ / UTC+4）を日本時間に変換して記録しています
+          MT5の時刻（UTC{getAppConfig().brokerUtcOffset >= 0 ? '+' : ''}
+          {getAppConfig().brokerUtcOffset}）を日本時間に変換して記録しています
         </p>
       </main>
 

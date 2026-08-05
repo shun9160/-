@@ -1,3 +1,6 @@
+/* 英数字用の書体。日本語はOS標準に任せるので読み込みは軽い。 */
+@import '@fontsource-variable/ibm-plex-sans/index.css';
+
 @tailwind base;
 @tailwind components;
 @tailwind utilities;

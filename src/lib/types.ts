@@ -68,10 +68,19 @@ export interface DayNote {
 /** 設定（原資など）。利用者ごとに1行 */
 export interface Settings {
   user_id: string
-  /** 原資（元本, 円） */
+  /** 原資（元本） */
   initial_capital: number
   capital_note: string | null
   /** 証拠スクショ。一覧取得では省略され undefined になる */
   capital_screenshot?: string | null
+  /** 口座の通貨 */
+  account_currency: string
+  /** 1ロットの通貨量 */
+  lot_size: number
+  /** MT5サーバーの時差（UTCから何時間か） */
+  broker_utc_offset: number
+  main_symbol: string | null
+  /** 初期設定を終えた日時。null なら未設定 */
+  onboarded_at: string | null
   updated_at?: string
 }

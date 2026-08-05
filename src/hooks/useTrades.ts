@@ -24,6 +24,11 @@ const DEMO_SETTINGS: Settings = {
   user_id: 'demo',
   initial_capital: 100000,
   capital_note: 'サンプルの原資',
+  account_currency: 'JPY',
+  lot_size: 100000,
+  broker_utc_offset: 4,
+  main_symbol: 'XAUUSD',
+  onboarded_at: '2026-08-01T00:00:00Z',
 }
 
 /**

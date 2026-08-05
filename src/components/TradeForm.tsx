@@ -4,7 +4,8 @@ import { friendlyError } from '../lib/errors'
 import { fileToDownscaledDataUrl } from '../lib/image'
 import { readTradeFromImage } from '../lib/ocr'
 import { getTradeScreenshot } from '../lib/repo'
-import { fmtDubai, parseMt5DateTime } from '../lib/timezone'
+import { getAppConfig } from '../lib/appConfig'
+import { fmtBrokerTime, parseMt5DateTime } from '../lib/timezone'
 import Icon from './Icon'
 
 interface Props {
@@ -24,19 +25,19 @@ export default function TradeForm({ mode, trade, onSubmit, onCancel }: Props) {
 
   const [f, setF] = useState({
     ticket: trade?.ticket ?? '',
-    symbol: trade?.symbol ?? 'XAUUSD.raw',
+    symbol: trade?.symbol ?? getAppConfig().defaultSymbol,
     side: (trade?.side ?? 'buy') as Side,
     volume: str(trade?.volume, '0.02'),
     open_price: str(trade?.open_price),
     close_price: str(trade?.close_price),
     sl: str(trade?.sl),
     tp: str(trade?.tp),
-    open_time: trade ? fmtDubai(trade.open_time) : '',
-    close_time: trade ? fmtDubai(trade.close_time) : '',
+    open_time: trade ? fmtBrokerTime(trade.open_time) : '',
+    close_time: trade ? fmtBrokerTime(trade.close_time) : '',
     commission: str(trade?.commission, '0'),
     swap: str(trade?.swap, '0'),
     profit: str(trade?.profit),
-    currency: trade?.currency ?? 'JPY',
+    currency: trade?.currency ?? getAppConfig().accountCurrency,
   })
 
   // 画像: undefined=未変更 / string=新規 / null=削除
@@ -170,7 +171,7 @@ export default function TradeForm({ mode, trade, onSubmit, onCancel }: Props) {
       commission: Number(f.commission) || 0,
       swap: Number(f.swap) || 0,
       profit: Number(f.profit) || 0,
-      currency: f.currency.trim() || 'JPY',
+      currency: f.currency.trim() || getAppConfig().accountCurrency,
       note: trade?.note ?? null,
       source: mode === 'add' ? (shot ? 'screenshot' : 'manual') : (trade?.source ?? 'manual'),
     }

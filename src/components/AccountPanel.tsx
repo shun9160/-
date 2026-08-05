@@ -6,6 +6,14 @@ import {
   type IngestToken,
 } from '../lib/repo'
 import { friendlyError } from '../lib/errors'
+import {
+  deletePasskey,
+  listPasskeys,
+  passkeyErrorMessage,
+  passkeySupported,
+  registerPasskey,
+  type PasskeyItem,
+} from '../lib/passkey'
 import { fmtJst } from '../lib/timezone'
 import Icon from './Icon'
 
@@ -92,6 +100,8 @@ export default function AccountPanel({ email, onSignOut }: Props) {
           ログアウト
         </button>
       </section>
+
+      <PasskeySection />
 
       {/* 連携コード */}
       <section className="card p-5">
@@ -182,5 +192,126 @@ export default function AccountPanel({ email, onSignOut }: Props) {
         </div>
       </section>
     </div>
+  )
+}
+
+/** パスキー（顔認証・指紋・PIN）の登録と削除 */
+function PasskeySection() {
+  const [items, setItems] = useState<PasskeyItem[]>([])
+  const [loading, setLoading] = useState(true)
+  const [busy, setBusy] = useState(false)
+  const [err, setErr] = useState<string | null>(null)
+  const [done, setDone] = useState(false)
+  const supported = passkeySupported()
+
+  const load = useCallback(async () => {
+    if (!supported) {
+      setLoading(false)
+      return
+    }
+    try {
+      setItems(await listPasskeys())
+    } catch {
+      setItems([])
+    } finally {
+      setLoading(false)
+    }
+  }, [supported])
+
+  useEffect(() => {
+    void load()
+  }, [load])
+
+  async function add() {
+    setBusy(true)
+    setErr(null)
+    setDone(false)
+    try {
+      await registerPasskey(navigator.platform || 'この端末')
+      setDone(true)
+      await load()
+    } catch (e) {
+      setErr(passkeyErrorMessage(e))
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  async function remove(id: string) {
+    if (!confirm('このパスキーを削除します。よろしいですか？')) return
+    setBusy(true)
+    try {
+      await deletePasskey(id)
+      await load()
+    } catch (e) {
+      setErr(passkeyErrorMessage(e))
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  return (
+    <section className="card p-5">
+      <h3 className="text-base font-bold">パスキー</h3>
+      <p className="mt-1 text-sm text-ink2">
+        顔認証・指紋・PINでログインできるようになります。パスワードの入力が不要になり、より安全です。
+      </p>
+
+      {!supported ? (
+        <p className="mt-3 text-sm text-ink3">この端末・ブラウザでは利用できません。</p>
+      ) : (
+        <>
+          {err && (
+            <p className="mt-3 rounded-xl border border-down/25 bg-down-soft px-3 py-2 text-sm text-down">
+              {err}
+            </p>
+          )}
+          {done && (
+            <p className="mt-3 flex items-center gap-1.5 rounded-xl border border-up/25 bg-up-soft px-3 py-2 text-sm text-up">
+              <Icon name="check" size={15} />
+              登録しました。次回からパスキーでログインできます
+            </p>
+          )}
+
+          {loading ? (
+            <p className="mt-4 text-sm text-ink3">読み込み中…</p>
+          ) : items.length > 0 ? (
+            <ul className="mt-4 flex flex-col gap-2">
+              {items.map((k) => (
+                <li
+                  key={k.id}
+                  className="flex items-center gap-2 rounded-2xl border border-line bg-sunken px-3 py-2.5"
+                >
+                  <Icon name="check" size={16} className="shrink-0 text-up" />
+                  <span className="min-w-0 flex-1 truncate text-sm font-semibold">
+                    {k.friendly_name || '登録済みのパスキー'}
+                  </span>
+                  {k.created_at && (
+                    <span className="shrink-0 text-[11px] text-ink3">
+                      {fmtJst(k.created_at, 'yyyy/MM/dd')}
+                    </span>
+                  )}
+                  <button
+                    className="btn btn-danger shrink-0 px-2"
+                    onClick={() => remove(k.id)}
+                    aria-label="削除"
+                    disabled={busy}
+                  >
+                    <Icon name="trash" size={15} />
+                  </button>
+                </li>
+              ))}
+            </ul>
+          ) : (
+            <p className="mt-4 text-sm text-ink3">まだ登録されていません。</p>
+          )}
+
+          <button className="btn btn-primary mt-3" onClick={add} disabled={busy}>
+            <Icon name="plus" size={16} />
+            この端末のパスキーを登録
+          </button>
+        </>
+      )}
+    </section>
   )
 }

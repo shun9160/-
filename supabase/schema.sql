@@ -57,9 +57,14 @@ create unique index if not exists day_notes_user_day_uidx on public.day_notes (u
 -- 設定 (原資など) ----------------------------------------------
 create table if not exists public.settings (
   user_id            uuid primary key references auth.users(id) on delete cascade default auth.uid(),
-  initial_capital    numeric default 0,           -- 原資（円）
+  initial_capital    numeric default 0,           -- 原資
   capital_note       text,                        -- 入金日などのメモ
   capital_screenshot text,                        -- 証拠のスクショ (縮小した data URL)
+  account_currency   text default 'JPY',          -- 口座の通貨
+  lot_size           numeric default 100000,      -- 1ロットの通貨量
+  broker_utc_offset  numeric default 4,           -- MT5サーバーの時差(UTCから何時間か)
+  main_symbol        text,                        -- よく使う通貨ペア
+  onboarded_at       timestamptz,                 -- 初期設定を終えた日時
   updated_at         timestamptz default now()
 );
 

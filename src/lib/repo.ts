@@ -132,11 +132,35 @@ export async function fetchSettings(): Promise<Settings | null> {
   const userId = await requireUserId()
   const { data, error } = await supabase
     .from('settings')
-    .select('user_id,initial_capital,capital_note,updated_at')
+    .select(
+      'user_id,initial_capital,capital_note,account_currency,lot_size,broker_utc_offset,main_symbol,onboarded_at,updated_at',
+    )
     .eq('user_id', userId)
     .maybeSingle()
   if (error) throw error
   return (data as Settings | null) ?? null
+}
+
+/** 初期設定（オンボーディング）の内容を保存する */
+export async function saveOnboarding(values: {
+  initial_capital: number
+  account_currency: string
+  lot_size: number
+  broker_utc_offset: number
+  main_symbol: string | null
+}): Promise<void> {
+  if (!supabase) throw new Error(NO_CLIENT)
+  const userId = await requireUserId()
+  const { error } = await supabase.from('settings').upsert(
+    {
+      user_id: userId,
+      ...values,
+      onboarded_at: new Date().toISOString(),
+      updated_at: new Date().toISOString(),
+    },
+    { onConflict: 'user_id' },
+  )
+  if (error) throw error
 }
 
 /** 原資のスクショ (data URL) を取得。無ければ null。 */
