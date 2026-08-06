@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import type { EnrichedTrade } from '../lib/types'
 import { comparePeriods, summarize } from '../lib/analytics'
 import Icon from './Icon'
@@ -11,14 +11,18 @@ import DetailTab from './stats/DetailTab'
 import ImproveTab from './stats/ImproveTab'
 import DiagnosisPanel from './diagnosis/DiagnosisPanel'
 
+export type StatsTabKey = 'summary' | 'time' | 'pattern' | 'detail' | 'improve' | 'type'
+
 interface Props {
   trades: EnrichedTrade[]
   /** いま選んでいる口座。すべての口座なら null */
   accountId?: string | null
+  /** ほかの画面から特定のタブを開かせたいとき。n を変えるたびに切り替わる */
+  focusTab?: { tab: StatsTabKey; n: number } | null
   onDiary: () => void
 }
 
-type TabKey = 'summary' | 'time' | 'pattern' | 'detail' | 'improve' | 'type'
+type TabKey = StatsTabKey
 type RangeKey = '7' | '30' | '90' | '0'
 
 const TABS: { key: TabKey; label: string; icon: IconName }[] = [
@@ -43,10 +47,17 @@ const RANGES: { value: RangeKey; label: string }[] = [
  * 全部を縦に並べると延々とスクロールすることになるので、
  * 「何を知りたいか」で5つに分け、1つずつ見られるようにする。
  */
-export default function StatsPanel({ trades, accountId = null, onDiary }: Props) {
-  const [tab, setTab] = useState<TabKey>('summary')
+export default function StatsPanel({ trades, accountId = null, focusTab, onDiary }: Props) {
+  const [tab, setTab] = useState<TabKey>(focusTab?.tab ?? 'summary')
   const [range, setRange] = useState<RangeKey>('30')
   const days = Number(range)
+
+  // 日記から「タイプ詳細を見る」で来たときに、そのタブを開く
+  const focusN = focusTab?.n
+  const focusKey = focusTab?.tab
+  useEffect(() => {
+    if (focusN != null && focusKey) setTab(focusKey)
+  }, [focusN, focusKey])
 
   const ranged = useMemo(
     () => (days > 0 ? comparePeriods(trades, days).current : trades),

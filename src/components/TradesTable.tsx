@@ -24,6 +24,16 @@ function outcome(t: EnrichedTrade): { tone: PillTone; label: string } {
   return t.win ? { tone: 'up', label: '手動で利確' } : { tone: 'down', label: '手動で損切り' }
 }
 
+/** 並び順 */
+export type TradeOrder = 'new' | 'old' | 'profit' | 'loss'
+
+export const TRADE_ORDERS: { value: TradeOrder; label: string }[] = [
+  { value: 'new', label: '新しい順' },
+  { value: 'old', label: '古い順' },
+  { value: 'profit', label: '損益が大きい順' },
+  { value: 'loss', label: '損益が小さい順' },
+]
+
 interface Props {
   trades: EnrichedTrade[]
   onChanged: () => void
@@ -33,10 +43,11 @@ interface Props {
   compact?: boolean
   /** どの口座の取引かを出すために使う */
   accounts?: Account[]
+  order?: TradeOrder
 }
 
 export default function TradesTable({
-  trades, onChanged, filterDay, readOnly, compact, accounts,
+  trades, onChanged, filterDay, readOnly, compact, accounts, order = 'new',
 }: Props) {
   // 口座が2つ以上あるときだけ、どの口座の取引かを出す
   const accountOf = useMemo(() => {
@@ -70,8 +81,19 @@ export default function TradesTable({
 
   const rows = useMemo(() => {
     const list = filterDay ? trades.filter((t) => t.jstDay === filterDay) : trades
-    return [...list].sort((a, b) => b.openJst.getTime() - a.openJst.getTime())
-  }, [trades, filterDay])
+    const byTime = (a: EnrichedTrade, b: EnrichedTrade) =>
+      a.openJst.getTime() - b.openJst.getTime()
+    switch (order) {
+      case 'old':
+        return [...list].sort(byTime)
+      case 'profit':
+        return [...list].sort((a, b) => b.netProfit - a.netProfit)
+      case 'loss':
+        return [...list].sort((a, b) => a.netProfit - b.netProfit)
+      default:
+        return [...list].sort((a, b) => byTime(b, a))
+    }
+  }, [trades, filterDay, order])
 
   async function saveNote(id: string) {
     try {

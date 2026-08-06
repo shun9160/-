@@ -1,14 +1,17 @@
 import { useEffect, useMemo, useState } from 'react'
-import type { Account, EnrichedTrade } from '../lib/types'
-import { dailySeries } from '../lib/analytics'
-import { friendlyError } from '../lib/errors'
-import { upsertDayNote } from '../lib/repo'
-import { fmtJst } from '../lib/timezone'
-import { currencyLabel } from '../lib/appConfig'
-import { colorOf, fmtMoney } from '../lib/format'
-import TradesTable from './TradesTable'
-import Icon from './Icon'
-import { EmptyState } from './ui'
+import type { Account, EnrichedTrade, TradeImage } from '../lib/types'
+import { fetchRecentTradeImages } from '../lib/repo'
+import { fetchLatest } from '../lib/diagnosisClient'
+import type { DiagnosisResult } from '../lib/diagnosis/types'
+import { jstDayKey } from '../lib/timezone'
+import DiaryCalendar from './diary/DiaryCalendar'
+import DayHeadline from './diary/DayHeadline'
+import DayInsights from './diary/DayInsights'
+import NoteCard from './diary/NoteCard'
+import TypeCard from './diary/TypeCard'
+import PerformanceCard from './diary/PerformanceCard'
+import ScreenshotStrip from './diary/ScreenshotStrip'
+import TradeSection from './diary/TradeSection'
 
 interface Props {
   trades: EnrichedTrade[]
@@ -17,193 +20,174 @@ interface Props {
   onChanged: () => void
   focusDay?: string | null
   readOnly?: boolean
+  /** 記録タブへ */
+  onAdd?: () => void
+  /** 分析のタイプ診断へ */
+  onOpenType?: () => void
+  /** 分析へ */
+  onStats?: () => void
 }
 
+/**
+ * 日記。
+ *
+ * 「その日の成績」「振り返り」「その日の取引」を1画面にまとめる。
+ * 広い画面は3列、狭い画面は1列。並び順は同じになるよう、
+ * 置き場所だけをグリッドで指定している（DOMの順＝スマホでの順）。
+ */
 export default function Diary({
-  trades, accounts, dayNotes, onChanged, focusDay, readOnly,
+  trades,
+  accounts,
+  dayNotes,
+  onChanged,
+  focusDay,
+  readOnly,
+  onAdd,
+  onOpenType,
+  onStats,
 }: Props) {
-  const days = useMemo(() => dailySeries(trades).reverse(), [trades])
-  const [selected, setSelected] = useState<string | null>(focusDay ?? days[0]?.day ?? null)
+  const today = useMemo(() => jstDayKey(new Date().toISOString()), [])
+
+  // 取引のある最新日。今日の記録がまだ無くても、直前の日から見返せるようにする
+  const latestTradeDay = useMemo(() => {
+    let latest: string | null = null
+    for (const t of trades) if (!latest || t.jstDay > latest) latest = t.jstDay
+    return latest
+  }, [trades])
+
+  const [selected, setSelected] = useState<string>(focusDay ?? today)
 
   useEffect(() => {
     if (focusDay) setSelected(focusDay)
   }, [focusDay])
 
+  // 今日にまだ何も無く、過去に記録があるなら、そちらを開いておく
+  useEffect(() => {
+    if (focusDay) return
+    setSelected((cur) => {
+      if (cur !== today) return cur
+      const hasToday = trades.some((t) => t.jstDay === today) || dayNotes[today]
+      return hasToday || !latestTradeDay ? cur : latestTradeDay
+    })
+    // 初回と、取引の読み込みが終わったときだけでよい
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [latestTradeDay])
+
   const dayTrades = useMemo(
-    () => (selected ? trades.filter((t) => t.jstDay === selected) : []),
+    () => trades.filter((t) => t.jstDay === selected),
     [trades, selected],
   )
-  const dayNet = useMemo(() => dayTrades.reduce((s, t) => s + t.netProfit, 0), [dayTrades])
-
-  if (days.length === 0) {
-    return (
-      <EmptyState
-        icon="book"
-        title="まだ記録がありません"
-        body="取引を追加すると、日ごとに振り返れます。"
-      />
-    )
-  }
-
-  return (
-    <div className="flex flex-col gap-4 lg:grid lg:grid-cols-[220px_1fr] lg:items-start">
-      {/* 日付の切り替え — モバイルは横スクロール、PCは縦リスト */}
-      <div className="-mx-4 flex gap-2 overflow-x-auto px-4 pb-1 lg:mx-0 lg:max-h-[70vh] lg:flex-col lg:overflow-y-auto lg:px-0 lg:pb-0">
-        {days.map((d) => {
-          const on = selected === d.day
-          return (
-            <button
-              key={d.day}
-              onClick={() => setSelected(d.day)}
-              className={`flex shrink-0 flex-col items-start rounded-xl border px-3 py-2 transition-colors lg:w-full ${
-                on ? 'border-brand bg-brand-soft' : 'border-line bg-surface hover:bg-sunken'
-              }`}
-            >
-              <span className={`text-xs font-semibold ${on ? 'text-brand' : 'text-ink2'}`}>
-                {d.day.slice(5).replace('-', '/')}
-              </span>
-              <span className={`text-sm font-bold tabular-nums ${colorOf(d.net)}`}>
-                {fmtMoney(d.net, { sign: true })}
-              </span>
-            </button>
-          )
-        })}
-      </div>
-
-      {selected && (
-        <div className="flex flex-col gap-4">
-          <div>
-            <h3 className="text-lg font-bold">
-              {fmtJst(selected + 'T00:00:00+09:00', 'yyyy年M月d日')}
-            </h3>
-            <p className="text-sm text-ink2">
-              {dayTrades.length}件 ・{' '}
-              <span className={`font-bold tabular-nums ${colorOf(dayNet)}`}>
-                {fmtMoney(dayNet, { sign: true })} {currencyLabel()}
-              </span>
-            </p>
-          </div>
-
-          {readOnly ? (
-            <div className="card p-4">
-              <p className="label mb-1">その日の振り返り</p>
-              <p className="text-sm text-ink3">
-                {dayNotes[selected] || 'サンプル表示中は保存できません'}
-              </p>
-            </div>
-          ) : (
-            <DayNoteEditor
-              key={selected}
-              day={selected}
-              initial={dayNotes[selected] ?? ''}
-              onChanged={onChanged}
-            />
-          )}
-
-          <TradesTable
-            trades={dayTrades}
-            accounts={accounts}
-            onChanged={onChanged}
-            filterDay={selected}
-            readOnly={readOnly}
-          />
-        </div>
-      )}
-    </div>
+  const noteDays = useMemo(
+    () => new Set(Object.entries(dayNotes).filter(([, v]) => v && v.trim() !== '').map(([k]) => k)),
+    [dayNotes],
   )
-}
+  const isToday = selected === today
 
-function DayNoteEditor({
-  day,
-  initial,
-  onChanged,
-}: {
-  day: string
-  initial: string
-  onChanged: () => void
-}) {
-  // saved = いまデータベースに入っている内容。text = 書きかけの内容。
-  const [saved, setSaved] = useState(initial)
-  const [text, setText] = useState(initial)
-  // 日記を開いた時点では入力欄を出さない。
-  // いきなり開くと、スマホでキーボードが勝手にせり上がって
-  // 「書かされている」画面になってしまうため、押されてから開く。
-  const [editing, setEditing] = useState(false)
-  const [saving, setSaving] = useState(false)
-  const [err, setErr] = useState<string | null>(null)
-
-  async function save() {
-    setSaving(true)
-    setErr(null)
-    try {
-      await upsertDayNote(day, text)
-      // ここまで来たら確実に保存できている。
-      setSaved(text)
-      setEditing(false)
-      onChanged()
-    } catch (e) {
-      setErr(friendlyError(e))
-    } finally {
-      setSaving(false)
+  // トレーダータイプ（診断していなければ null）
+  const [diag, setDiag] = useState<DiagnosisResult | null>(null)
+  const [diagLoading, setDiagLoading] = useState(true)
+  useEffect(() => {
+    let alive = true
+    fetchLatest()
+      .then((r) => alive && setDiag(r.diagnosis))
+      .catch(() => {
+        /* 診断の窓口が無くても日記は使える */
+      })
+      .finally(() => alive && setDiagLoading(false))
+    return () => {
+      alive = false
     }
+  }, [])
+
+  // 最近貼ったチャート
+  const [images, setImages] = useState<TradeImage[]>([])
+  useEffect(() => {
+    let alive = true
+    fetchRecentTradeImages(6).then((r) => alive && setImages(r))
+    return () => {
+      alive = false
+    }
+  }, [trades.length])
+
+  const timeOf = useMemo(() => {
+    const m = new Map(trades.map((t) => [t.id, t.open_time]))
+    return (id: string) => m.get(id) ?? null
+  }, [trades])
+
+  function openTrade(tradeId: string) {
+    const t = trades.find((x) => x.id === tradeId)
+    if (t) setSelected(t.jstDay)
   }
 
-  function cancel() {
-    setText(saved)
-    setErr(null)
-    setEditing(false)
-  }
-
-  // 保存済みの表示。ボタンが「編集」になっていることで、
-  // 書いた内容がちゃんと残っていると分かる。
-  if (!editing) {
-    return (
-      <div className="card p-4">
-        <div className="mb-2 flex items-center justify-between gap-3">
-          <p className="label">その日の振り返り</p>
-          {saved !== '' && (
-            <span className="flex items-center gap-1 text-xs font-semibold text-up">
-              <Icon name="check" size={14} />
-              保存済み
-            </span>
-          )}
-        </div>
-        {saved === '' ? (
-          <p className="text-sm text-ink3">まだ書いていません</p>
-        ) : (
-          <p className="whitespace-pre-wrap text-sm leading-relaxed text-ink">{saved}</p>
-        )}
-        <button
-          className={`btn mt-3 ${saved === '' ? 'btn-primary' : 'btn-quiet'}`}
-          onClick={() => setEditing(true)}
-        >
-          <Icon name="pencil" size={15} />
-          {saved === '' ? '書く' : '編集'}
-        </button>
-      </div>
-    )
-  }
+  const typeCard = (
+    <TypeCard
+      result={diag}
+      loading={diagLoading}
+      onOpen={() => onOpenType?.()}
+    />
+  )
 
   return (
-    <div className="card p-4">
-      <p className="label mb-2">その日の振り返り</p>
-      <textarea
-        className="input min-h-[110px] resize-y"
-        value={text}
-        autoFocus
-        onChange={(e) => setText(e.target.value)}
-        placeholder="相場の印象、メンタル、良かった点、次に直すこと"
-      />
-      {err && <p className="mt-2 text-sm text-down">{err}</p>}
-      <div className="mt-3 flex items-center gap-2">
-        <button className="btn btn-primary" onClick={save} disabled={saving}>
-          {saving ? '保存中…' : '保存'}
-        </button>
-        {saved !== '' && (
-          <button className="btn btn-quiet" onClick={cancel} disabled={saving}>
-            やめる
-          </button>
+    // 広い画面は「本文＋右側」の2列。
+    // 縦のすき間が出ないよう、本文はひとつの塊にして2行ぶんをまたがせている。
+    // DOM の並びがそのままスマホでの並びになる。
+    <div className="flex flex-col gap-4 xl:grid xl:grid-cols-[minmax(0,1fr)_320px] xl:grid-rows-[min-content_1fr] xl:items-start">
+      <div className="xl:col-start-2 xl:row-start-1">
+        <DiaryCalendar
+          trades={trades}
+          noteDays={noteDays}
+          selected={selected}
+          onSelect={setSelected}
+        />
+      </div>
+
+      <div className="flex flex-col gap-4 xl:col-start-1 xl:row-span-2 xl:row-start-1">
+        <DayHeadline
+          day={selected}
+          trades={dayTrades}
+          isToday={isToday}
+          aside={
+            <TypeCard
+              result={diag}
+              loading={diagLoading}
+              compact
+              onOpen={() => onOpenType?.()}
+            />
+          }
+        />
+
+        {dayTrades.length > 0 && (
+          <DayInsights
+            trades={dayTrades}
+            note={dayNotes[selected]}
+            onDetail={() => onStats?.()}
+          />
         )}
+
+        <NoteCard
+          key={selected}
+          day={selected}
+          initial={dayNotes[selected] ?? ''}
+          isToday={isToday}
+          readOnly={readOnly}
+          onChanged={onChanged}
+        />
+
+        <TradeSection
+          trades={dayTrades}
+          accounts={accounts}
+          isToday={isToday}
+          readOnly={readOnly}
+          onChanged={onChanged}
+          onAdd={onAdd}
+        />
+      </div>
+
+      <div className="flex flex-col gap-4 xl:col-start-2 xl:row-start-2">
+        {/* 診断済みなら狭い画面では上のカードに出ているので、ここでは広い画面だけ */}
+        <div className={diag ? 'hidden xl:block' : ''}>{typeCard}</div>
+        <PerformanceCard trades={trades} day={selected} />
+        <ScreenshotStrip images={images} timeOf={timeOf} onOpenTrade={openTrade} />
       </div>
     </div>
   )

@@ -18,7 +18,7 @@ import AccountsPanel from './components/AccountsPanel'
 import AccountSwitcher from './components/AccountSwitcher'
 import Home from './components/Home'
 import CalendarScreen from './components/CalendarScreen'
-import StatsPanel from './components/StatsPanel'
+import StatsPanel, { type StatsTabKey } from './components/StatsPanel'
 import UploadPanel from './components/UploadPanel'
 import TradesTable from './components/TradesTable'
 import Diary from './components/Diary'
@@ -43,6 +43,8 @@ export default function App() {
   const [skipOnboarding, setSkipOnboarding] = useState(false)
   /** 記録できたことを、移った先の画面で知らせる */
   const [flash, setFlash] = useState<string | null>(null)
+  /** 分析のどのタブを開くか。日記から「タイプ詳細を見る」で使う */
+  const [statsFocus, setStatsFocus] = useState<{ tab: StatsTabKey; n: number } | null>(null)
 
   // 通貨や時差は口座ごとに違う。見ている口座の内容をアプリ全体に反映する。
   //
@@ -303,6 +305,7 @@ export default function App() {
                 <StatsPanel
                   trades={trades}
                   accountId={accountId}
+                  focusTab={statsFocus}
                   onDiary={() => go('diary')}
                 />
               )}
@@ -314,6 +317,15 @@ export default function App() {
                   onChanged={reload}
                   focusDay={focusDay}
                   readOnly={demo}
+                  onAdd={() => go('add')}
+                  onStats={() => {
+                    setStatsFocus(null)
+                    go('stats')
+                  }}
+                  onOpenType={() => {
+                    setStatsFocus((f) => ({ tab: 'type', n: (f?.n ?? 0) + 1 }))
+                    go('stats')
+                  }}
                 />
               )}
             </SwipePager>

@@ -322,6 +322,25 @@ export async function fetchTradeImages(tradeId: string): Promise<TradeImage[]> {
 }
 
 /**
+ * 最近貼ったチャート画像。日記の「最近のスクリーンショット」に出す。
+ * 表がまだ作られていないこともあるので、失敗しても空で返す。
+ */
+export async function fetchRecentTradeImages(limit = 6): Promise<TradeImage[]> {
+  if (!supabase) return []
+  try {
+    const { data, error } = await supabase
+      .from('trade_images')
+      .select('id,trade_id,image,caption,created_at')
+      .order('created_at', { ascending: false })
+      .limit(limit)
+    if (error) return []
+    return (data ?? []) as TradeImage[]
+  } catch {
+    return []
+  }
+}
+
+/**
  * どの取引に何枚貼ってあるかだけを数える。
  * 一覧に枚数を出すために使うので、重い画像そのものは読まない。
  */
