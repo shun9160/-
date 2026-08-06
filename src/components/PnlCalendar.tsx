@@ -75,49 +75,69 @@ export default function PnlCalendar({ trades, onSelectDay }: Props) {
 
   return (
     <div className="card p-4 sm:p-5">
-      {/* 期間の移動 */}
-      <div className="flex items-center justify-between">
-        <button className="btn btn-ghost px-2" onClick={() => shift(-1)} aria-label="前へ">
-          <Icon name="left" size={18} />
-        </button>
-        <div className="text-center">
-          <p className="text-base font-bold">
-            {mode === 'daily' ? `${year}年 ${MONTHS[month]}` : `${year}年`}
-          </p>
-          <p className={`text-sm font-semibold tabular-nums ${colorOf(total)}`}>
-            {fmtMoney(total, { sign: true })} 円
-          </p>
-        </div>
-        <button className="btn btn-ghost px-2" onClick={() => shift(1)} aria-label="次へ">
-          <Icon name="right" size={18} />
-        </button>
-      </div>
-
-      {/* 日別 / 月別 */}
-      <div className="mx-auto mt-3 flex w-fit rounded-xl bg-sunken p-1">
-        {(
-          [
-            ['daily', '日別'],
-            ['monthly', '月別'],
-          ] as const
-        ).map(([k, l]) => (
-          <button
-            key={k}
-            onClick={() => setMode(k)}
-            className={`seg ${mode === k ? 'seg-on' : 'seg-off'}`}
-          >
-            {l}
+      {/* 期間の移動。広い画面では 日別/月別 も同じ行に置いて縦を詰める */}
+      <div className="flex items-center justify-between gap-3">
+        <div className="hidden sm:block sm:w-32" />
+        <div className="flex items-center gap-1">
+          <button className="btn btn-ghost px-2" onClick={() => shift(-1)} aria-label="前へ">
+            <Icon name="left" size={18} />
           </button>
-        ))}
+          <div className="min-w-[9rem] text-center">
+            <p className="text-base font-bold">
+              {mode === 'daily' ? `${year}年 ${MONTHS[month]}` : `${year}年`}
+            </p>
+            <p className={`text-sm font-semibold tabular-nums ${colorOf(total)}`}>
+              {fmtMoney(total, { sign: true })} 円
+            </p>
+          </div>
+          <button className="btn btn-ghost px-2" onClick={() => shift(1)} aria-label="次へ">
+            <Icon name="right" size={18} />
+          </button>
+        </div>
+        <div className="hidden sm:flex sm:w-32 sm:justify-end">
+          <Modes mode={mode} setMode={setMode} />
+        </div>
       </div>
 
-      <div className="mt-4">
+      {/* 狭い画面では下に置く */}
+      <div className="mx-auto mt-3 flex w-fit sm:hidden">
+        <Modes mode={mode} setMode={setMode} />
+      </div>
+
+      <div className="mt-3 sm:mt-4">
         {mode === 'daily' ? (
           <DailyGrid year={year} month={month} byDay={byDay} onSelectDay={onSelectDay} />
         ) : (
           <MonthlyGrid year={year} byMonth={byMonth} />
         )}
       </div>
+    </div>
+  )
+}
+
+function Modes({
+  mode,
+  setMode,
+}: {
+  mode: 'daily' | 'monthly'
+  setMode: (m: 'daily' | 'monthly') => void
+}) {
+  return (
+    <div className="flex rounded-xl bg-sunken p-1">
+      {(
+        [
+          ['daily', '日別'],
+          ['monthly', '月別'],
+        ] as const
+      ).map(([k, l]) => (
+        <button
+          key={k}
+          onClick={() => setMode(k)}
+          className={`seg ${mode === k ? 'seg-on' : 'seg-off'}`}
+        >
+          {l}
+        </button>
+      ))}
     </div>
   )
 }
@@ -165,7 +185,10 @@ function DailyGrid({
               onClick={() => has && onSelectDay?.(key)}
               disabled={!has}
               className={[
-                'flex aspect-square flex-col items-center justify-center gap-0.5 rounded-xl border px-0.5 transition-colors',
+                // スマホは正方形が収まりよい。
+                // 画面が広いと正方形のままでは背が高くなりすぎ、
+                // ノートパソコンで1か月が画面に入らないので高さを決め打つ。
+                'flex aspect-square flex-col items-center justify-center gap-0.5 rounded-xl border px-0.5 transition-colors sm:aspect-auto sm:h-[clamp(2.4rem,calc((100vh-29rem)/6),4.75rem)]',
                 has
                   ? pos
                     ? 'border-up/20 bg-up-soft hover:border-up/50'

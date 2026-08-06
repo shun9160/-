@@ -307,7 +307,7 @@ export default function App() {
             </SwipePager>
           )}
 
-          <p className="mt-10 text-center text-xs text-ink3">
+          <p className="mt-6 text-center text-xs text-ink3">
             MT5の時刻（UTC{getAppConfig().brokerUtcOffset >= 0 ? '+' : ''}
             {getAppConfig().brokerUtcOffset}）を日本時間に変換して記録しています
           </p>
