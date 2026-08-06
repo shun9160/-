@@ -5,7 +5,7 @@ import { useAuth } from './hooks/useAuth'
 import { isSupabaseConfigured } from './lib/supabase'
 import { getAppConfig, updateAppConfig } from './lib/appConfig'
 import { BRAND } from './lib/brand'
-import Logo from './components/Logo'
+import { LogoMark } from './components/Logo'
 import Avatar from './components/Avatar'
 import Onboarding from './components/Onboarding'
 import { BottomNav, NAV_ITEMS, type ScreenKey } from './components/Nav'
@@ -148,7 +148,17 @@ export default function App() {
         <header className="sticky top-0 z-20 border-b border-line bg-page/90 px-4 py-3 backdrop-blur">
           <div className="mx-auto flex max-w-6xl items-center gap-3">
             <span className="md:hidden">
-              <Logo size={28} />
+              <LogoMark size={28} />
+            </span>
+            {/* スマホは、いる場所を上部バーで示す（大きな見出しの代わり） */}
+            <span className="truncate text-base font-bold text-ink md:hidden">
+              {showAccount
+                ? 'アカウント'
+                : showAccounts
+                  ? '口座'
+                  : showAllTrades
+                    ? 'すべての取引'
+                    : item.label}
             </span>
             <nav aria-label="現在地" className="hidden text-sm text-ink3 md:block">
               {BRAND.name} <span className="mx-1">/</span>
@@ -187,13 +197,8 @@ export default function App() {
         </header>
 
         <main className="mx-auto w-full max-w-6xl flex-1 px-4 py-5">
-          {/* 画面タイトル: いま何の画面かを常に明示する */}
-          {!showAllTrades && !showAccount && !showAccounts && (
-            <PageHeader title={item.label} sub={item.blurb} />
-          )}
-
           {/* 見ている口座 */}
-          {!showAccount && !showAccounts && !loading && accounts.length > 0 && (
+          {!showAccount && !showAccounts && !loading && accounts.length > 1 && (
             <div className="mb-4">
               <AccountSwitcher
                 accounts={accounts}
@@ -201,11 +206,9 @@ export default function App() {
                 onChange={setAccountId}
                 onManage={demo ? undefined : openAccounts}
               />
-              {accounts.length > 1 && (
-                <p className="mt-1.5 text-[11px] text-ink3 md:hidden">
-                  画面を左右にスワイプしても口座を切り替えられます
-                </p>
-              )}
+              <p className="mt-1.5 text-[11px] text-ink3 md:hidden">
+                画面を左右にスワイプしても口座を切り替えられます
+              </p>
             </div>
           )}
 

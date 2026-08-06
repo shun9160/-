@@ -188,7 +188,7 @@ function DailyGrid({
                 // スマホは正方形が収まりよい。
                 // 画面が広いと正方形のままでは背が高くなりすぎ、
                 // ノートパソコンで1か月が画面に入らないので高さを決め打つ。
-                'flex aspect-square flex-col items-center justify-center gap-0.5 rounded-xl border px-0.5 transition-colors sm:aspect-auto sm:h-[clamp(2.4rem,calc((100vh-29rem)/6),4.75rem)]',
+                'flex aspect-square flex-col items-center justify-center gap-0.5 rounded-xl border px-0.5 transition-colors sm:aspect-auto sm:h-[clamp(2.4rem,calc((100vh-25rem)/6),4.75rem)]',
                 has
                   ? pos
                     ? 'border-up/20 bg-up-soft hover:border-up/50'
