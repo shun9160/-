@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
-import type { EnrichedTrade } from '../lib/types'
+import type { Account, EnrichedTrade } from '../lib/types'
 import { dailySeries } from '../lib/analytics'
 import { friendlyError } from '../lib/errors'
 import { upsertDayNote } from '../lib/repo'
@@ -12,13 +12,16 @@ import { EmptyState } from './ui'
 
 interface Props {
   trades: EnrichedTrade[]
+  accounts?: Account[]
   dayNotes: Record<string, string>
   onChanged: () => void
   focusDay?: string | null
   readOnly?: boolean
 }
 
-export default function Diary({ trades, dayNotes, onChanged, focusDay, readOnly }: Props) {
+export default function Diary({
+  trades, accounts, dayNotes, onChanged, focusDay, readOnly,
+}: Props) {
   const days = useMemo(() => dailySeries(trades).reverse(), [trades])
   const [selected, setSelected] = useState<string | null>(focusDay ?? days[0]?.day ?? null)
 
@@ -99,6 +102,7 @@ export default function Diary({ trades, dayNotes, onChanged, focusDay, readOnly 
 
           <TradesTable
             trades={dayTrades}
+            accounts={accounts}
             onChanged={onChanged}
             filterDay={selected}
             readOnly={readOnly}

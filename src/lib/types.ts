@@ -1,8 +1,40 @@
 export type Side = 'buy' | 'sell'
 
+/** 取引口座。1人が複数持てる */
+export interface Account {
+  id: string
+  /** ブローカー名 */
+  broker: string | null
+  /** 口座番号 (MT5のログインID) */
+  login: string | null
+  /** 表示名 (任意) */
+  nickname: string | null
+  currency: string
+  lot_size: number
+  /** MT5サーバーの時差 (UTCから何時間か) */
+  broker_utc_offset: number
+  /** この口座の原資 */
+  initial_capital: number
+  capital_note: string | null
+  /** 証拠スクショ。一覧取得では省略され undefined になる */
+  capital_screenshot?: string | null
+  /** 記録先の初期値にする口座か */
+  is_default: boolean
+  created_at?: string
+}
+
+/** 口座の見出し。「Exness 12345678」のように読める形にする */
+export function accountLabel(a: Account): string {
+  if (a.nickname) return a.nickname
+  const parts = [a.broker, a.login].filter((x): x is string => !!x && x.trim() !== '')
+  return parts.length ? parts.join(' ') : '名前のない口座'
+}
+
 /** DB 上の取引レコード */
 export interface Trade {
   id: string
+  /** どの口座の取引か。取込時点では未定なので省略できる */
+  account_id?: string | null
   ticket: string | null
   symbol: string
   side: Side

@@ -1,5 +1,5 @@
 import { supabase } from './supabase'
-import type { DayNote, Settings, Trade, TradeImage, TradeInput } from './types'
+import type { Account, DayNote, Settings, Trade, TradeImage, TradeInput } from './types'
 
 const NO_CLIENT = 'Supabase が未設定です (.env / Netlify の環境変数を確認してください)'
 const NO_USER = 'ログインが必要です'
@@ -26,7 +26,7 @@ async function requireUserId(): Promise<string> {
 
 // 一覧取得では重い screenshot 列を除外して転送量を抑える。
 const LIST_COLUMNS =
-  'id,ticket,symbol,side,volume,open_price,close_price,sl,tp,open_time,close_time,commission,swap,profit,currency,note,source,created_at'
+  'id,account_id,ticket,symbol,side,volume,open_price,close_price,sl,tp,open_time,close_time,commission,swap,profit,currency,note,source,created_at'
 
 export async function fetchTrades(): Promise<Trade[]> {
   if (!supabase) throw new Error(NO_CLIENT)
@@ -36,6 +36,98 @@ export async function fetchTrades(): Promise<Trade[]> {
     .order('open_time', { ascending: true })
   if (error) throw error
   return (data ?? []) as unknown as Trade[]
+}
+
+// ---------------------------------------------------------------
+// 口座
+// ---------------------------------------------------------------
+
+const ACCOUNT_COLUMNS =
+  'id,broker,login,nickname,currency,lot_size,broker_utc_offset,initial_capital,capital_note,is_default,created_at'
+
+export async function fetchAccounts(): Promise<Account[]> {
+  if (!supabase) throw new Error(NO_CLIENT)
+  const { data, error } = await supabase
+    .from('accounts')
+    .select(ACCOUNT_COLUMNS)
+    .order('created_at', { ascending: true })
+  if (error) throw error
+  return (data ?? []) as Account[]
+}
+
+export type AccountInput = Partial<Omit<Account, 'id' | 'created_at'>>
+
+export async function createAccount(patch: AccountInput): Promise<Account> {
+  if (!supabase) throw new Error(NO_CLIENT)
+  const userId = await requireUserId()
+
+  // 最初の1件は自動的に既定の口座にする
+  const { count, error: cErr } = await supabase
+    .from('accounts')
+    .select('id', { count: 'exact', head: true })
+    .eq('user_id', userId)
+  if (cErr) throw cErr
+
+  const { data, error } = await supabase
+    .from('accounts')
+    .insert({ ...patch, user_id: userId, is_default: patch.is_default ?? (count ?? 0) === 0 })
+    .select(ACCOUNT_COLUMNS)
+    .single()
+  if (error) throw error
+  return data as Account
+}
+
+export async function updateAccount(id: string, patch: AccountInput): Promise<void> {
+  if (!supabase) throw new Error(NO_CLIENT)
+  const { error } = await supabase.from('accounts').update(patch).eq('id', id)
+  if (error) throw error
+}
+
+/** その口座を記録先の初期値にする。ほかの口座の既定は外す。 */
+export async function setDefaultAccount(id: string): Promise<void> {
+  if (!supabase) throw new Error(NO_CLIENT)
+  const userId = await requireUserId()
+  const { error: offErr } = await supabase
+    .from('accounts')
+    .update({ is_default: false })
+    .eq('user_id', userId)
+  if (offErr) throw offErr
+  const { error } = await supabase.from('accounts').update({ is_default: true }).eq('id', id)
+  if (error) throw error
+}
+
+/** 口座を削除する。その口座の取引もまとめて消える。 */
+export async function deleteAccount(id: string): Promise<void> {
+  if (!supabase) throw new Error(NO_CLIENT)
+  const { error } = await supabase.from('accounts').delete().eq('id', id)
+  if (error) throw error
+}
+
+/** 口座の原資まわりを保存。screenshot は undefined なら据え置き。 */
+export async function saveAccountCapital(
+  id: string,
+  patch: { initial_capital: number; capital_note: string | null; capital_screenshot?: string | null },
+): Promise<void> {
+  if (!supabase) throw new Error(NO_CLIENT)
+  const row: Record<string, unknown> = {
+    initial_capital: patch.initial_capital,
+    capital_note: patch.capital_note,
+  }
+  if (patch.capital_screenshot !== undefined) row.capital_screenshot = patch.capital_screenshot
+  const { error } = await supabase.from('accounts').update(row).eq('id', id)
+  if (error) throw error
+}
+
+/** 口座の原資スクショ (data URL)。無ければ null。 */
+export async function getAccountCapitalScreenshot(id: string): Promise<string | null> {
+  if (!supabase) throw new Error(NO_CLIENT)
+  const { data, error } = await supabase
+    .from('accounts')
+    .select('capital_screenshot')
+    .eq('id', id)
+    .maybeSingle()
+  if (error) throw error
+  return (data?.capital_screenshot as string | null) ?? null
 }
 
 /** 個別トレードの添付スクショ (data URL) を取得。無ければ null。 */
@@ -64,21 +156,27 @@ export async function updateTrade(
  * 取引を挿入。ticket があるものは upsert (重複取込を防止)。
  * ticket が無いものは insert。返り値は挿入/更新件数。
  */
-export async function insertTrades(rows: TradeInput[]): Promise<number> {
+export async function insertTrades(rows: TradeInput[], accountId?: string | null): Promise<number> {
   if (!supabase) throw new Error(NO_CLIENT)
   if (rows.length === 0) return 0
 
   const userId = await requireUserId()
-  const owned = rows.map((r) => ({ ...r, user_id: userId }))
+  const owned = rows.map((r) => ({
+    ...r,
+    user_id: userId,
+    // 明示された記録先を優先。無ければ元データの口座をそのまま使う。
+    account_id: accountId !== undefined ? accountId : (r.account_id ?? null),
+  }))
 
   const withTicket = owned.filter((r) => r.ticket)
   const withoutTicket = owned.filter((r) => !r.ticket)
   let affected = 0
 
   if (withTicket.length) {
+    // ブローカーが違えば同じ取引番号がありうるので、口座も含めて重複を判定する。
     const { data, error } = await supabase
       .from('trades')
-      .upsert(withTicket, { onConflict: 'user_id,ticket' })
+      .upsert(withTicket, { onConflict: 'user_id,account_id,ticket' })
       .select('id')
 
     if (error) {
@@ -86,11 +184,15 @@ export async function insertTrades(rows: TradeInput[]): Promise<number> {
       // 既に入っている取引番号を調べ、まだ無いものだけ登録する。
       if (isMissingConflictTarget(error)) {
         const tickets = withTicket.map((r) => r.ticket as string)
-        const { data: existing, error: readErr } = await supabase
+        let q = supabase
           .from('trades')
           .select('ticket')
           .eq('user_id', userId)
           .in('ticket', tickets)
+        // 同じ口座の中だけを見る（別口座の同じ番号は別物）
+        const target = withTicket[0].account_id ?? null
+        q = target == null ? q.is('account_id', null) : q.eq('account_id', target)
+        const { data: existing, error: readErr } = await q
         if (readErr) throw readErr
 
         const already = new Set((existing ?? []).map((r) => (r as { ticket: string }).ticket))

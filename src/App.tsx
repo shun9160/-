@@ -1,9 +1,10 @@
-import { useEffect, useState } from 'react'
+import { useState } from 'react'
 import { useTrades } from './hooks/useTrades'
 import { useAuth } from './hooks/useAuth'
 import { isSupabaseConfigured } from './lib/supabase'
 import { getAppConfig, updateAppConfig } from './lib/appConfig'
 import { BRAND } from './lib/brand'
+import { accountLabel } from './lib/types'
 import Logo from './components/Logo'
 import Onboarding from './components/Onboarding'
 import { BottomNav, NAV_ITEMS, type ScreenKey } from './components/Nav'
@@ -12,6 +13,8 @@ import { PageHeader } from './components/ui'
 import Icon from './components/Icon'
 import AuthScreen from './components/AuthScreen'
 import AccountPanel from './components/AccountPanel'
+import AccountsPanel from './components/AccountsPanel'
+import AccountSwitcher from './components/AccountSwitcher'
 import Home from './components/Home'
 import CalendarScreen from './components/CalendarScreen'
 import StatsPanel from './components/StatsPanel'
@@ -24,32 +27,48 @@ export default function App() {
   const [previewMode, setPreviewMode] = useState(false)
   const authed = Boolean(session)
 
-  const { trades, dayNotes, settings, loading, error, configured, demo, reload } =
-    useTrades(authed)
+  const {
+    trades, allTrades, accounts, accountId, setAccountId, account, writeAccount,
+    dayNotes, settings, loading, error, configured, demo, reload,
+  } = useTrades(authed)
   const [screen, setScreen] = useState<ScreenKey>('home')
   const [focusDay, setFocusDay] = useState<string | null>(null)
   /** ホームから開く「すべての取引」。タブではなくサブ画面 */
   const [showAllTrades, setShowAllTrades] = useState(false)
   const [showAccount, setShowAccount] = useState(false)
+  /** 口座の管理画面。タブではなくサブ画面 */
+  const [showAccounts, setShowAccounts] = useState(false)
   /** 初期設定を「あとで」にした場合、この画面では出さない */
   const [skipOnboarding, setSkipOnboarding] = useState(false)
   /** 記録できたことを、移った先の画面で知らせる */
   const [flash, setFlash] = useState<string | null>(null)
 
-  // 初期設定の内容をアプリ全体に反映する
-  useEffect(() => {
-    if (!settings) return
+  // 通貨や時差は口座ごとに違う。見ている口座の内容をアプリ全体に反映する。
+  //
+  // 反映は「描画のあと」ではなく、この場（子を描く前）で行う。
+  // あとに回すと、口座を切り替えた直後の1回だけ前の口座の通貨で
+  // 表示されてしまうため。同じ入力なら何度実行しても結果は同じ。
+  const configSource = account ?? writeAccount
+  if (configSource) {
     updateAppConfig({
-      brokerUtcOffset: settings.broker_utc_offset,
-      accountCurrency: settings.account_currency,
-      lotSize: settings.lot_size,
-      defaultSymbol: settings.main_symbol ?? undefined,
+      brokerUtcOffset: configSource.broker_utc_offset,
+      accountCurrency: configSource.currency,
+      lotSize: configSource.lot_size,
     })
-  }, [settings])
+  }
+  if (settings?.main_symbol) updateAppConfig({ defaultSymbol: settings.main_symbol })
 
   function go(k: ScreenKey) {
     setFlash(null)
     setScreen(k)
+    setShowAllTrades(false)
+    setShowAccount(false)
+    setShowAccounts(false)
+    window.scrollTo({ top: 0 })
+  }
+
+  function openAccounts() {
+    setShowAccounts(true)
     setShowAllTrades(false)
     setShowAccount(false)
     window.scrollTo({ top: 0 })
@@ -63,6 +82,7 @@ export default function App() {
     setScreen('home')
     setShowAllTrades(false)
     setShowAccount(false)
+    setShowAccounts(false)
     setFlash(message)
     window.scrollTo({ top: 0 })
   }
@@ -72,6 +92,7 @@ export default function App() {
     setScreen('diary')
     setShowAllTrades(false)
     setShowAccount(false)
+    setShowAccounts(false)
     window.scrollTo({ top: 0 })
   }
 
@@ -102,6 +123,7 @@ export default function App() {
   function openAccount() {
     setShowAccount(true)
     setShowAllTrades(false)
+    setShowAccounts(false)
     window.scrollTo({ top: 0 })
   }
 
@@ -126,7 +148,13 @@ export default function App() {
             <nav aria-label="現在地" className="hidden text-sm text-ink3 md:block">
               {BRAND.name} <span className="mx-1">/</span>
               <span className="font-semibold text-ink">
-                {showAccount ? 'アカウント' : showAllTrades ? 'すべての取引' : item.label}
+                {showAccount
+                  ? 'アカウント'
+                  : showAccounts
+                    ? '口座'
+                    : showAllTrades
+                      ? 'すべての取引'
+                      : item.label}
               </span>
             </nav>
             <div className="ml-auto flex items-center gap-2">
@@ -154,12 +182,24 @@ export default function App() {
 
         <main className="mx-auto w-full max-w-6xl flex-1 px-4 py-5">
           {/* 画面タイトル: いま何の画面かを常に明示する */}
-          {!showAllTrades && !showAccount && (
+          {!showAllTrades && !showAccount && !showAccounts && (
             <PageHeader title={item.label} sub={item.blurb} />
           )}
 
+          {/* 見ている口座 */}
+          {!showAccount && !showAccounts && !loading && accounts.length > 0 && (
+            <div className="mb-4">
+              <AccountSwitcher
+                accounts={accounts}
+                value={accountId}
+                onChange={setAccountId}
+                onManage={demo ? undefined : openAccounts}
+              />
+            </div>
+          )}
+
           {demo && <DemoNotice />}
-          {flash && !showAllTrades && !showAccount && (
+          {flash && !showAllTrades && !showAccount && !showAccounts && (
             <SavedNotice
               message={flash}
               onSeeStats={() => go('stats')}
@@ -182,6 +222,23 @@ export default function App() {
               </button>
               <AccountPanel email={userEmail} onSignOut={signOut} />
             </>
+          ) : showAccounts ? (
+            <>
+              <button className="btn btn-ghost mb-3 -ml-2" onClick={() => setShowAccounts(false)}>
+                <Icon name="back" size={17} />
+                戻る
+              </button>
+              <PageHeader
+                title="口座"
+                sub="ブローカーと口座番号ごとに、取引と原資を分けて管理します"
+              />
+              <AccountsPanel
+                accounts={accounts}
+                countOf={(id) => allTrades.filter((t) => t.account_id === id).length}
+                onChanged={reload}
+                readOnly={demo}
+              />
+            </>
           ) : showAllTrades ? (
             <>
               <button className="btn btn-ghost mb-3 -ml-2" onClick={() => setShowAllTrades(false)}>
@@ -189,14 +246,20 @@ export default function App() {
                 ホームに戻る
               </button>
               <PageHeader title="すべての取引" sub={`${trades.length}件`} />
-              <TradesTable trades={trades} onChanged={reload} readOnly={demo} />
+              <TradesTable
+                trades={trades}
+                accounts={accounts}
+                onChanged={reload}
+                readOnly={demo}
+              />
             </>
           ) : (
             <>
               {screen === 'home' && (
                 <Home
                   trades={trades}
-                  settings={settings}
+                  account={account}
+                  accounts={accounts}
                   onShowAll={() => setShowAllTrades(true)}
                   onAdd={() => go('add')}
                   onChanged={reload}
@@ -205,12 +268,19 @@ export default function App() {
               )}
               {screen === 'calendar' && <CalendarScreen trades={trades} onSelectDay={openDay} />}
               {screen === 'add' && (
-                <UploadPanel onChanged={reload} disabled={!configured} onDone={finishAdd} />
+                <UploadPanel
+                  accountId={writeAccount?.id ?? null}
+                  accountName={writeAccount ? accountLabel(writeAccount) : null}
+                  onChanged={reload}
+                  disabled={!configured}
+                  onDone={finishAdd}
+                />
               )}
               {screen === 'stats' && <StatsPanel trades={trades} />}
               {screen === 'diary' && (
                 <Diary
                   trades={trades}
+                  accounts={accounts}
                   dayNotes={dayNotes}
                   onChanged={reload}
                   focusDay={focusDay}

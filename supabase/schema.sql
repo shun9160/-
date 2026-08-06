@@ -8,10 +8,34 @@
 -- データはログインした利用者ごとに分かれます（他人の行は見えません）。
 -- =============================================================
 
+-- 口座テーブル -------------------------------------------------
+-- 1人が複数の口座（ブローカー違い・本口座とデモなど）を持てる。
+-- 原資や通貨は口座ごとに違うので、口座側で持つ。
+create table if not exists public.accounts (
+  id                 uuid primary key default gen_random_uuid(),
+  user_id            uuid not null references auth.users(id) on delete cascade default auth.uid(),
+  broker             text,                        -- ブローカー名
+  login              text,                        -- 口座番号 (MT5のログインID)
+  nickname           text,                        -- 表示名 (任意)
+  currency           text    not null default 'JPY',
+  lot_size           numeric not null default 100000,
+  broker_utc_offset  numeric not null default 4,  -- MT5サーバーの時差
+  initial_capital    numeric not null default 0,  -- この口座の原資
+  capital_note       text,
+  capital_screenshot text,
+  is_default         boolean not null default false,
+  created_at         timestamptz default now()
+);
+create index if not exists accounts_user_idx on public.accounts (user_id);
+-- 同じ口座を二重登録させない。番号なし(null)はいくつでも作れる。
+create unique index if not exists accounts_user_login_uidx
+  on public.accounts (user_id, broker, login);
+
 -- 取引テーブル -------------------------------------------------
 create table if not exists public.trades (
   id           uuid primary key default gen_random_uuid(),
   user_id      uuid not null references auth.users(id) on delete cascade default auth.uid(),
+  account_id   uuid references public.accounts(id) on delete cascade,
   -- MT5 のポジション番号 (#19235918 など)。重複取込を防ぐために使う。
   ticket       text,
   symbol       text not null,
@@ -37,10 +61,12 @@ create table if not exists public.trades (
 create index if not exists trades_user_idx      on public.trades (user_id);
 create index if not exists trades_open_time_idx on public.trades (open_time);
 create index if not exists trades_symbol_idx    on public.trades (symbol);
+create index if not exists trades_account_idx   on public.trades (account_id);
 
--- 同じ取引を二重に取り込まない（利用者ごとに判定）
-create unique index if not exists trades_user_ticket_uidx
-  on public.trades (user_id, ticket);
+-- 同じ取引を二重に取り込まない。
+-- ブローカーが違えば同じ取引番号が来ることがあるので、口座も含めて判定する。
+create unique index if not exists trades_account_ticket_uidx
+  on public.trades (user_id, account_id, ticket);
 
 -- 日次の日記メモ ----------------------------------------------
 create table if not exists public.day_notes (
@@ -94,7 +120,13 @@ create index if not exists ingest_tokens_user_idx on public.ingest_tokens (user_
 -- =============================================================
 -- RLS (Row Level Security) — 自分の行だけ読み書きできる
 -- =============================================================
+alter table public.accounts      enable row level security;
 alter table public.trades        enable row level security;
+
+drop policy if exists "own accounts" on public.accounts;
+create policy "own accounts" on public.accounts
+  for all to authenticated
+  using (user_id = auth.uid()) with check (user_id = auth.uid());
 alter table public.day_notes     enable row level security;
 alter table public.settings      enable row level security;
 alter table public.trade_images  enable row level security;

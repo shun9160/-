@@ -11,6 +11,8 @@ import { EmptyState, Pill } from './ui'
 
 interface Props {
   onSaved: (count: number) => void
+  /** 記録先の口座 */
+  accountId?: string | null
   disabled?: boolean
 }
 
@@ -37,7 +39,7 @@ interface Draft {
 
 const numOrNull = (s: string) => (s.trim() === '' ? null : Number(s))
 
-export default function BatchImport({ onSaved, disabled }: Props) {
+export default function BatchImport({ onSaved, disabled, accountId }: Props) {
   const fileRef = useRef<HTMLInputElement>(null)
   const [drafts, setDrafts] = useState<Draft[]>([])
   const [reading, setReading] = useState(false)
@@ -151,7 +153,7 @@ export default function BatchImport({ onSaved, disabled }: Props) {
           source: 'screenshot',
         }
       })
-      const n = await insertTrades(rows)
+      const n = await insertTrades(rows, accountId)
       setDrafts([])
       onSaved(n)
     } catch (e) {

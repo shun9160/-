@@ -83,6 +83,26 @@ export default async (req: Request, _context: Context) => {
   }
   const userId = found[0].user_id
 
+  // --- 送られてきた口座を特定する（無ければ作る） --------------------
+  // EA は MT5 の口座番号とブローカー名を送ってくる。
+  // どの口座の取引かを取り違えないよう、口座番号で照合する。
+  const meta = (body as { account?: { login?: unknown; broker?: unknown; currency?: unknown } })
+    .account
+  const login = meta?.login != null && String(meta.login).trim() !== ''
+    ? String(meta.login).trim()
+    : null
+  const broker = meta?.broker != null && String(meta.broker).trim() !== ''
+    ? String(meta.broker).trim()
+    : null
+
+  let accountId: string | null = null
+  try {
+    accountId = await findOrCreateAccount(rest, adminHeaders, userId, login, broker, meta?.currency)
+  } catch {
+    // 口座を決められなくても取引は取りこぼさない（あとから口座を割り当てられる）
+    accountId = null
+  }
+
   // --- 中身を整えて保存する -----------------------------------------
   const clean: Record<string, unknown>[] = []
   const skipped: string[] = []
@@ -99,6 +119,7 @@ export default async (req: Request, _context: Context) => {
     }
     clean.push({
       user_id: userId,
+      account_id: accountId,
       ticket: r.ticket ? String(r.ticket) : null,
       symbol: String(r.symbol),
       side,
@@ -122,7 +143,8 @@ export default async (req: Request, _context: Context) => {
   }
 
   // 取り込み済みは上書きしない（アプリで書いたメモや画像を守るため）
-  const saveRes = await fetch(`${rest}/trades?on_conflict=user_id,ticket`, {
+  // ブローカーが違えば同じ取引番号がありうるので、口座も含めて判定する。
+  const saveRes = await fetch(`${rest}/trades?on_conflict=user_id,account_id,ticket`, {
     method: 'POST',
     headers: {
       ...adminHeaders,
@@ -153,6 +175,58 @@ export default async (req: Request, _context: Context) => {
       skipped,
     }),
   )
+}
+
+/**
+ * 口座番号から口座を探し、まだ無ければ作る。
+ * 番号が送られてこなかったときは、その人の既定の口座を使う。
+ */
+async function findOrCreateAccount(
+  rest: string,
+  headers: Record<string, string>,
+  userId: string,
+  login: string | null,
+  broker: string | null,
+  currency: unknown,
+): Promise<string | null> {
+  const q = (s: string) => encodeURIComponent(s)
+
+  if (login) {
+    const res = await fetch(
+      `${rest}/accounts?user_id=eq.${q(userId)}&login=eq.${q(login)}&select=id&limit=1`,
+      { headers },
+    )
+    if (res.ok) {
+      const hit = (await res.json()) as { id: string }[]
+      if (hit.length) return hit[0].id
+    }
+
+    // 初めて見る口座番号。取引の行き先として作っておく。
+    const made = await fetch(`${rest}/accounts`, {
+      method: 'POST',
+      headers: { ...headers, Prefer: 'return=representation' },
+      body: JSON.stringify({
+        user_id: userId,
+        login,
+        broker,
+        currency: currency ? String(currency) : 'JPY',
+      }),
+    })
+    if (made.ok) {
+      const rows = (await made.json()) as { id: string }[]
+      if (rows.length) return rows[0].id
+    }
+    return null
+  }
+
+  // 番号が無いときは既定の口座へ
+  const res = await fetch(
+    `${rest}/accounts?user_id=eq.${q(userId)}&is_default=is.true&select=id&limit=1`,
+    { headers },
+  )
+  if (!res.ok) return null
+  const hit = (await res.json()) as { id: string }[]
+  return hit.length ? hit[0].id : null
 }
 
 /** ヘッダー or 本文から連携コードを読む */

@@ -9,6 +9,10 @@ import TradeForm from './TradeForm'
 import Icon from './Icon'
 
 interface Props {
+  /** 記録先の口座。未登録なら null */
+  accountId: string | null
+  /** 記録先の口座名（画面に出す） */
+  accountName: string | null
   onChanged: () => void
   disabled?: boolean
   /** 保存できたら呼ぶ。ホームへ移して結果を見せる。 */
@@ -17,7 +21,9 @@ interface Props {
 
 type Method = 'shots' | 'manual' | 'file'
 
-export default function UploadPanel({ onChanged, disabled, onDone }: Props) {
+export default function UploadPanel({
+  accountId, accountName, onChanged, disabled, onDone,
+}: Props) {
   const fileRef = useRef<HTMLInputElement>(null)
   const [method, setMethod] = useState<Method>('shots')
   const [busy, setBusy] = useState(false)
@@ -43,7 +49,7 @@ export default function UploadPanel({ onChanged, disabled, onDone }: Props) {
     }
     setBusy(true)
     try {
-      const n = await insertTrades(rows)
+      const n = await insertTrades(rows, accountId)
       onChanged()
       succeed(`${label} ${n}件保存しました`)
     } catch (e) {
@@ -96,6 +102,13 @@ export default function UploadPanel({ onChanged, disabled, onDone }: Props) {
         />
       </div>
 
+      {accountName && (
+        <p className="text-sm text-ink2">
+          記録先: <span className="font-semibold text-ink">{accountName}</span>
+          <span className="ml-1 text-ink3">（上の口座の切り替えで変えられます）</span>
+        </p>
+      )}
+
       {msg && (
         <div
           className={`flex items-start gap-2 rounded-2xl border px-4 py-3 text-sm ${
@@ -111,6 +124,7 @@ export default function UploadPanel({ onChanged, disabled, onDone }: Props) {
 
       {method === 'shots' ? (
         <BatchImport
+          accountId={accountId}
           disabled={disabled}
           onSaved={(n) => {
             onChanged()

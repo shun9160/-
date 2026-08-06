@@ -181,7 +181,7 @@ void SyncHistory()
 
       if(inBatch >= BATCH_SIZE)
         {
-         if(PostTrades("[" + batch + "]"))
+         if(PostTrades(WrapPayload(batch)))
             sentOk += inBatch;
          else
             sentNg += inBatch;
@@ -192,7 +192,7 @@ void SyncHistory()
 
    if(inBatch > 0)
      {
-      if(PostTrades("[" + batch + "]"))
+      if(PostTrades(WrapPayload(batch)))
          sentOk += inBatch;
       else
          sentNg += inBatch;
@@ -316,6 +316,35 @@ string BuildPositionJson(long posId, long offset, string currency)
 //| 連携コードだけで本人が特定されるので、データベースの鍵は不要。      |
 //| 取り込み済みの取引はアプリ側で無視される（メモや画像を守るため）。   |
 //+------------------------------------------------------------------+
+//+------------------------------------------------------------------+
+//| 取引の配列に「どの口座か」を添えて、送信する本文を組み立てる       |
+//| 口座番号を送ることで、サーバー側が口座を取り違えない               |
+//+------------------------------------------------------------------+
+string WrapPayload(string batch)
+  {
+   string body = "{";
+   body += "\"account\":{";
+   body += "\"login\":\""    + IntegerToString(AccountInfoInteger(ACCOUNT_LOGIN)) + "\",";
+   body += "\"broker\":\""   + JsonEscape(AccountInfoString(ACCOUNT_COMPANY)) + "\",";
+   body += "\"server\":\""   + JsonEscape(AccountInfoString(ACCOUNT_SERVER)) + "\",";
+   body += "\"currency\":\"" + AccountInfoString(ACCOUNT_CURRENCY) + "\"";
+   body += "},";
+   body += "\"trades\":[" + batch + "]";
+   body += "}";
+   return(body);
+  }
+
+//+------------------------------------------------------------------+
+//| JSON に入れられない文字を逃がす                                    |
+//+------------------------------------------------------------------+
+string JsonEscape(string v)
+  {
+   string out = v;
+   StringReplace(out, "\\", "\\\\");
+   StringReplace(out, "\"", "\\\"");
+   return(out);
+  }
+
 bool PostTrades(string jsonArray)
   {
    string url = AppUrl;

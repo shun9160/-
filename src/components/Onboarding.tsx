@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { saveOnboarding } from '../lib/repo'
+import { createAccount, saveOnboarding } from '../lib/repo'
 import { friendlyError } from '../lib/errors'
 import { BRAND } from '../lib/brand'
 import Logo from './Logo'
@@ -10,6 +10,8 @@ interface Props {
 }
 
 interface Answers {
+  broker: string
+  login: string
   account_currency: string
   initial_capital: string
   lot_size: string
@@ -17,13 +19,15 @@ interface Answers {
   main_symbol: string
 }
 
-const STEPS = ['通貨', '原資', 'ロット', '時差', '銘柄'] as const
+const STEPS = ['口座', '通貨', '原資', 'ロット', '時差', '銘柄'] as const
 
 export default function Onboarding({ onDone }: Props) {
   const [step, setStep] = useState(0)
   const [busy, setBusy] = useState(false)
   const [err, setErr] = useState<string | null>(null)
   const [a, setA] = useState<Answers>({
+    broker: '',
+    login: '',
     account_currency: 'JPY',
     initial_capital: '',
     lot_size: '100000',
@@ -35,7 +39,11 @@ export default function Onboarding({ onDone }: Props) {
 
   function next() {
     setErr(null)
-    if (step === 1 && !(Number(a.initial_capital) >= 0 && a.initial_capital.trim() !== '')) {
+    if (step === 0 && a.broker.trim() === '' && a.login.trim() === '') {
+      setErr('ブローカー名か口座番号のどちらかは入れてください')
+      return
+    }
+    if (step === 2 && !(Number(a.initial_capital) >= 0 && a.initial_capital.trim() !== '')) {
       setErr('金額を入力してください（0でも構いません）')
       return
     }
@@ -47,6 +55,16 @@ export default function Onboarding({ onDone }: Props) {
     setBusy(true)
     setErr(null)
     try {
+      // 最初の口座を作る。以後の取引はこの口座に入る。
+      await createAccount({
+        broker: a.broker.trim() || null,
+        login: a.login.trim() || null,
+        currency: a.account_currency,
+        lot_size: Number(a.lot_size) || 100000,
+        broker_utc_offset: Number(a.broker_utc_offset) || 0,
+        initial_capital: Number(a.initial_capital) || 0,
+        is_default: true,
+      })
       await saveOnboarding({
         initial_capital: Number(a.initial_capital) || 0,
         account_currency: a.account_currency,
@@ -93,6 +111,39 @@ export default function Onboarding({ onDone }: Props) {
       <div className="flex flex-1 flex-col justify-center py-8">
         {step === 0 && (
           <Question
+            title="どの口座の記録をつけますか？"
+            hint="MT5の口座番号とブローカー名です。あとから増やせます"
+          >
+            <div className="flex flex-col gap-3">
+              <label className="flex flex-col gap-1">
+                <span className="label">ブローカー名</span>
+                <input
+                  className="input py-3 text-lg"
+                  value={a.broker}
+                  onChange={(e) => set('broker', e.target.value)}
+                  placeholder="Exness"
+                  autoFocus
+                />
+              </label>
+              <label className="flex flex-col gap-1">
+                <span className="label">口座番号</span>
+                <input
+                  className="input py-3 text-lg tabular-nums"
+                  value={a.login}
+                  onChange={(e) => set('login', e.target.value)}
+                  placeholder="12345678"
+                  inputMode="numeric"
+                />
+              </label>
+              <p className="text-xs text-ink3">
+                MT5アプリの上部か、口座一覧に出ている番号です。どちらか片方だけでも進めます。
+              </p>
+            </div>
+          </Question>
+        )}
+
+        {step === 1 && (
+          <Question
             title="口座の通貨はどれですか？"
             hint="損益をこの通貨で表示します"
           >
@@ -108,7 +159,7 @@ export default function Onboarding({ onDone }: Props) {
           </Question>
         )}
 
-        {step === 1 && (
+        {step === 2 && (
           <Question
             title="原資はいくらですか？"
             hint="最初に入金した金額です。増減率の計算に使います"
@@ -130,7 +181,7 @@ export default function Onboarding({ onDone }: Props) {
           </Question>
         )}
 
-        {step === 2 && (
+        {step === 3 && (
           <Question
             title="1ロットは何通貨ですか？"
             hint="多くのブローカーは10万通貨（標準ロット）です"
@@ -158,7 +209,7 @@ export default function Onboarding({ onDone }: Props) {
           </Question>
         )}
 
-        {step === 3 && (
+        {step === 4 && (
           <Question
             title="MT5の時刻は日本時間と何時間ずれていますか？"
             hint="MT5に表示される時刻を、日本時間に直すために使います"
@@ -179,7 +230,7 @@ export default function Onboarding({ onDone }: Props) {
           </Question>
         )}
 
-        {step === 4 && (
+        {step === 5 && (
           <Question
             title="主に取引する銘柄は？"
             hint="入力画面の初期値に使います"

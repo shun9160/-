@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
-import type { EnrichedTrade } from '../lib/types'
+import type { Account, EnrichedTrade } from '../lib/types'
+import { accountLabel } from '../lib/types'
 import {
   deleteTrade,
   fetchTradeImageCounts,
@@ -30,9 +31,19 @@ interface Props {
   readOnly?: boolean
   /** ホームの「最近の取引」用に情報量を絞る */
   compact?: boolean
+  /** どの口座の取引かを出すために使う */
+  accounts?: Account[]
 }
 
-export default function TradesTable({ trades, onChanged, filterDay, readOnly, compact }: Props) {
+export default function TradesTable({
+  trades, onChanged, filterDay, readOnly, compact, accounts,
+}: Props) {
+  // 口座が2つ以上あるときだけ、どの口座の取引かを出す
+  const accountOf = useMemo(() => {
+    const m = new Map((accounts ?? []).map((a) => [a.id, a]))
+    return (id?: string | null) => (id ? (m.get(id) ?? null) : null)
+  }, [accounts])
+  const showAccount = (accounts?.length ?? 0) > 1
   const [editingNote, setEditingNote] = useState<string | null>(null)
   const [draft, setDraft] = useState('')
   const [editingTrade, setEditingTrade] = useState<string | null>(null)
@@ -210,6 +221,17 @@ export default function TradesTable({ trades, onChanged, filterDay, readOnly, co
               {SESSION_LABELS[t.session].split(' ')[0]}
               <span className="ml-1.5">(日本時間)</span>
             </p>
+
+            {showAccount && accountOf(t.account_id) && (
+              <p className="px-4 pt-1 text-[11px] text-ink3">
+                <span className="rounded-md bg-sunken px-1.5 py-0.5 font-semibold text-ink2">
+                  {accountLabel(accountOf(t.account_id)!)}
+                </span>
+                {accountOf(t.account_id)!.login && accountOf(t.account_id)!.nickname && (
+                  <span className="ml-1.5">口座番号 {accountOf(t.account_id)!.login}</span>
+                )}
+              </p>
+            )}
 
             {isEditing ? (
               <div className="border-t border-line px-4 py-4">

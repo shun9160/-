@@ -1,36 +1,50 @@
 import { useRef, useState } from 'react'
-import type { Settings } from '../lib/types'
+import type { Account } from '../lib/types'
+import { accountLabel } from '../lib/types'
 import { friendlyError } from '../lib/errors'
 import { fileToDownscaledDataUrl } from '../lib/image'
-import { getCapitalScreenshot, saveCapital } from '../lib/repo'
+import { getAccountCapitalScreenshot, saveAccountCapital } from '../lib/repo'
 import { colorOf, fmtMoney, fmtPct } from '../lib/format'
+import { currencyLabel } from '../lib/appConfig'
 import Icon from './Icon'
 
 interface Props {
-  settings: Settings | null
+  /** 表示中の口座。「すべて」を選んでいるときは null */
+  account: Account | null
+  /** 「すべて」のとき合算に使う口座の一覧 */
+  accounts: Account[]
   /** 累計純損益（手数料込み） */
   netTotal: number
   onChanged: () => void
   readOnly?: boolean
 }
 
-export default function CapitalCard({ settings, netTotal, onChanged, readOnly }: Props) {
+export default function CapitalCard({ account, accounts, netTotal, onChanged, readOnly }: Props) {
   const [editing, setEditing] = useState(false)
-  const capital = settings?.initial_capital ?? 0
+
+  // 「すべて」のときは各口座の原資を足す。
+  // ただし通貨が混ざっていると足せないので、その場合は原資を出さない。
+  const mixedCurrency =
+    account == null && new Set(accounts.map((a) => a.currency)).size > 1
+  const capital = account
+    ? account.initial_capital
+    : mixedCurrency
+      ? 0
+      : accounts.reduce((s, a) => s + a.initial_capital, 0)
   const hasCapital = capital > 0
   const balance = capital + netTotal
   const rate = hasCapital ? netTotal / capital : null
 
-  if (editing) {
+  if (editing && account) {
     return (
       <section className="card p-5">
         <h3 className="text-base font-bold">原資を設定する</h3>
         <p className="mt-0.5 text-sm text-ink2">
-          最初に入金した金額です。入れると増減率と残高が出ます。
+          {accountLabel(account)} に最初に入金した金額です。入れると増減率と残高が出ます。
         </p>
         <div className="mt-4">
           <CapitalForm
-            settings={settings}
+            account={account}
             onDone={() => {
               setEditing(false)
               onChanged()
@@ -46,13 +60,17 @@ export default function CapitalCard({ settings, netTotal, onChanged, readOnly }:
     <section className="card p-5">
       <div className="flex items-start justify-between gap-3">
         <div className="min-w-0">
-          <p className="eyebrow">{hasCapital ? '現在の残高' : '累計損益（手数料込み）'}</p>
+          <p className="eyebrow">
+            {account ? accountLabel(account) : 'すべての口座'}
+            <span className="mx-1.5">·</span>
+            {hasCapital ? '現在の残高' : '累計損益（手数料込み）'}
+          </p>
           <p className="mt-1 text-hero font-bold tabular-nums">
             {hasCapital ? fmtMoney(balance) : fmtMoney(netTotal, { sign: true })}
-            <span className="ml-1.5 text-base font-semibold text-ink3">円</span>
+            <span className="ml-1.5 text-base font-semibold text-ink3">{currencyLabel()}</span>
           </p>
         </div>
-        {!readOnly && (
+        {!readOnly && account && (
           <button
             className="btn btn-quiet shrink-0"
             onClick={() => setEditing(true)}
@@ -83,8 +101,14 @@ export default function CapitalCard({ settings, netTotal, onChanged, readOnly }:
             </dd>
           </div>
         </dl>
+      ) : mixedCurrency ? (
+        <p className="mt-3 rounded-xl border border-dashed border-line px-3 py-2.5 text-xs text-ink2">
+          通貨のちがう口座が混ざっているため、原資と残高はまとめて出せません。
+          口座を1つ選ぶと表示されます。
+        </p>
       ) : (
-        !readOnly && (
+        !readOnly &&
+        account && (
           <button
             className="mt-3 flex w-full items-center justify-center gap-1.5 rounded-xl border border-dashed border-line py-2.5 text-sm font-semibold text-ink2 hover:bg-sunken"
             onClick={() => setEditing(true)}
@@ -95,28 +119,26 @@ export default function CapitalCard({ settings, netTotal, onChanged, readOnly }:
         )
       )}
 
-      {settings?.capital_note && (
-        <p className="mt-2 text-xs text-ink3">{settings.capital_note}</p>
-      )}
+      {account?.capital_note && <p className="mt-2 text-xs text-ink3">{account.capital_note}</p>}
     </section>
   )
 }
 
 /** 原資の入力フォーム（手入力＋スクショ添付） */
 function CapitalForm({
-  settings,
+  account,
   onDone,
   onCancel,
 }: {
-  settings: Settings | null
+  account: Account
   onDone: () => void
   onCancel: () => void
 }) {
   const fileRef = useRef<HTMLInputElement>(null)
   const [amount, setAmount] = useState(
-    settings?.initial_capital ? String(settings.initial_capital) : '',
+    account.initial_capital ? String(account.initial_capital) : '',
   )
-  const [note, setNote] = useState(settings?.capital_note ?? '')
+  const [note, setNote] = useState(account.capital_note ?? '')
   const [shot, setShot] = useState<string | null | undefined>(undefined)
   const [preview, setPreview] = useState<string | null>(null)
   const [loadingShot, setLoadingShot] = useState(false)
@@ -142,7 +164,7 @@ function CapitalForm({
     setLoadingShot(true)
     setErr(null)
     try {
-      const url = await getCapitalScreenshot()
+      const url = await getAccountCapitalScreenshot(account.id)
       setPreview(url)
       if (!url) setErr('画像は登録されていません')
     } catch (e) {
@@ -161,7 +183,7 @@ function CapitalForm({
     setBusy(true)
     setErr(null)
     try {
-      await saveCapital({
+      await saveAccountCapital(account.id, {
         initial_capital: n,
         capital_note: note.trim() || null,
         ...(shot !== undefined ? { capital_screenshot: shot } : {}),
@@ -176,7 +198,7 @@ function CapitalForm({
   return (
     <div className="flex flex-col gap-4">
       <label className="flex flex-col gap-1">
-        <span className="label">原資（円）</span>
+        <span className="label">原資（{currencyLabel()}）</span>
         <input
           className="input tabular-nums text-lg font-bold"
           value={amount}
@@ -224,7 +246,7 @@ function CapitalForm({
               <Icon name="camera" size={17} />
               画像を選ぶ
             </button>
-            {settings && shot === undefined && (
+            {shot === undefined && (
               <button className="btn btn-ghost" type="button" onClick={showExisting} disabled={loadingShot}>
                 {loadingShot ? '読み込み中…' : '登録済みの画像を見る'}
               </button>

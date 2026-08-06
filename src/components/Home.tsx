@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react'
-import type { EnrichedTrade, Settings } from '../lib/types'
+import type { Account, EnrichedTrade } from '../lib/types'
 import { comparePeriods, netOf, summarize } from '../lib/analytics'
 import { jstDayKey } from '../lib/timezone'
 import { currencyLabel } from '../lib/appConfig'
@@ -12,7 +12,9 @@ import { Delta, EmptyState, SectionHeader, SegmentedControl, StatCard } from './
 
 interface Props {
   trades: EnrichedTrade[]
-  settings: Settings | null
+  /** 表示中の口座。「すべて」なら null */
+  account: Account | null
+  accounts: Account[]
   onShowAll: () => void
   onAdd: () => void
   onChanged: () => void
@@ -28,7 +30,9 @@ const RANGES: { value: RangeKey; label: string }[] = [
   { value: '0', label: '全期間' },
 ]
 
-export default function Home({ trades, settings, onShowAll, onAdd, onChanged, readOnly }: Props) {
+export default function Home({
+  trades, account, accounts, onShowAll, onAdd, onChanged, readOnly,
+}: Props) {
   const [range, setRange] = useState<RangeKey>('30')
   const [chart, setChart] = useState<'cumulative' | 'daily'>('cumulative')
   const days = Number(range)
@@ -59,7 +63,13 @@ export default function Home({ trades, settings, onShowAll, onAdd, onChanged, re
   if (trades.length === 0) {
     return (
       <div className="flex flex-col gap-4">
-        <CapitalCard settings={settings} netTotal={0} onChanged={onChanged} readOnly={readOnly} />
+        <CapitalCard
+          account={account}
+          accounts={accounts}
+          netTotal={0}
+          onChanged={onChanged}
+          readOnly={readOnly}
+        />
         <EmptyState
           icon="upload"
           title="まだ取引がありません"
@@ -82,7 +92,8 @@ export default function Home({ trades, settings, onShowAll, onAdd, onChanged, re
       {/* 残高と原資 — 最初に見たい数字 */}
       <div className="order-1 xl:order-none xl:col-span-2 xl:row-start-1">
         <CapitalCard
-          settings={settings}
+          account={account}
+          accounts={accounts}
           netTotal={all.netTotal}
           onChanged={onChanged}
           readOnly={readOnly}
