@@ -424,3 +424,206 @@ export function gradeTrade(t: EnrichedTrade): TradeGrade {
   if (r != null && r > -1) return { stars: 3, reason: '損切りより手前で止められました' }
   return { stars: 2, reason: '決めた損切りより深く負けています' }
 }
+
+// ---------------------------------------------------------------
+// 分析ページで使う集計
+// ---------------------------------------------------------------
+
+/** 曜日 × 時間の升目。曜日は月曜=0 */
+export interface HeatCell {
+  weekday: number
+  hour: number
+  count: number
+  net: number
+}
+
+export function heatmap(trades: EnrichedTrade[]): HeatCell[] {
+  const m = new Map<string, HeatCell>()
+  for (const t of trades) {
+    const jst = new Date(t.openJst.getTime() + 9 * 3600_000)
+    const weekday = (jst.getUTCDay() + 6) % 7 // 月曜始まり
+    const hour = jst.getUTCHours()
+    const k = `${weekday}-${hour}`
+    const cur = m.get(k) ?? { weekday, hour, count: 0, net: 0 }
+    cur.count++
+    cur.net += t.netProfit
+    m.set(k, cur)
+  }
+  return [...m.values()]
+}
+
+/** 銘柄ごとの内訳 */
+export interface SymbolStat {
+  symbol: string
+  count: number
+  net: number
+  share: number
+}
+
+export function symbolBreakdown(trades: EnrichedTrade[]): SymbolStat[] {
+  const m = new Map<string, { count: number; net: number }>()
+  for (const t of trades) {
+    const cur = m.get(t.symbol) ?? { count: 0, net: 0 }
+    cur.count++
+    cur.net += t.netProfit
+    m.set(t.symbol, cur)
+  }
+  const total = trades.length || 1
+  return [...m.entries()]
+    .map(([symbol, v]) => ({ symbol, ...v, share: v.count / total }))
+    .sort((a, b) => b.count - a.count)
+}
+
+/** 勝ちと負けを並べてくらべる */
+export interface WinLossCompare {
+  winCount: number
+  lossCount: number
+  avgWin: number | null
+  avgLoss: number | null
+  maxWin: number | null
+  maxLoss: number | null
+}
+
+export function winLossCompare(trades: EnrichedTrade[]): WinLossCompare {
+  const wins = trades.filter((t) => t.netProfit > 0).map((t) => t.netProfit)
+  const losses = trades.filter((t) => t.netProfit < 0).map((t) => t.netProfit)
+  return {
+    winCount: wins.length,
+    lossCount: losses.length,
+    avgWin: wins.length ? avg(wins) : null,
+    avgLoss: losses.length ? avg(losses) : null,
+    maxWin: wins.length ? Math.max(...wins) : null,
+    maxLoss: losses.length ? Math.min(...losses) : null,
+  }
+}
+
+/**
+ * 記録の付け方と成績から、100点満点のめやすを出す。
+ *
+ * 当てにいくための点ではなく「続けられる形になっているか」を見る。
+ * どう配点したかを内訳で必ず見せる（点だけ出すと理由が分からないため）。
+ */
+export interface ScorePart {
+  label: string
+  /** 得点 */
+  got: number
+  /** 満点 */
+  max: number
+  note: string
+}
+
+export interface ScoreResult {
+  total: number
+  parts: ScorePart[]
+  /** 5段階の星 */
+  stars: number
+}
+
+export function scoreOf(trades: EnrichedTrade[], sum: Summary): ScoreResult {
+  const parts: ScorePart[] = []
+
+  // 1) 損切りを置けているか（守りの土台）
+  const withSl = trades.filter((t) => t.sl != null).length
+  const slRate = trades.length ? withSl / trades.length : 0
+  parts.push({
+    label: '損切りを置けているか',
+    got: Math.round(slRate * 30),
+    max: 30,
+    note: `${withSl}/${trades.length}件で設定`,
+  })
+
+  // 2) 勝ちが負けを上回っているか
+  const pf = sum.profitFactor
+  const pfScore = pf == null ? 0 : pf === Infinity ? 25 : Math.min(25, Math.round((pf / 2) * 25))
+  parts.push({
+    label: '勝ちと負けの大きさ',
+    got: pfScore,
+    max: 25,
+    note: pf == null ? 'まだ判定できません' : pf === Infinity ? '負けなし' : `損益比 ${fmt2(pf)}`,
+  })
+
+  // 3) 決めた通りに終われているか
+  const tp = sum.tpHitRate
+  const tpScore = tp == null ? 0 : Math.min(25, Math.round(tp * 40))
+  parts.push({
+    label: '決めた通りに終われたか',
+    got: tpScore,
+    max: 25,
+    note: tp == null ? 'TPの記録がありません' : `TP到達 ${Math.round(tp * 100)}%`,
+  })
+
+  // 4) 記録が続いているか
+  const daysWith = new Set(trades.map((t) => t.jstDay)).size
+  const keepScore = Math.min(20, daysWith * 2)
+  parts.push({
+    label: '記録が続いているか',
+    got: keepScore,
+    max: 20,
+    note: `${daysWith}日ぶん`,
+  })
+
+  const total = parts.reduce((s, p) => s + p.got, 0)
+  return { total, parts, stars: Math.max(1, Math.min(5, Math.round(total / 20))) }
+}
+
+function fmt2(n: number): string {
+  return (Math.round(n * 100) / 100).toFixed(2)
+}
+
+/** 次にやることの候補。記録から見つかったものだけを出す。 */
+export interface ActionItem {
+  key: string
+  title: string
+  why: string
+}
+
+export function suggestActions(trades: EnrichedTrade[], sum: Summary): ActionItem[] {
+  const out: ActionItem[] = []
+  if (trades.length < 3) return out
+
+  const noSl = trades.filter((t) => t.sl == null)
+  if (noSl.length > 0) {
+    out.push({
+      key: 'sl',
+      title: '損切りを必ず置く',
+      why: `${noSl.length}件が損切りなしです。1回の負けが大きくなりやすい状態です`,
+    })
+  }
+
+  // いちばん負けている時間帯
+  const hours = hourBreakdown(trades).filter((h) => h.count >= 2)
+  const worst = hours.slice().sort((a, b) => a.net - b.net)[0]
+  if (worst && worst.net < 0) {
+    out.push({
+      key: 'hour',
+      title: `${worst.hour}時台の取引を見直す`,
+      why: `この時間帯は ${worst.count}件で合計 ${Math.round(worst.net).toLocaleString('ja-JP')} です`,
+    })
+  }
+
+  if (sum.tpHitRate != null && sum.tpHitRate < 0.3 && sum.avgCapturedRatio != null) {
+    out.push({
+      key: 'tp',
+      title: '利確を決めた位置まで待つ',
+      why: `狙いの ${Math.round(sum.avgCapturedRatio * 100)}% で終えています`,
+    })
+  }
+
+  if (sum.avgPlannedRR != null && sum.avgPlannedRR < 1.2) {
+    out.push({
+      key: 'rr',
+      title: '損益比の大きい形をねらう',
+      why: `いまの狙いは平均 ${fmt2(sum.avgPlannedRR)} です`,
+    })
+  }
+
+  const st = streakOf(trades)
+  if (st.lossStreak >= 3) {
+    out.push({
+      key: 'streak',
+      title: '一度、間を置く',
+      why: `${st.lossStreak}連敗中です。記録を読み返してから再開しましょう`,
+    })
+  }
+  return out
+}

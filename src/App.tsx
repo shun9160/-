@@ -299,7 +299,9 @@ export default function App() {
                   onDone={finishAdd}
                 />
               )}
-              {screen === 'stats' && <StatsPanel trades={trades} />}
+              {screen === 'stats' && (
+                <StatsPanel trades={trades} onDiary={() => go('diary')} />
+              )}
               {screen === 'diary' && (
                 <Diary
                   trades={trades}
