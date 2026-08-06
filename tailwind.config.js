@@ -29,6 +29,7 @@ export default {
 
         // 取引の評価に使う星。白地でも見えるよう濃いめ
         amber: '#D97706',
+        'amber-soft': '#FDF0DF',
       },
       fontFamily: {
         // 英数字は IBM Plex Sans（技術系の実直な書体）、日本語は各OSの標準に任せる。

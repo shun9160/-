@@ -29,6 +29,8 @@ export type IconName =
   | 'rocket'
   | 'down'
   | 'info'
+  | 'shield'
+  | 'sparkle'
 
 const PATHS: Record<IconName, JSX.Element> = {
   home: (
@@ -47,6 +49,13 @@ const PATHS: Record<IconName, JSX.Element> = {
   chart: (
     <>
       <path d="M4 20V10M10 20V4M16 20v-7M22 20H2" />
+    </>
+  ),
+  shield: <path d="M12 3l7 2.5v5.8c0 4.2-2.8 7.9-7 9.2-4.2-1.3-7-5-7-9.2V5.5z" />,
+  sparkle: (
+    <>
+      <path d="M12 3.5 13.6 9 19 10.5 13.6 12 12 17.5 10.4 12 5 10.5 10.4 9z" />
+      <path d="M18.5 16.5 19.2 18.8 21.5 19.5 19.2 20.2 18.5 22.5 17.8 20.2 15.5 19.5 17.8 18.8z" />
     </>
   ),
   book: (

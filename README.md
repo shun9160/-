@@ -40,6 +40,11 @@ MT5（MetaTrader 5）の取引履歴をアップロードして、**リスクリ
 - **取引一覧**：1件ごとにRR・実現R・獲得率・決済結果・メモを表示/編集
   - **✏️ 編集**：登録後にロット・価格・SL/TP・時刻・損益などを修正可能
   - **📷 スクショ添付**：取引に画像を添付（自動で縮小してDB保存）／表示・差し替え・削除
+- **トレーダータイプ診断**（分析タブ → タイプ診断）
+  - 24問のアンケート＋取引記録から、いまの傾向を6タイプ（BLAZE/LOGIC/GUARD/SHIFT/WATCH/RISE）で整理
+  - 採点はすべてサーバー側（Netlify Function）。画面から点数は送れない
+  - 「なぜこのタイプになったのか」を必ず表示。結果は上書きせず履歴として残る
+  - 詳しくは [`docs/trader-diagnosis-spec.md`](./docs/trader-diagnosis-spec.md)
 - **日記**：日付ごとの振り返りメモ（Supabaseに保存）
 - **取込**：MT5 HTMLレポート / CSV / 手入力。アップロードいただいたスクショ2件はワンクリックで投入可
 
@@ -66,6 +71,7 @@ Supabase の **Authentication → Providers → Email** が有効であること
 ### すでに旧バージョンで動かしている場合
 
 `supabase/migrations/` の中を、日付順に SQL Editor で実行してください。
+（トレーダータイプ診断を使うには `2026-08-06_trader_diagnosis.sql` の実行が必要です）
 最後の `2026-08-05_multi_user.sql` は**アプリでアカウント登録を済ませてから**実行すると、
 これまでのデータがそのアカウントに引き継がれます。
 
@@ -91,11 +97,13 @@ npm run dev               # http://localhost:5173
    |---|---|---|
    | `VITE_SUPABASE_URL` | Project URL | 画面から接続 |
    | `VITE_SUPABASE_ANON_KEY` | anon public キー | 画面から接続 |
-   | `SUPABASE_URL` | Project URL | MT5からの受信 |
-   | `SUPABASE_SERVICE_ROLE_KEY` | **service_role** キー | MT5からの受信 |
+   | `SUPABASE_URL` | Project URL | MT5からの受信 / タイプ診断 |
+   | `SUPABASE_SERVICE_ROLE_KEY` | **service_role** キー | MT5からの受信 / タイプ診断 |
+   | `SUPABASE_ANON_KEY` | anon public キー（任意） | タイプ診断のログイン確認 |
 
    > `SUPABASE_SERVICE_ROLE_KEY` は `VITE_` を付けません。付けると画面側に埋め込まれて漏れます。
-   > これは `/api/ingest`（MT5からの受信）だけがサーバー側で使います。
+   > これは `/api/ingest`（MT5からの受信）と `/api/trader-diagnosis`（タイプ診断の採点）だけが
+   > サーバー側で使います。
 
 4. Deploy
 
@@ -145,6 +153,8 @@ S/L・T/P・手数料・スワップが正確な数値で入り、時刻もUTC�
 ```
 ├── supabase/schema.sql        # DBスキーマ + RLS
 ├── netlify.toml               # Netlifyビルド設定
+├── netlify/functions/         # /api/ingest（MT5受信）と /api/trader-diagnosis（診断採点）
+├── docs/                      # 仕様書（trader-diagnosis-spec.md ほか）
 ├── src/
 │   ├── lib/
 │   │   ├── types.ts           # 型定義
@@ -154,9 +164,12 @@ S/L・T/P・手数料・スワップが正確な数値で入り、時刻もUTC�
 │   │   ├── seed.ts            # スクショ2件の初期データ
 │   │   ├── repo.ts            # Supabase CRUD
 │   │   ├── supabase.ts        # クライアント
-│   │   └── format.ts          # 表示整形
+│   │   ├── format.ts          # 表示整形
+│   │   ├── diagnosisClient.ts # タイプ診断APIの呼び出し
+│   │   └── diagnosis/         # タイプ診断の採点ロジック（純粋関数＋テスト）
 │   ├── hooks/useTrades.ts
 │   └── components/
+│       ├── diagnosis/         # 診断・結果・キャラクター表示
 │       ├── Overview.tsx       # ヒーロー + 日別/累積/残高 + カレンダー
 │       ├── PnlCalendar.tsx    # 日別/月別カレンダー
 │       ├── PnlCharts.tsx      # バー/ライン/エリア

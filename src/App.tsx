@@ -300,7 +300,11 @@ export default function App() {
                 />
               )}
               {screen === 'stats' && (
-                <StatsPanel trades={trades} onDiary={() => go('diary')} />
+                <StatsPanel
+                  trades={trades}
+                  accountId={accountId}
+                  onDiary={() => go('diary')}
+                />
               )}
               {screen === 'diary' && (
                 <Diary

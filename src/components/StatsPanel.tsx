@@ -9,13 +9,16 @@ import TimeTab from './stats/TimeTab'
 import PatternTab from './stats/PatternTab'
 import DetailTab from './stats/DetailTab'
 import ImproveTab from './stats/ImproveTab'
+import DiagnosisPanel from './diagnosis/DiagnosisPanel'
 
 interface Props {
   trades: EnrichedTrade[]
+  /** いま選んでいる口座。すべての口座なら null */
+  accountId?: string | null
   onDiary: () => void
 }
 
-type TabKey = 'summary' | 'time' | 'pattern' | 'detail' | 'improve'
+type TabKey = 'summary' | 'time' | 'pattern' | 'detail' | 'improve' | 'type'
 type RangeKey = '7' | '30' | '90' | '0'
 
 const TABS: { key: TabKey; label: string; icon: IconName }[] = [
@@ -24,6 +27,7 @@ const TABS: { key: TabKey; label: string; icon: IconName }[] = [
   { key: 'pattern', label: '傾向', icon: 'target' },
   { key: 'detail', label: '詳細', icon: 'book' },
   { key: 'improve', label: '改善', icon: 'rocket' },
+  { key: 'type', label: 'タイプ診断', icon: 'sparkle' },
 ]
 
 const RANGES: { value: RangeKey; label: string }[] = [
@@ -39,7 +43,7 @@ const RANGES: { value: RangeKey; label: string }[] = [
  * 全部を縦に並べると延々とスクロールすることになるので、
  * 「何を知りたいか」で5つに分け、1つずつ見られるようにする。
  */
-export default function StatsPanel({ trades, onDiary }: Props) {
+export default function StatsPanel({ trades, accountId = null, onDiary }: Props) {
   const [tab, setTab] = useState<TabKey>('summary')
   const [range, setRange] = useState<RangeKey>('30')
   const days = Number(range)
@@ -51,58 +55,45 @@ export default function StatsPanel({ trades, onDiary }: Props) {
   const sum = useMemo(() => summarize(ranged), [ranged])
   const rangeLabel = days > 0 ? `直近${days}日` : '全期間'
 
-  if (trades.length === 0) {
+  // タイプ診断は取引が無くても受けられるので、空の案内は他のタブだけに出す
+  if (trades.length === 0 && tab !== 'type') {
     return (
-      <EmptyState
-        icon="chart"
-        title="まだ分析できません"
-        body="取引を記録すると、勝ちやすい時間帯や、決めた通りにやれているかが見えてきます。"
-      />
+      <div className="flex flex-col gap-4">
+        <TabRow tab={tab} onChange={setTab} />
+        <EmptyState
+          icon="chart"
+          title="まだ分析できません"
+          body="取引を記録すると、勝ちやすい時間帯や、決めた通りにやれているかが見えてきます。タイプ診断は取引がなくても受けられます。"
+        />
+      </div>
     )
   }
 
   return (
     <div className="flex flex-col gap-4">
       {/* 何を見るか */}
-      <div className="-mx-4 flex gap-1.5 overflow-x-auto px-4 pb-1 sm:mx-0 sm:px-0 sm:pb-0">
-        {TABS.map((t) => {
-          const on = tab === t.key
-          return (
-            <button
-              key={t.key}
-              onClick={() => setTab(t.key)}
-              aria-pressed={on}
-              className={`flex shrink-0 items-center gap-1.5 rounded-full border px-3 py-1.5 text-sm font-semibold transition-colors ${
-                on
-                  ? 'border-brand bg-brand-soft text-brand'
-                  : 'border-line bg-surface text-ink2 hover:bg-sunken'
-              }`}
-            >
-              <Icon name={t.icon} size={15} />
-              {t.label}
-            </button>
-          )
-        })}
-      </div>
+      <TabRow tab={tab} onChange={setTab} />
 
-      {/* いつのぶんを見るか */}
-      <div className="flex items-center gap-2">
-        <label className="flex items-center gap-1.5 text-xs text-ink2">
-          期間
-          <select
-            className="input w-auto px-2 py-1 text-xs"
-            value={range}
-            onChange={(e) => setRange(e.target.value as RangeKey)}
-          >
-            {RANGES.map((r) => (
-              <option key={r.value} value={r.value}>
-                {r.label}
-              </option>
-            ))}
-          </select>
-        </label>
-        <span className="text-xs text-ink3">{ranged.length}件</span>
-      </div>
+      {/* いつのぶんを見るか（診断は期間で区切らない） */}
+      {tab !== 'type' && (
+        <div className="flex items-center gap-2">
+          <label className="flex items-center gap-1.5 text-xs text-ink2">
+            期間
+            <select
+              className="input w-auto px-2 py-1 text-xs"
+              value={range}
+              onChange={(e) => setRange(e.target.value as RangeKey)}
+            >
+              {RANGES.map((r) => (
+                <option key={r.value} value={r.value}>
+                  {r.label}
+                </option>
+              ))}
+            </select>
+          </label>
+          <span className="text-xs text-ink3">{ranged.length}件</span>
+        </div>
+      )}
 
       {tab === 'summary' && (
         <SummaryTab
@@ -116,6 +107,32 @@ export default function StatsPanel({ trades, onDiary }: Props) {
       {tab === 'pattern' && <PatternTab trades={ranged} />}
       {tab === 'detail' && <DetailTab trades={ranged} sum={sum} rangeLabel={rangeLabel} />}
       {tab === 'improve' && <ImproveTab trades={ranged} sum={sum} onDiary={onDiary} />}
+      {tab === 'type' && <DiagnosisPanel accountId={accountId} />}
+    </div>
+  )
+}
+
+function TabRow({ tab, onChange }: { tab: TabKey; onChange: (k: TabKey) => void }) {
+  return (
+    <div className="-mx-4 flex gap-1.5 overflow-x-auto px-4 pb-1 sm:mx-0 sm:px-0 sm:pb-0">
+      {TABS.map((t) => {
+        const on = tab === t.key
+        return (
+          <button
+            key={t.key}
+            onClick={() => onChange(t.key)}
+            aria-pressed={on}
+            className={`flex shrink-0 items-center gap-1.5 rounded-full border px-3 py-1.5 text-sm font-semibold transition-colors ${
+              on
+                ? 'border-brand bg-brand-soft text-brand'
+                : 'border-line bg-surface text-ink2 hover:bg-sunken'
+            }`}
+          >
+            <Icon name={t.icon} size={15} />
+            {t.label}
+          </button>
+        )
+      })}
     </div>
   )
 }
