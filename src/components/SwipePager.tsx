@@ -50,10 +50,19 @@ export default function SwipePager<T>({ items, current, onChange, children }: Pr
     const el = boxRef.current
     if (!el || !enabled) return
 
-    const index = () => items.indexOf(current)
-    const neighbour = (dir: -1 | 1) => {
-      const i = index() + dir
-      return i >= 0 && i < items.length ? items[i] : null
+    /**
+     * 隣の位置。無ければ -1。
+     *
+     * 「隣が無い」を値そのもの（null）で表すと、
+     * 「すべての口座」を null で渡している呼び出し側では
+     * 端っこと同じ扱いになり、そこへ移れなくなる。
+     * だから値ではなく番号で持つ。
+     */
+    const neighbourIndex = (dir: -1 | 1) => {
+      const here = items.indexOf(current)
+      if (here < 0) return -1
+      const i = here + dir
+      return i >= 0 && i < items.length ? i : -1
     }
 
     function onStart(e: TouchEvent) {
@@ -85,7 +94,7 @@ export default function SwipePager<T>({ items, current, onChange, children }: Pr
 
       // 行き先が無い方向は重くして、端だと分かるようにする
       const dir = mx < 0 ? 1 : -1
-      const move = neighbour(dir) == null ? mx * RUBBER : mx
+      const move = neighbourIndex(dir) < 0 ? mx * RUBBER : mx
       setDx(move)
     }
 
@@ -97,12 +106,11 @@ export default function SwipePager<T>({ items, current, onChange, children }: Pr
 
       const moved = dxRef.current
       const dir: -1 | 1 = moved < 0 ? 1 : -1
-      const next = neighbour(dir)
-      const enough =
-        Math.abs(moved) > Math.min(s.width * COMMIT_RATIO, COMMIT_PX) ||
-        Math.abs(moved) > s.width * COMMIT_RATIO
+      const ni = neighbourIndex(dir)
+      const enough = Math.abs(moved) > Math.min(s.width * COMMIT_RATIO, COMMIT_PX)
 
-      if (next != null && enough) {
+      if (ni >= 0 && enough) {
+        const next = items[ni]
         // いったん画面の外まで送り出してから、隣を入れ替える
         setSliding(true)
         setDx(dir === 1 ? -s.width : s.width)
