@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { useTrades } from './hooks/useTrades'
-import { useAccountSwipe } from './hooks/useAccountSwipe'
+import SwipePager from './components/SwipePager'
 import { useAuth } from './hooks/useAuth'
 import { isSupabaseConfigured } from './lib/supabase'
 import { getAppConfig, updateAppConfig } from './lib/appConfig'
@@ -98,8 +98,8 @@ export default function App() {
   }
 
   // スマホで左右に振って口座を切り替える。並びは切り替えの帯と同じ。
-  const swipeOrder = accounts.length > 1 ? [null, ...accounts.map((a) => a.id)] : []
-  const swipe = useAccountSwipe(swipeOrder, accountId, setAccountId)
+  const swipeOrder: (string | null)[] =
+    accounts.length > 1 ? [null, ...accounts.map((a) => a.id)] : []
 
   const item = NAV_ITEMS.find((i) => i.key === screen)!
 
@@ -186,10 +186,7 @@ export default function App() {
           </div>
         </header>
 
-        <main
-          className="mx-auto w-full max-w-6xl flex-1 px-4 py-5"
-          {...(showAccount || showAccounts ? {} : swipe)}
-        >
+        <main className="mx-auto w-full max-w-6xl flex-1 px-4 py-5">
           {/* 画面タイトル: いま何の画面かを常に明示する */}
           {!showAllTrades && !showAccount && !showAccounts && (
             <PageHeader title={item.label} sub={item.blurb} />
@@ -206,13 +203,14 @@ export default function App() {
               />
               {accounts.length > 1 && (
                 <p className="mt-1.5 text-[11px] text-ink3 md:hidden">
-                  画面を左右に振っても口座を切り替えられます
+                  画面を左右にスワイプしても口座を切り替えられます
                 </p>
               )}
             </div>
           )}
 
           {demo && <DemoNotice />}
+
           {flash && !showAllTrades && !showAccount && !showAccounts && (
             <SavedNotice
               message={flash}
@@ -273,7 +271,7 @@ export default function App() {
               />
             </>
           ) : (
-            <>
+            <SwipePager items={swipeOrder} current={accountId} onChange={setAccountId}>
               {screen === 'home' && (
                 <Home
                   trades={trades}
@@ -306,7 +304,7 @@ export default function App() {
                   readOnly={demo}
                 />
               )}
-            </>
+            </SwipePager>
           )}
 
           <p className="mt-10 text-center text-xs text-ink3">
