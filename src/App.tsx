@@ -171,14 +171,6 @@ export default function App() {
               <span className="font-semibold text-ink">{subScreen ?? item.label}</span>
             </nav>
             <div className="ml-auto flex items-center gap-2">
-              <button
-                onClick={() => reload()}
-                className="btn btn-quiet px-2.5"
-                title="最新の状態に更新"
-                aria-label="更新"
-              >
-                <Icon name="refresh" size={17} />
-              </button>
               {/* 自分のところ。押すと基本情報と連携の設定を開く */}
               <button
                 onClick={openAccount}
