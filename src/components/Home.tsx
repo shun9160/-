@@ -69,6 +69,11 @@ export default function Home({
     [trades, todayKey, yesterdayKey],
   )
 
+  const todayTrades = useMemo(
+    () => trades.filter((t) => t.jstDay === todayKey),
+    [trades, todayKey],
+  )
+
   const recent = useMemo(
     () => [...trades].sort((a, b) => b.openJst.getTime() - a.openJst.getTime()).slice(0, 5),
     [trades],
@@ -122,6 +127,7 @@ export default function Home({
       <div className="flex flex-col gap-4">
         <TodayCard
           today={today}
+          todayTrades={todayTrades}
           netTotal={all.netTotal}
           flush={heroFlush}
           onSeeDetail={() => onOpenDay(todayKey)}
