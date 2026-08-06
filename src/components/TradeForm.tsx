@@ -6,12 +6,16 @@ import { readTradeFromImage } from '../lib/ocr'
 import { getTradeScreenshot } from '../lib/repo'
 import { getAppConfig } from '../lib/appConfig'
 import { fmtBrokerTime, parseMt5DateTime } from '../lib/timezone'
+import ChartPicker from './ChartPicker'
 import Icon from './Icon'
 
 interface Props {
   mode: 'add' | 'edit'
   trade?: Trade
-  onSubmit: (input: TradeInput, opts: { screenshotChanged: boolean }) => Promise<void>
+  onSubmit: (
+    input: TradeInput,
+    opts: { screenshotChanged: boolean; charts: string[] },
+  ) => Promise<void>
   onCancel?: () => void
 }
 
@@ -22,6 +26,8 @@ export default function TradeForm({ mode, trade, onSubmit, onCancel }: Props) {
   const [busy, setBusy] = useState(false)
   const [err, setErr] = useState<string | null>(null)
   const [showDetail, setShowDetail] = useState(mode === 'edit')
+  // 登録と同時に貼るチャート。保存できてから取引に付ける
+  const [charts, setCharts] = useState<string[]>([])
 
   const [f, setF] = useState({
     ticket: trade?.ticket ?? '',
@@ -180,7 +186,7 @@ export default function TradeForm({ mode, trade, onSubmit, onCancel }: Props) {
 
     setBusy(true)
     try {
-      await onSubmit(input, { screenshotChanged })
+      await onSubmit(input, { screenshotChanged, charts })
     } catch (e) {
       setErr(friendlyError(e))
       setBusy(false)
@@ -361,6 +367,11 @@ export default function TradeForm({ mode, trade, onSubmit, onCancel }: Props) {
         <p className="rounded-xl border border-down/25 bg-down-soft px-3 py-2 text-sm text-down">
           {err}
         </p>
+      )}
+
+      {/* 記録と同時にチャートを貼れるようにする。編集時は取引カードから足せる */}
+      {mode === 'add' && (
+        <ChartPicker value={charts} onChange={setCharts} disabled={busy} hint />
       )}
 
       <div className="flex gap-2">

@@ -2,7 +2,7 @@ import { useRef, useState } from 'react'
 import type { TradeInput } from '../lib/types'
 import { friendlyError } from '../lib/errors'
 import { parseAuto } from '../lib/mt5Parser'
-import { insertTrades } from '../lib/repo'
+import { addTradeImages, insertTrades } from '../lib/repo'
 import { seedTrades } from '../lib/seed'
 import BatchImport from './BatchImport'
 import TradeForm from './TradeForm'
@@ -39,7 +39,7 @@ export default function UploadPanel({
     else setMsg({ text: message, ok: true })
   }
 
-  async function commit(rows: TradeInput[], label: string) {
+  async function commit(rows: TradeInput[], label: string, charts: string[] = []) {
     if (rows.length === 0) {
       setMsg({
         text: '取引を読み取れませんでした。MT5の「レポート → HTML」で書き出したファイルをお試しください。',
@@ -49,9 +49,13 @@ export default function UploadPanel({
     }
     setBusy(true)
     try {
-      const n = await insertTrades(rows, accountId)
+      const saved = await insertTrades(rows, accountId)
+      // 取引が出来てからチャートを貼る（1件登録のときだけ使う）
+      if (charts.length && saved.length === 1) {
+        await addTradeImages(saved[0].id, charts.map((image) => ({ image })))
+      }
       onChanged()
-      succeed(`${label} ${n}件保存しました`)
+      succeed(`${label} ${saved.length}件保存しました`)
     } catch (e) {
       setMsg({ text: friendlyError(e), ok: false })
     } finally {
@@ -135,8 +139,8 @@ export default function UploadPanel({
         <div className="card p-4 sm:p-5">
           <TradeForm
             mode="add"
-            onSubmit={async (input) => {
-              await commit([input], '取引を')
+            onSubmit={async (input, { charts }) => {
+              await commit([input], '取引を', charts)
             }}
           />
         </div>

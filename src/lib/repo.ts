@@ -152,13 +152,25 @@ export async function updateTrade(
   if (error) throw error
 }
 
+/** 保存できた取引。あとからチャート画像を貼るために id を返す */
+export interface SavedTrade {
+  id: string
+  ticket: string | null
+}
+
 /**
  * 取引を挿入。ticket があるものは upsert (重複取込を防止)。
- * ticket が無いものは insert。返り値は挿入/更新件数。
+ * ticket が無いものは insert。
+ *
+ * 返り値は保存できた取引。件数だけ欲しいときは length を見る。
+ * チャート画像は取引が出来てからでないと貼れないので、id を返している。
  */
-export async function insertTrades(rows: TradeInput[], accountId?: string | null): Promise<number> {
+export async function insertTrades(
+  rows: TradeInput[],
+  accountId?: string | null,
+): Promise<SavedTrade[]> {
   if (!supabase) throw new Error(NO_CLIENT)
-  if (rows.length === 0) return 0
+  if (rows.length === 0) return []
 
   const userId = await requireUserId()
   const owned = rows.map((r) => ({
@@ -170,14 +182,14 @@ export async function insertTrades(rows: TradeInput[], accountId?: string | null
 
   const withTicket = owned.filter((r) => r.ticket)
   const withoutTicket = owned.filter((r) => !r.ticket)
-  let affected = 0
+  const saved: SavedTrade[] = []
 
   if (withTicket.length) {
     // ブローカーが違えば同じ取引番号がありうるので、口座も含めて重複を判定する。
     const { data, error } = await supabase
       .from('trades')
       .upsert(withTicket, { onConflict: 'user_id,account_id,ticket' })
-      .select('id')
+      .select('id,ticket')
 
     if (error) {
       // 重複判定用の索引が無い環境でも保存できるようにする。
@@ -201,26 +213,26 @@ export async function insertTrades(rows: TradeInput[], accountId?: string | null
           const { data: added, error: insErr } = await supabase
             .from('trades')
             .insert(fresh)
-            .select('id')
+            .select('id,ticket')
           if (insErr) throw insErr
-          affected += added?.length ?? 0
+          saved.push(...((added ?? []) as SavedTrade[]))
         }
       } else {
         throw error
       }
     } else {
-      affected += data?.length ?? 0
+      saved.push(...((data ?? []) as SavedTrade[]))
     }
   }
   if (withoutTicket.length) {
     const { data, error } = await supabase
       .from('trades')
       .insert(withoutTicket)
-      .select('id')
+      .select('id,ticket')
     if (error) throw error
-    affected += data?.length ?? 0
+    saved.push(...((data ?? []) as SavedTrade[]))
   }
-  return affected
+  return saved
 }
 
 export async function updateTradeNote(id: string, note: string): Promise<void> {

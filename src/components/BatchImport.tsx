@@ -3,9 +3,10 @@ import type { Side, TradeInput } from '../lib/types'
 import { friendlyError } from '../lib/errors'
 import { fileToDownscaledDataUrl } from '../lib/image'
 import { readTradesFromImages } from '../lib/ocr'
-import { insertTrades } from '../lib/repo'
+import { addTradeImages, insertTrades } from '../lib/repo'
 import { getAppConfig } from '../lib/appConfig'
 import { parseMt5DateTime } from '../lib/timezone'
+import ChartPicker from './ChartPicker'
 import Icon from './Icon'
 import { EmptyState, Pill } from './ui'
 
@@ -35,6 +36,8 @@ interface Draft {
   profit: string
   commission: string
   ticket: string
+  /** この取引に貼るチャート画像。保存できてから取引に付ける */
+  charts: string[]
 }
 
 const numOrNull = (s: string) => (s.trim() === '' ? null : Number(s))
@@ -100,6 +103,7 @@ export default function BatchImport({ onSaved, disabled, accountId }: Props) {
             profit: p.profit?.toString() ?? '',
             commission: p.commission?.toString() ?? '',
             ticket: p.ticket ?? '',
+            charts: [],
           })
         })
       }
@@ -153,9 +157,24 @@ export default function BatchImport({ onSaved, disabled, accountId }: Props) {
           source: 'screenshot',
         }
       })
-      const n = await insertTrades(rows, accountId)
+      const saved = await insertTrades(rows, accountId)
+
+      // 取引が出来てから、それぞれにチャートを貼る。
+      // 取引番号があるものは番号で照合し、無いものは並び順で対応させる。
+      const byTicket = new Map(
+        saved.filter((x) => x.ticket).map((x) => [x.ticket as string, x.id]),
+      )
+      const noTicket = saved.filter((x) => !x.ticket).map((x) => x.id)
+      let k = 0
+      for (const d of chosen) {
+        const id = d.ticket.trim() ? byTicket.get(d.ticket.trim()) : noTicket[k++]
+        if (id && d.charts.length) {
+          await addTradeImages(id, d.charts.map((image) => ({ image })))
+        }
+      }
+
       setDrafts([])
-      onSaved(n)
+      onSaved(saved.length)
     } catch (e) {
       setErr(friendlyError(e))
     } finally {
@@ -342,6 +361,14 @@ function DraftCard({
             <Icon name="trash" size={15} />
           </button>
         </div>
+      </div>
+
+      {/* チャートは登録と同時に貼れるようにする（あとから探し直さなくて済む） */}
+      <div className="border-t border-line px-3 py-2.5">
+        <ChartPicker
+          value={d.charts}
+          onChange={(charts) => onPatch(d.key, { charts })}
+        />
       </div>
 
       {open && (
