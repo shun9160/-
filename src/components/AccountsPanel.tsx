@@ -4,6 +4,7 @@ import { accountLabel } from '../lib/types'
 import type { AccountInput } from '../lib/repo'
 import { createAccount, deleteAccount, setDefaultAccount, updateAccount } from '../lib/repo'
 import { friendlyError } from '../lib/errors'
+import BrokerMark from './BrokerMark'
 import Icon from './Icon'
 import { Pill, SectionHeader } from './ui'
 
@@ -102,7 +103,8 @@ export default function AccountsPanel({ accounts, countOf, onChanged, readOnly }
           ) : (
             <>
               <div className="flex items-start justify-between gap-3">
-                <div className="min-w-0">
+                <BrokerMark broker={a.broker} size={36} />
+                <div className="min-w-0 flex-1">
                   <div className="flex flex-wrap items-center gap-2">
                     <h3 className="text-base font-bold">{accountLabel(a)}</h3>
                     {a.is_default && <Pill tone="brand">記録先</Pill>}

@@ -6,6 +6,7 @@ import { fileToDownscaledDataUrl } from '../lib/image'
 import { getAccountCapitalScreenshot, saveAccountCapital } from '../lib/repo'
 import { colorOf, fmtMoney, fmtPct } from '../lib/format'
 import { currencyLabel } from '../lib/appConfig'
+import BrokerMark from './BrokerMark'
 import Icon from './Icon'
 
 interface Props {
@@ -61,9 +62,13 @@ export default function CapitalCard({ account, accounts, netTotal, onChanged, re
       {/* どの口座の数字かを、名前と番号ではっきり分けて示す */}
       <div className="flex items-start justify-between gap-3 border-b border-line pb-3">
         <div className="flex min-w-0 items-center gap-2">
-          <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-brand-soft text-brand">
-            <Icon name="wallet" size={17} />
-          </span>
+          {account ? (
+            <BrokerMark broker={account.broker} size={32} />
+          ) : (
+            <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-brand-soft text-brand">
+              <Icon name="wallet" size={17} />
+            </span>
+          )}
           <div className="min-w-0">
             <p className="truncate text-sm font-bold leading-tight text-ink">
               {account ? (account.broker ?? accountLabel(account)) : 'すべての口座'}

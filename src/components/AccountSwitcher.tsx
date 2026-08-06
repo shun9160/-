@@ -1,6 +1,7 @@
-import { useEffect, useRef } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import type { Account } from '../lib/types'
 import type { AccountFilter } from '../hooks/useTrades'
+import BrokerMark from './BrokerMark'
 import Icon from './Icon'
 
 interface Props {
@@ -11,11 +12,60 @@ interface Props {
   onManage?: () => void
 }
 
+const NO_BROKER = 'その他'
+
+/** 口座を会社ごとにまとめる。並びは登録した順のまま。 */
+function groupByBroker(accounts: Account[]) {
+  const groups: { broker: string; accounts: Account[] }[] = []
+  for (const a of accounts) {
+    const key = a.broker?.trim() || NO_BROKER
+    const hit = groups.find((g) => g.broker === key)
+    if (hit) hit.accounts.push(a)
+    else groups.push({ broker: key, accounts: [a] })
+  }
+  return groups
+}
+
+/** 会社の中での呼び名。表示名があればそれ、無ければ口座番号 */
+function accountTitle(a: Account): string {
+  return a.nickname ?? a.login ?? '番号なしの口座'
+}
+
 /**
- * 見ている口座を切り替える帯。
- * 口座が1つしかないうちは切り替える意味がないので、口座名だけ静かに出す。
+ * 見ている口座を切り替えるプルダウン。
+ * 会社を押すとその会社の口座が開き、口座を押すと切り替わる。
  */
 export default function AccountSwitcher({ accounts, value, onChange, onManage }: Props) {
+  const [open, setOpen] = useState(false)
+  /** 開いている会社 */
+  const [openBroker, setOpenBroker] = useState<string | null>(null)
+  const boxRef = useRef<HTMLDivElement>(null)
+
+  const groups = useMemo(() => groupByBroker(accounts), [accounts])
+  const selected = accounts.find((a) => a.id === value) ?? null
+
+  // 開いたら、いま見ている口座の会社を開いておく
+  useEffect(() => {
+    if (open) setOpenBroker(selected ? selected.broker?.trim() || NO_BROKER : null)
+  }, [open, selected])
+
+  // Esc と、外側を押したときに閉じる
+  useEffect(() => {
+    if (!open) return
+    const onKey = (e: KeyboardEvent) => e.key === 'Escape' && setOpen(false)
+    const onDown = (e: MouseEvent | TouchEvent) => {
+      if (!boxRef.current?.contains(e.target as Node)) setOpen(false)
+    }
+    window.addEventListener('keydown', onKey)
+    window.addEventListener('mousedown', onDown)
+    window.addEventListener('touchstart', onDown)
+    return () => {
+      window.removeEventListener('keydown', onKey)
+      window.removeEventListener('mousedown', onDown)
+      window.removeEventListener('touchstart', onDown)
+    }
+  }, [open])
+
   if (accounts.length === 0) {
     return onManage ? (
       <button className="btn btn-quiet" onClick={onManage}>
@@ -25,87 +75,170 @@ export default function AccountSwitcher({ accounts, value, onChange, onManage }:
     ) : null
   }
 
-  if (accounts.length === 1) {
-    const a = accounts[0]
-    return (
-      <div className="flex items-center gap-2 text-sm">
-        <span className="font-semibold text-ink">
-          {a.nickname ?? a.broker ?? '名前のない口座'}
-        </span>
-        {a.login && <span className="tabular-nums text-ink3">{a.login}</span>}
-        {onManage && (
-          <button className="btn btn-ghost px-2 py-1" onClick={onManage}>
-            <Icon name="plus" size={15} />
-            口座を追加
-          </button>
-        )}
-      </div>
-    )
+  function pick(id: AccountFilter) {
+    onChange(id)
+    setOpen(false)
   }
 
   return (
-    <div className="-mx-4 flex items-center gap-1.5 overflow-x-auto px-4 pb-1 sm:mx-0 sm:px-0 sm:pb-0">
-      <Chip on={value === null} onClick={() => onChange(null)} name="すべて" />
-      {accounts.map((a) => (
-        <Chip
-          key={a.id}
-          on={value === a.id}
-          onClick={() => onChange(a.id)}
-          name={a.nickname ?? a.broker ?? '名前のない口座'}
-          sub={a.login ?? undefined}
-        />
-      ))}
+    <div className="flex items-center gap-1.5">
+      <div ref={boxRef} className="relative min-w-0 flex-1 sm:max-w-xs">
+        <button
+          type="button"
+          onClick={() => setOpen((v) => !v)}
+          aria-haspopup="listbox"
+          aria-expanded={open}
+          className="flex w-full items-center gap-2.5 rounded-xl border border-line bg-surface px-3 py-2 text-left transition-colors hover:bg-sunken"
+        >
+          {selected ? (
+            <BrokerMark broker={selected.broker} size={30} />
+          ) : (
+            <span className="flex h-[30px] w-[30px] shrink-0 items-center justify-center rounded-lg bg-brand-soft text-brand">
+              <Icon name="wallet" size={16} />
+            </span>
+          )}
+          <span className="min-w-0 flex-1">
+            <span className="block truncate text-sm font-bold leading-tight text-ink">
+              {selected ? (selected.broker ?? NO_BROKER) : 'すべての口座'}
+            </span>
+            <span className="block truncate text-[11px] leading-tight text-ink3">
+              {selected ? (
+                <span className="tabular-nums">{accountTitle(selected)}</span>
+              ) : (
+                `${accounts.length}口座をまとめて表示`
+              )}
+            </span>
+          </span>
+          <Icon
+            name="down"
+            size={16}
+            className={`shrink-0 text-ink3 ${open ? 'rotate-180' : ''}`}
+          />
+        </button>
+
+        {open && (
+          <div
+            role="listbox"
+            className="absolute left-0 right-0 z-40 mt-1.5 max-h-[70vh] overflow-y-auto rounded-2xl border border-line bg-surface p-1.5 shadow-card"
+          >
+            <Row
+              selected={value === null}
+              onClick={() => pick(null)}
+              icon={
+                <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-brand-soft text-brand">
+                  <Icon name="wallet" size={16} />
+                </span>
+              }
+              title="すべての口座"
+              sub={`${accounts.length}口座をまとめて表示`}
+            />
+
+            <div className="my-1 border-t border-line" />
+
+            {groups.map((g) => {
+              // 口座が1つしかない会社は、押した時点で決まったほうが早い
+              const only = g.accounts.length === 1 ? g.accounts[0] : null
+              const expanded = openBroker === g.broker
+              const holdsSelected = g.accounts.some((a) => a.id === value)
+              return (
+                <div key={g.broker}>
+                  <Row
+                    selected={Boolean(only && only.id === value)}
+                    onClick={() =>
+                      only ? pick(only.id) : setOpenBroker(expanded ? null : g.broker)
+                    }
+                    icon={<BrokerMark broker={g.broker} size={32} />}
+                    title={g.broker}
+                    sub={only ? accountTitle(only) : `${g.accounts.length}口座`}
+                    marker={
+                      only ? undefined : (
+                        <Icon
+                          name="down"
+                          size={15}
+                          className={`text-ink3 ${expanded ? 'rotate-180' : ''}`}
+                        />
+                      )
+                    }
+                    emphasise={holdsSelected && !only}
+                  />
+
+                  {!only && expanded && (
+                    <div className="mb-1 ml-4 border-l border-line pl-2">
+                      {g.accounts.map((a) => (
+                        <Row
+                          key={a.id}
+                          selected={a.id === value}
+                          onClick={() => pick(a.id)}
+                          title={accountTitle(a)}
+                          sub={a.nickname && a.login ? `口座番号 ${a.login}` : undefined}
+                          tabular
+                        />
+                      ))}
+                    </div>
+                  )}
+                </div>
+              )
+            })}
+          </div>
+        )}
+      </div>
+
       {onManage && (
         <button
-          className="btn btn-ghost shrink-0 px-2 py-1"
+          className="btn btn-quiet shrink-0 px-2.5"
           onClick={onManage}
           aria-label="口座を管理"
           title="口座を管理"
         >
-          <Icon name="pencil" size={15} />
+          <Icon name="pencil" size={16} />
         </button>
       )}
     </div>
   )
 }
 
-function Chip({
-  on,
+function Row({
+  selected,
   onClick,
-  name,
+  icon,
+  title,
   sub,
+  marker,
+  emphasise,
+  tabular,
 }: {
-  on: boolean
+  selected: boolean
   onClick: () => void
-  /** ブローカー名など、目で拾う部分 */
-  name: string
-  /** 口座番号。同じブローカーの口座を見分けるために添える */
+  icon?: React.ReactNode
+  title: string
   sub?: string
+  marker?: React.ReactNode
+  /** 選択中の口座を含む会社。どこに入っているかの手がかりとして少し目立たせる */
+  emphasise?: boolean
+  tabular?: boolean
 }) {
-  const ref = useRef<HTMLButtonElement>(null)
-
-  // 振って切り替えたときに、選ばれた口座が帯の外にいると分からないので寄せる
-  useEffect(() => {
-    if (on) ref.current?.scrollIntoView({ block: 'nearest', inline: 'center' })
-  }, [on])
-
   return (
     <button
-      ref={ref}
+      type="button"
+      role="option"
+      aria-selected={selected}
       onClick={onClick}
-      aria-pressed={on}
-      className={`flex shrink-0 items-center gap-1.5 whitespace-nowrap rounded-full border px-3 py-1.5 transition-colors ${
-        on
-          ? 'border-brand bg-brand-soft text-brand'
-          : 'border-line bg-surface text-ink2 hover:bg-sunken'
+      className={`flex w-full items-center gap-2.5 rounded-xl px-2.5 py-2 text-left transition-colors ${
+        selected ? 'bg-brand-soft' : emphasise ? 'bg-sunken/60 hover:bg-sunken' : 'hover:bg-sunken'
       }`}
     >
-      <span className="text-sm font-semibold">{name}</span>
-      {sub && (
-        <span className={`text-[11px] tabular-nums ${on ? 'text-brand/70' : 'text-ink3'}`}>
-          {sub}
+      {icon}
+      <span className="min-w-0 flex-1">
+        <span
+          className={`block truncate text-sm font-semibold leading-tight ${
+            selected ? 'text-brand' : 'text-ink'
+          } ${tabular ? 'tabular-nums' : ''}`}
+        >
+          {title}
         </span>
-      )}
+        {sub && <span className="block truncate text-[11px] leading-tight text-ink3">{sub}</span>}
+      </span>
+      {selected ? <Icon name="check" size={16} className="shrink-0 text-brand" /> : marker}
     </button>
   )
 }
