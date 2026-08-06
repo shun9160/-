@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import { useTrades } from './hooks/useTrades'
+import { useAccountSwipe } from './hooks/useAccountSwipe'
 import { useAuth } from './hooks/useAuth'
 import { isSupabaseConfigured } from './lib/supabase'
 import { getAppConfig, updateAppConfig } from './lib/appConfig'
@@ -96,6 +97,10 @@ export default function App() {
     window.scrollTo({ top: 0 })
   }
 
+  // スマホで左右に振って口座を切り替える。並びは切り替えの帯と同じ。
+  const swipeOrder = accounts.length > 1 ? [null, ...accounts.map((a) => a.id)] : []
+  const swipe = useAccountSwipe(swipeOrder, accountId, setAccountId)
+
   const item = NAV_ITEMS.find((i) => i.key === screen)!
 
   // 認証状態の確認中
@@ -180,7 +185,10 @@ export default function App() {
           </div>
         </header>
 
-        <main className="mx-auto w-full max-w-6xl flex-1 px-4 py-5">
+        <main
+          className="mx-auto w-full max-w-6xl flex-1 px-4 py-5"
+          {...(showAccount || showAccounts ? {} : swipe)}
+        >
           {/* 画面タイトル: いま何の画面かを常に明示する */}
           {!showAllTrades && !showAccount && !showAccounts && (
             <PageHeader title={item.label} sub={item.blurb} />
@@ -195,6 +203,11 @@ export default function App() {
                 onChange={setAccountId}
                 onManage={demo ? undefined : openAccounts}
               />
+              {accounts.length > 1 && (
+                <p className="mt-1.5 text-[11px] text-ink3 md:hidden">
+                  画面を左右に振っても口座を切り替えられます
+                </p>
+              )}
             </div>
           )}
 

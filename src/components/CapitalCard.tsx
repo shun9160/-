@@ -58,13 +58,41 @@ export default function CapitalCard({ account, accounts, netTotal, onChanged, re
 
   return (
     <section className="card p-5">
-      <div className="flex items-start justify-between gap-3">
+      {/* どの口座の数字かを、名前と番号ではっきり分けて示す */}
+      <div className="flex items-start justify-between gap-3 border-b border-line pb-3">
+        <div className="flex min-w-0 items-center gap-2">
+          <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-brand-soft text-brand">
+            <Icon name="wallet" size={17} />
+          </span>
+          <div className="min-w-0">
+            <p className="truncate text-sm font-bold leading-tight text-ink">
+              {account ? (account.broker ?? accountLabel(account)) : 'すべての口座'}
+            </p>
+            <p className="mt-0.5 text-[11px] leading-tight text-ink3">
+              {account ? (
+                account.login ? (
+                  <>
+                    口座番号 <span className="tabular-nums tracking-wide">{account.login}</span>
+                  </>
+                ) : (
+                  '口座番号なし'
+                )
+              ) : (
+                `${accounts.length}口座をまとめて表示`
+              )}
+            </p>
+          </div>
+        </div>
+        {account?.nickname && (
+          <span className="shrink-0 rounded-md bg-sunken px-2 py-1 text-[11px] font-semibold text-ink2">
+            {account.nickname}
+          </span>
+        )}
+      </div>
+
+      <div className="mt-3 flex items-start justify-between gap-3">
         <div className="min-w-0">
-          <p className="eyebrow">
-            {account ? accountLabel(account) : 'すべての口座'}
-            <span className="mx-1.5">·</span>
-            {hasCapital ? '現在の残高' : '累計損益（手数料込み）'}
-          </p>
+          <p className="eyebrow">{hasCapital ? '現在の残高' : '累計損益（手数料込み）'}</p>
           <p className="mt-1 text-hero font-bold tabular-nums">
             {hasCapital ? fmtMoney(balance) : fmtMoney(netTotal, { sign: true })}
             <span className="ml-1.5 text-base font-semibold text-ink3">{currencyLabel()}</span>

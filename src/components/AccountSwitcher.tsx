@@ -1,5 +1,5 @@
+import { useEffect, useRef } from 'react'
 import type { Account } from '../lib/types'
-import { accountLabel } from '../lib/types'
 import type { AccountFilter } from '../hooks/useTrades'
 import Icon from './Icon'
 
@@ -29,8 +29,10 @@ export default function AccountSwitcher({ accounts, value, onChange, onManage }:
     const a = accounts[0]
     return (
       <div className="flex items-center gap-2 text-sm">
-        <span className="font-semibold text-ink">{accountLabel(a)}</span>
-        {a.login && a.nickname && <span className="text-ink3">{a.login}</span>}
+        <span className="font-semibold text-ink">
+          {a.nickname ?? a.broker ?? '名前のない口座'}
+        </span>
+        {a.login && <span className="tabular-nums text-ink3">{a.login}</span>}
         {onManage && (
           <button className="btn btn-ghost px-2 py-1" onClick={onManage}>
             <Icon name="plus" size={15} />
@@ -43,13 +45,15 @@ export default function AccountSwitcher({ accounts, value, onChange, onManage }:
 
   return (
     <div className="-mx-4 flex items-center gap-1.5 overflow-x-auto px-4 pb-1 sm:mx-0 sm:px-0 sm:pb-0">
-      <Chip on={value === null} onClick={() => onChange(null)}>
-        すべて
-      </Chip>
+      <Chip on={value === null} onClick={() => onChange(null)} name="すべて" />
       {accounts.map((a) => (
-        <Chip key={a.id} on={value === a.id} onClick={() => onChange(a.id)}>
-          {accountLabel(a)}
-        </Chip>
+        <Chip
+          key={a.id}
+          on={value === a.id}
+          onClick={() => onChange(a.id)}
+          name={a.nickname ?? a.broker ?? '名前のない口座'}
+          sub={a.login ?? undefined}
+        />
       ))}
       {onManage && (
         <button
@@ -68,23 +72,40 @@ export default function AccountSwitcher({ accounts, value, onChange, onManage }:
 function Chip({
   on,
   onClick,
-  children,
+  name,
+  sub,
 }: {
   on: boolean
   onClick: () => void
-  children: React.ReactNode
+  /** ブローカー名など、目で拾う部分 */
+  name: string
+  /** 口座番号。同じブローカーの口座を見分けるために添える */
+  sub?: string
 }) {
+  const ref = useRef<HTMLButtonElement>(null)
+
+  // 振って切り替えたときに、選ばれた口座が帯の外にいると分からないので寄せる
+  useEffect(() => {
+    if (on) ref.current?.scrollIntoView({ block: 'nearest', inline: 'center' })
+  }, [on])
+
   return (
     <button
+      ref={ref}
       onClick={onClick}
       aria-pressed={on}
-      className={`shrink-0 whitespace-nowrap rounded-full border px-3 py-1.5 text-sm font-semibold transition-colors ${
+      className={`flex shrink-0 items-center gap-1.5 whitespace-nowrap rounded-full border px-3 py-1.5 transition-colors ${
         on
           ? 'border-brand bg-brand-soft text-brand'
           : 'border-line bg-surface text-ink2 hover:bg-sunken'
       }`}
     >
-      {children}
+      <span className="text-sm font-semibold">{name}</span>
+      {sub && (
+        <span className={`text-[11px] tabular-nums ${on ? 'text-brand/70' : 'text-ink3'}`}>
+          {sub}
+        </span>
+      )}
     </button>
   )
 }
