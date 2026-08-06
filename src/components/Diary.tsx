@@ -121,8 +121,10 @@ function DayNoteEditor({
   // saved = いまデータベースに入っている内容。text = 書きかけの内容。
   const [saved, setSaved] = useState(initial)
   const [text, setText] = useState(initial)
-  // まだ何も書いていない日は、すぐ書けるように最初から入力欄を開く。
-  const [editing, setEditing] = useState(initial === '')
+  // 日記を開いた時点では入力欄を出さない。
+  // いきなり開くと、スマホでキーボードが勝手にせり上がって
+  // 「書かされている」画面になってしまうため、押されてから開く。
+  const [editing, setEditing] = useState(false)
   const [saving, setSaving] = useState(false)
   const [err, setErr] = useState<string | null>(null)
 
@@ -167,7 +169,10 @@ function DayNoteEditor({
         ) : (
           <p className="whitespace-pre-wrap text-sm leading-relaxed text-ink">{saved}</p>
         )}
-        <button className="btn btn-quiet mt-3" onClick={() => setEditing(true)}>
+        <button
+          className={`btn mt-3 ${saved === '' ? 'btn-primary' : 'btn-quiet'}`}
+          onClick={() => setEditing(true)}
+        >
           <Icon name="pencil" size={15} />
           {saved === '' ? '書く' : '編集'}
         </button>
