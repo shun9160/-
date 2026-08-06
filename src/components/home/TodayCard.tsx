@@ -119,11 +119,12 @@ export default function TodayCard({
             <Front today={today} verdict={v} netTotal={netTotal} count={todayTrades.length} />
           </button>
 
-          {/* 裏 */}
+          {/* 裏。どこを押しても表に戻す（一覧をなぞって動かす場合は押した扱いにならない） */}
           <div
             ref={backRef}
             aria-hidden={!flipped}
-            className={`${face} ${pad}`}
+            onClick={() => setFlipped(false)}
+            className={`${face} ${pad} cursor-pointer`}
             style={{
               backfaceVisibility: 'hidden',
               WebkitBackfaceVisibility: 'hidden',
