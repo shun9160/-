@@ -4,11 +4,13 @@ import {
   addTradeImages,
   deleteTradeImage,
   fetchTradeImages,
+  findSavedImageHashes,
   updateTradeImageCaption,
 } from '../lib/repo'
 import { fileToDownscaledDataUrl } from '../lib/image'
 import { friendlyError } from '../lib/errors'
-import { dropDuplicates, hashDataUrl } from '../lib/imageHash'
+import { hashFile } from '../lib/imageHash'
+import { duplicateMessage } from './ChartPicker'
 import Icon from './Icon'
 
 // チャートは細い線と数字を見るので、スクショより少し大きめ・高画質で残す。
@@ -52,33 +54,43 @@ export default function ChartImages({ tradeId, readOnly, onCountChange }: Props)
     setBusy(true)
     setErr(null)
     try {
-      const shrunk = await Promise.all(
-        files.map(async (f) => {
-          const image = await fileToDownscaledDataUrl(f, MAX_DIM, QUALITY)
-          return { image, caption: null, hash: await hashDataUrl(image) }
-        }),
+      // 指紋は縮小前の元ファイルから作る
+      const incoming = await Promise.all(
+        files.map(async (f) => ({
+          hash: await hashFile(f),
+          image: await fileToDownscaledDataUrl(f, MAX_DIM, QUALITY),
+        })),
       )
 
-      // すでに貼ってあるものと同じ画像は足さない
-      const known = new Set(await Promise.all((images ?? []).map((x) => hashDataUrl(x.image))))
-      const { keepIndexes, duplicates } = await dropDuplicates(shrunk, known)
+      // この取引に貼ってあるぶん + 過去に登録したぶん の両方と見比べる
+      const known = new Set((images ?? []).map((x) => x.image_hash).filter(Boolean) as string[])
+      const saved = await findSavedImageHashes(incoming.map((x) => x.hash)).catch(
+        () => new Set<string>(), // 照合できなくても登録は続ける
+      )
 
-      if (keepIndexes.length) {
-        const added = await addTradeImages(
-          tradeId,
-          keepIndexes.map((i) => ({ image: shrunk[i].image, caption: shrunk[i].caption })),
-        )
+      const keep: { image: string; hash: string }[] = []
+      let already = 0
+      let past = 0
+      for (const x of incoming) {
+        if (known.has(x.hash)) {
+          already++
+          continue
+        }
+        if (saved.has(x.hash)) {
+          past++
+          continue
+        }
+        known.add(x.hash)
+        keep.push(x)
+      }
+
+      if (keep.length) {
+        const added = await addTradeImages(tradeId, keep)
         const next = [...(images ?? []), ...added]
         setImages(next)
         onCountChange?.(next.length)
       }
-      if (duplicates > 0) {
-        setErr(
-          keepIndexes.length
-            ? `${duplicates}枚は貼り付け済みの画像だったので追加していません`
-            : '同じ画像です。すでに貼り付けられています',
-        )
-      }
+      setErr(duplicateMessage(keep.length, already, past))
     } catch (e2) {
       setErr(friendlyError(e2))
     } finally {

@@ -6,7 +6,7 @@ import { readTradeFromImage } from '../lib/ocr'
 import { getTradeScreenshot } from '../lib/repo'
 import { getAppConfig } from '../lib/appConfig'
 import { fmtBrokerTime, parseMt5DateTime } from '../lib/timezone'
-import ChartPicker from './ChartPicker'
+import ChartPicker, { type PickedImage } from './ChartPicker'
 import Icon from './Icon'
 
 interface Props {
@@ -14,7 +14,7 @@ interface Props {
   trade?: Trade
   onSubmit: (
     input: TradeInput,
-    opts: { screenshotChanged: boolean; charts: string[] },
+    opts: { screenshotChanged: boolean; charts: PickedImage[] },
   ) => Promise<void>
   onCancel?: () => void
   /** 記録先が決まっていないなど、まだ登録できない状態 */
@@ -29,7 +29,7 @@ export default function TradeForm({ mode, trade, onSubmit, onCancel, disabled }:
   const [err, setErr] = useState<string | null>(null)
   const [showDetail, setShowDetail] = useState(mode === 'edit')
   // 登録と同時に貼るチャート。保存できてから取引に付ける
-  const [charts, setCharts] = useState<string[]>([])
+  const [charts, setCharts] = useState<PickedImage[]>([])
 
   const [f, setF] = useState({
     ticket: trade?.ticket ?? '',

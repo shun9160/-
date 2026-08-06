@@ -4,10 +4,11 @@ import { friendlyError } from '../lib/errors'
 import { fileToDownscaledDataUrl } from '../lib/image'
 import { readTradesFromImages } from '../lib/ocr'
 import { hashFile } from '../lib/imageHash'
+import { findSavedScreenshotHashes } from '../lib/repo'
 import { addTradeImages, insertTrades } from '../lib/repo'
 import { getAppConfig } from '../lib/appConfig'
 import { parseMt5DateTime } from '../lib/timezone'
-import ChartPicker from './ChartPicker'
+import ChartPicker, { type PickedImage } from './ChartPicker'
 import Icon from './Icon'
 import { EmptyState, Pill } from './ui'
 
@@ -38,10 +39,27 @@ interface Draft {
   commission: string
   ticket: string
   /** この取引に貼るチャート画像。保存できてから取引に付ける */
-  charts: string[]
+  charts: PickedImage[]
+  /** 取込元スクショの指紋 */
+  shotHash: string
 }
 
 const numOrNull = (s: string) => (s.trim() === '' ? null : Number(s))
+
+/** 同じスクショだったことを、どこと重なったかまで含めて伝える */
+function shotDuplicateMessage(kept: number, already: number, past: number): string | null {
+  const dup = already + past
+  if (dup === 0) return null
+  const where =
+    already && past
+      ? '読み取り済み・取込済みの画像'
+      : already
+        ? 'この画面で読み取り済みの画像'
+        : '以前に取り込んだ画像'
+  return kept > 0
+    ? `${dup}枚は${where}と同じだったので除きました`
+    : `${where}と同じです。読み取っていません`
+}
 
 export default function BatchImport({ onSaved, disabled, accountId }: Props) {
   const fileRef = useRef<HTMLInputElement>(null)
@@ -62,31 +80,34 @@ export default function BatchImport({ onSaved, disabled, accountId }: Props) {
 
     // 同じ画像を二重に読み取らない。中身で見分けるので、
     // 名前を変えただけの同じ写真もはじく。
-    const fresh: File[] = []
-    let duplicates = 0
-    for (const f of files) {
-      const h = await hashFile(f)
-      if (seen.current.has(h)) {
-        duplicates++
-        continue
-      }
+    // いま画面に出ているぶんだけでなく、過去に取り込んだぶんとも照合する。
+    const hashes = await Promise.all(files.map(hashFile))
+    let savedShots = new Set<string>()
+    try {
+      savedShots = await findSavedScreenshotHashes(hashes)
+    } catch {
+      // 照合できなくても、この画面の中での重複は防げる
+    }
+
+    const fresh: { file: File; hash: string }[] = []
+    let already = 0
+    let past = 0
+    files.forEach((f, i) => {
+      const h = hashes[i]
+      if (seen.current.has(h)) return void already++
+      if (savedShots.has(h)) return void past++
       seen.current.add(h)
-      fresh.push(f)
-    }
-    if (duplicates > 0) {
-      setErr(
-        fresh.length
-          ? `${duplicates}枚は読み取り済みの画像だったので除きました`
-          : '同じ画像です。すでに読み取っています',
-      )
-    }
+      fresh.push({ file: f, hash: h })
+    })
+    setErr(shotDuplicateMessage(fresh.length, already, past))
     if (fresh.length === 0) return
 
     setReading(true)
     setProgress({ done: 0, total: fresh.length, ratio: 0 })
     try {
-      const results = await readTradesFromImages(fresh, (done, total, ratio) =>
-        setProgress({ done, total, ratio }),
+      const results = await readTradesFromImages(
+        fresh.map((x) => x.file),
+        (done, total, ratio) => setProgress({ done, total, ratio }),
       )
       const made: Draft[] = []
       for (let i = 0; i < results.length; i++) {
@@ -130,6 +151,7 @@ export default function BatchImport({ onSaved, disabled, accountId }: Props) {
             commission: p.commission?.toString() ?? '',
             ticket: p.ticket ?? '',
             charts: [],
+            shotHash: fresh[i].hash,
           })
         })
       }
@@ -180,6 +202,8 @@ export default function BatchImport({ onSaved, disabled, accountId }: Props) {
           currency: getAppConfig().accountCurrency,
           note: null,
           screenshot: d.screenshot || null,
+          // 指紋は1件目にだけ付ける（画像を付けた行と対応させる）
+          screenshot_hash: d.screenshot ? d.shotHash : null,
           source: 'screenshot',
         }
       })
@@ -195,7 +219,10 @@ export default function BatchImport({ onSaved, disabled, accountId }: Props) {
       for (const d of chosen) {
         const id = d.ticket.trim() ? byTicket.get(d.ticket.trim()) : noTicket[k++]
         if (id && d.charts.length) {
-          await addTradeImages(id, d.charts.map((image) => ({ image })))
+          await addTradeImages(
+            id,
+            d.charts.map((c) => ({ image: c.image, hash: c.hash })),
+          )
         }
       }
 

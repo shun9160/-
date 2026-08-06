@@ -51,7 +51,11 @@ export default function UploadPanel({
     else setMsg({ text: message, ok: true })
   }
 
-  async function commit(rows: TradeInput[], label: string, charts: string[] = []) {
+  async function commit(
+    rows: TradeInput[],
+    label: string,
+    charts: { image: string; hash: string }[] = [],
+  ) {
     if (rows.length === 0) {
       setMsg({
         text: '取引を読み取れませんでした。MT5の「レポート → HTML」で書き出したファイルをお試しください。',
@@ -64,7 +68,10 @@ export default function UploadPanel({
       const saved = await insertTrades(rows, accountId)
       // 取引が出来てからチャートを貼る（1件登録のときだけ使う）
       if (charts.length && saved.length === 1) {
-        await addTradeImages(saved[0].id, charts.map((image) => ({ image })))
+        await addTradeImages(
+          saved[0].id,
+          charts.map((c) => ({ image: c.image, hash: c.hash })),
+        )
       }
       onChanged()
       succeed(`${label} ${saved.length}件保存しました`)

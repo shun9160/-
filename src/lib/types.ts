@@ -53,6 +53,8 @@ export interface Trade {
   note: string | null
   /** 添付スクショ (縮小した data URL)。一覧取得では省略され undefined になる */
   screenshot?: string | null
+  /** 取込元スクショの指紋。同じ画像を二度取り込まないために使う */
+  screenshot_hash?: string | null
   source: string
   created_at?: string
 }
@@ -95,6 +97,8 @@ export interface TradeImage {
   trade_id: string
   /** 縮小した data URL */
   image: string
+  /** 画像の指紋。同じ画像を二度登録しないために使う */
+  image_hash?: string | null
   /** 「エントリー」「決済後」などの説明 */
   caption: string | null
   created_at?: string

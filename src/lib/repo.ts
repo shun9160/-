@@ -314,7 +314,7 @@ export async function fetchTradeImages(tradeId: string): Promise<TradeImage[]> {
   if (!supabase) throw new Error(NO_CLIENT)
   const { data, error } = await supabase
     .from('trade_images')
-    .select('id,trade_id,image,caption,created_at')
+    .select('id,trade_id,image,image_hash,caption,created_at')
     .eq('trade_id', tradeId)
     .order('created_at', { ascending: true })
   if (error) throw error
@@ -344,7 +344,7 @@ export async function fetchTradeImageCounts(): Promise<Record<string, number>> {
 /** チャート画像を追加する。返り値は追加できた行。 */
 export async function addTradeImages(
   tradeId: string,
-  images: { image: string; caption?: string | null }[],
+  images: { image: string; caption?: string | null; hash?: string | null }[],
 ): Promise<TradeImage[]> {
   if (!supabase) throw new Error(NO_CLIENT)
   if (images.length === 0) return []
@@ -355,13 +355,69 @@ export async function addTradeImages(
     trade_id: tradeId,
     image: x.image,
     caption: x.caption ?? null,
+    image_hash: x.hash ?? null,
   }))
   const { data, error } = await supabase
     .from('trade_images')
     .insert(rows)
-    .select('id,trade_id,image,caption,created_at')
+    .select('id,trade_id,image,image_hash,caption,created_at')
   if (error) throw error
   return (data ?? []) as TradeImage[]
+}
+
+// ---------------------------------------------------------------
+// 同じ画像を二度取り込まないための照合
+// ---------------------------------------------------------------
+
+/**
+ * 指紋の列がまだ無いデータベースでも、アプリを止めない。
+ * その場合は「過去との照合はできない」＝空を返す。
+ */
+function isMissingColumn(e: unknown): boolean {
+  const o = e as { code?: string; message?: string }
+  return o?.code === '42703' || /column .* does not exist|schema cache/i.test(o?.message ?? '')
+}
+
+async function lookupHashes(
+  table: 'trade_images' | 'trades',
+  column: 'image_hash' | 'screenshot_hash',
+  hashes: string[],
+): Promise<Set<string>> {
+  const found = new Set<string>()
+  if (!supabase || hashes.length === 0) return found
+  const userId = await requireUserId()
+
+  // 過去との照合はあくまで補助。
+  // ここで失敗しても、画像の登録そのものは止めない。
+  // （指紋の列がまだ無い、通信が途切れた、など）
+  try {
+    const { data, error } = await supabase
+      .from(table)
+      .select(column)
+      .eq('user_id', userId)
+      .in(column, hashes)
+    if (error) {
+      if (!isMissingColumn(error)) console.warn('画像の照合に失敗しました', error)
+      return found
+    }
+    for (const r of (data ?? []) as Record<string, string | null>[]) {
+      const v = r[column]
+      if (v) found.add(v)
+    }
+  } catch (e) {
+    console.warn('画像の照合に失敗しました', e)
+  }
+  return found
+}
+
+/** すでに登録済みのチャート画像の指紋を返す */
+export function findSavedImageHashes(hashes: string[]): Promise<Set<string>> {
+  return lookupHashes('trade_images', 'image_hash', hashes)
+}
+
+/** すでに取り込み済みのスクショの指紋を返す */
+export function findSavedScreenshotHashes(hashes: string[]): Promise<Set<string>> {
+  return lookupHashes('trades', 'screenshot_hash', hashes)
 }
 
 /** チャート画像の説明を書き換える */

@@ -1,20 +1,49 @@
 import { useRef, useState } from 'react'
 import { fileToDownscaledDataUrl } from '../lib/image'
 import { friendlyError } from '../lib/errors'
-import { dropDuplicates, hashDataUrl } from '../lib/imageHash'
+import { hashFile } from '../lib/imageHash'
+import { findSavedImageHashes } from '../lib/repo'
 import Icon from './Icon'
 
 // チャートは細い線と数字を見るので、スクショより大きめ・高画質で残す。
 export const CHART_MAX_DIM = 1600
 export const CHART_QUALITY = 0.82
 
+/** 選んだ画像。hash は中身から作った指紋（同じ写真かどうかの判定に使う） */
+export interface PickedImage {
+  image: string
+  hash: string
+}
+
 interface Props {
-  /** いま選んでいる画像 (data URL) */
-  value: string[]
-  onChange: (next: string[]) => void
+  /** いま選んでいる画像 */
+  value: PickedImage[]
+  onChange: (next: PickedImage[]) => void
   disabled?: boolean
   /** 説明文を出すか。並べて置くときは省く */
   hint?: boolean
+}
+
+/**
+ * 同じ画像だったことを、どこと重なったかまで含めて伝える。
+ * 「何も起きなかった」ように見えるのを避ける。
+ */
+export function duplicateMessage(
+  kept: number,
+  already: number,
+  past: number,
+): string | null {
+  const dup = already + past
+  if (dup === 0) return null
+  const where =
+    already && past
+      ? '選択済み・登録済みの画像'
+      : already
+        ? 'すでに選んでいる画像'
+        : '以前に登録した画像'
+  return kept > 0
+    ? `${dup}枚は${where}と同じだったので追加していません`
+    : `${where}と同じです。追加していません`
 }
 
 /**
@@ -35,25 +64,39 @@ export default function ChartPicker({ value, onChange, disabled, hint }: Props) 
     setBusy(true)
     setErr(null)
     try {
-      const shrunk = await Promise.all(
-        files.map((f) => fileToDownscaledDataUrl(f, CHART_MAX_DIM, CHART_QUALITY)),
-      )
-
-      // 同じ画像を二重に貼らない。すでに選んだものとも見比べる。
-      const known = new Set(await Promise.all(value.map(hashDataUrl)))
+      // 指紋は縮小前の元ファイルから作る。
+      // 縮小の結果は端末や browser で微妙に変わりうるため、元の中身で見る。
       const incoming = await Promise.all(
-        shrunk.map(async (image) => ({ image, hash: await hashDataUrl(image) })),
+        files.map(async (f) => ({
+          hash: await hashFile(f),
+          image: await fileToDownscaledDataUrl(f, CHART_MAX_DIM, CHART_QUALITY),
+        })),
       )
-      const { keepIndexes, duplicates } = await dropDuplicates(incoming, known)
 
-      if (keepIndexes.length) onChange([...value, ...keepIndexes.map((i) => incoming[i].image)])
-      if (duplicates > 0) {
-        setErr(
-          keepIndexes.length
-            ? `${duplicates}枚は同じ画像だったので追加していません`
-            : `同じ画像です。すでに追加されています`,
-        )
+      // いま選んでいるぶん + 過去に登録したぶん の両方と見比べる
+      const known = new Set(value.map((v) => v.hash))
+      const saved = await findSavedImageHashes(incoming.map((x) => x.hash)).catch(
+        () => new Set<string>(), // 照合できなくても登録は続ける
+      )
+
+      const keep: PickedImage[] = []
+      let already = 0
+      let past = 0
+      for (const x of incoming) {
+        if (known.has(x.hash)) {
+          already++
+          continue
+        }
+        if (saved.has(x.hash)) {
+          past++
+          continue
+        }
+        known.add(x.hash)
+        keep.push(x)
       }
+
+      if (keep.length) onChange([...value, ...keep])
+      setErr(duplicateMessage(keep.length, already, past))
     } catch (e2) {
       setErr(friendlyError(e2))
     } finally {
@@ -85,9 +128,9 @@ export default function ChartPicker({ value, onChange, disabled, hint }: Props) 
       {value.length > 0 && (
         <ul className="grid grid-cols-3 gap-2 sm:grid-cols-4">
           {value.map((src, i) => (
-            <li key={i} className="relative">
+            <li key={src.hash} className="relative">
               <img
-                src={src}
+                src={src.image}
                 alt={`チャート ${i + 1}`}
                 className="h-20 w-full rounded-lg border border-line object-cover"
               />

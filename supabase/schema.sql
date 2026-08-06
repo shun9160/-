@@ -54,6 +54,7 @@ create table if not exists public.trades (
   currency     text default 'JPY',
   note         text,                              -- トレード単位の日記メモ
   screenshot   text,                              -- 添付スクショ (縮小した data URL)
+  screenshot_hash text,                           -- 同じ画像の二重取込を防ぐ指紋
   source       text default 'manual',             -- 取込元 (manual / html / csv / screenshot / mt5)
   created_at   timestamptz default now()
 );
@@ -62,6 +63,7 @@ create index if not exists trades_user_idx      on public.trades (user_id);
 create index if not exists trades_open_time_idx on public.trades (open_time);
 create index if not exists trades_symbol_idx    on public.trades (symbol);
 create index if not exists trades_account_idx   on public.trades (account_id);
+create index if not exists trades_user_shot_hash_idx on public.trades (user_id, screenshot_hash);
 
 -- 同じ取引を二重に取り込まない。
 -- ブローカーが違えば同じ取引番号が来ることがあるので、口座も含めて判定する。
@@ -101,11 +103,13 @@ create table if not exists public.trade_images (
   user_id    uuid not null references auth.users(id) on delete cascade default auth.uid(),
   trade_id   uuid not null references public.trades(id) on delete cascade,
   image      text not null,                 -- 縮小した data URL
+  image_hash text,                          -- 同じ画像の二重登録を防ぐ指紋
   caption    text,                          -- 「エントリー」などの説明
   created_at timestamptz default now()
 );
 create index if not exists trade_images_trade_idx on public.trade_images (trade_id, created_at);
 create index if not exists trade_images_user_idx  on public.trade_images (user_id);
+create index if not exists trade_images_user_hash_idx on public.trade_images (user_id, image_hash);
 
 -- 連携コード（MT5のEAなど、外部から書き込むための鍵） -----------
 create table if not exists public.ingest_tokens (
