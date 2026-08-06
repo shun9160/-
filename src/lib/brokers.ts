@@ -33,6 +33,7 @@ const BRANDS: Brand[] = [
   { match: /myfx\s*markets/i, domain: 'myfxmarkets.com', color: '#1E3A8A' },
   { match: /m4\s*markets/i, domain: 'm4markets.com', color: '#0EA5E9' },
   { match: /easy\s*markets/i, domain: 'easymarkets.com', color: '#E11D48' },
+  { match: /bit\s*castle|ビットキャッスル/i, domain: 'bitcastle.io', color: '#1B2A4A' },
   { match: /^fbs$/i, domain: 'fbs.com', color: '#0B57D0' },
   { match: /oanda|オアンダ/i, domain: 'oanda.jp', color: '#0F2B46' },
   { match: /ig証券|^ig$/i, domain: 'ig.com', color: '#E4002B' },
