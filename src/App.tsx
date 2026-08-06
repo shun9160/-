@@ -159,7 +159,8 @@ export default function App() {
         accountActive={showAccount}
       />
 
-      <div className="flex min-w-0 flex-1 flex-col pb-24 md:pb-0">
+      {/* 下のタブバー(92px)とiPhoneのホームバーのぶんだけ、中身の下に余白をとる */}
+      <div className="flex min-w-0 flex-1 flex-col pb-[calc(env(safe-area-inset-bottom,0px)+104px)] md:pb-0">
         {/* 上部バー */}
         <header
           className={`sticky top-0 z-20 border-b px-4 py-3 backdrop-blur ${
