@@ -11,8 +11,8 @@ import Icon from './Icon'
 interface Props {
   onChanged: () => void
   disabled?: boolean
-  /** 保存後にホームへ戻すなど */
-  onDone?: () => void
+  /** 保存できたら呼ぶ。ホームへ移して結果を見せる。 */
+  onDone?: (message: string) => void
 }
 
 type Method = 'shots' | 'manual' | 'file'
@@ -22,6 +22,16 @@ export default function UploadPanel({ onChanged, disabled, onDone }: Props) {
   const [method, setMethod] = useState<Method>('shots')
   const [busy, setBusy] = useState(false)
   const [msg, setMsg] = useState<{ text: string; ok: boolean } | null>(null)
+
+  /**
+   * 保存できたときの後始末。
+   * 記録したものがすぐ確認できるよう、ホームへ移って結果を知らせる。
+   * 移り先が無い場合だけ、この画面に結果を出す。
+   */
+  function succeed(message: string) {
+    if (onDone) onDone(message)
+    else setMsg({ text: message, ok: true })
+  }
 
   async function commit(rows: TradeInput[], label: string) {
     if (rows.length === 0) {
@@ -34,8 +44,8 @@ export default function UploadPanel({ onChanged, disabled, onDone }: Props) {
     setBusy(true)
     try {
       const n = await insertTrades(rows)
-      setMsg({ text: `${label} ${n}件を保存しました`, ok: true })
       onChanged()
+      succeed(`${label} ${n}件保存しました`)
     } catch (e) {
       setMsg({ text: friendlyError(e), ok: false })
     } finally {
@@ -95,14 +105,7 @@ export default function UploadPanel({ onChanged, disabled, onDone }: Props) {
           }`}
         >
           <Icon name={msg.ok ? 'check' : 'info'} size={17} className="mt-0.5 shrink-0" />
-          <div className="flex-1">
-            <p className="font-semibold">{msg.text}</p>
-            {msg.ok && onDone && (
-              <button className="mt-1 font-semibold underline" onClick={onDone}>
-                ホームで確認する
-              </button>
-            )}
-          </div>
+          <p className="flex-1 font-semibold">{msg.text}</p>
         </div>
       )}
 
@@ -110,8 +113,8 @@ export default function UploadPanel({ onChanged, disabled, onDone }: Props) {
         <BatchImport
           disabled={disabled}
           onSaved={(n) => {
-            setMsg({ text: `スクショから ${n}件を保存しました`, ok: true })
             onChanged()
+            succeed(`スクショから ${n}件保存しました`)
           }}
         />
       ) : method === 'manual' ? (

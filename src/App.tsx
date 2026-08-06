@@ -33,6 +33,8 @@ export default function App() {
   const [showAccount, setShowAccount] = useState(false)
   /** 初期設定を「あとで」にした場合、この画面では出さない */
   const [skipOnboarding, setSkipOnboarding] = useState(false)
+  /** 記録できたことを、移った先の画面で知らせる */
+  const [flash, setFlash] = useState<string | null>(null)
 
   // 初期設定の内容をアプリ全体に反映する
   useEffect(() => {
@@ -46,9 +48,22 @@ export default function App() {
   }, [settings])
 
   function go(k: ScreenKey) {
+    setFlash(null)
     setScreen(k)
     setShowAllTrades(false)
     setShowAccount(false)
+    window.scrollTo({ top: 0 })
+  }
+
+  /**
+   * 記録が終わったらホームへ移す。
+   * 記録した結果（残高・今日の損益・最近の取引）がすぐ目に入る画面。
+   */
+  function finishAdd(message: string) {
+    setScreen('home')
+    setShowAllTrades(false)
+    setShowAccount(false)
+    setFlash(message)
     window.scrollTo({ top: 0 })
   }
 
@@ -144,6 +159,13 @@ export default function App() {
           )}
 
           {demo && <DemoNotice />}
+          {flash && !showAllTrades && !showAccount && (
+            <SavedNotice
+              message={flash}
+              onSeeStats={() => go('stats')}
+              onClose={() => setFlash(null)}
+            />
+          )}
           {error && (
             <div className="mb-4 rounded-2xl border border-down/25 bg-down-soft px-4 py-3 text-sm text-down">
               読み込みエラー: {error}
@@ -183,7 +205,7 @@ export default function App() {
               )}
               {screen === 'calendar' && <CalendarScreen trades={trades} onSelectDay={openDay} />}
               {screen === 'add' && (
-                <UploadPanel onChanged={reload} disabled={!configured} onDone={() => go('home')} />
+                <UploadPanel onChanged={reload} disabled={!configured} onDone={finishAdd} />
               )}
               {screen === 'stats' && <StatsPanel trades={trades} />}
               {screen === 'diary' && (
@@ -206,6 +228,38 @@ export default function App() {
       </div>
 
       <BottomNav current={screen} onChange={go} />
+    </div>
+  )
+}
+
+/** 記録できたことを、移った先のホームで知らせる帯 */
+function SavedNotice({
+  message,
+  onSeeStats,
+  onClose,
+}: {
+  message: string
+  onSeeStats: () => void
+  onClose: () => void
+}) {
+  return (
+    <div className="mb-4 flex gap-3 rounded-2xl border border-up/25 bg-up-soft px-4 py-3">
+      <Icon name="check" size={18} className="mt-0.5 shrink-0 text-up" />
+      <div className="flex-1 text-sm">
+        <p className="font-semibold text-up">{message}</p>
+        <p className="mt-0.5 text-ink2">この画面の数字とグラフに反映されています。</p>
+        <button className="btn btn-quiet mt-2" onClick={onSeeStats}>
+          <Icon name="chart" size={15} />
+          分析で詳しく見る
+        </button>
+      </div>
+      <button
+        onClick={onClose}
+        aria-label="閉じる"
+        className="-mr-1 -mt-1 shrink-0 self-start rounded-lg p-1 text-ink3 hover:bg-surface hover:text-ink"
+      >
+        <Icon name="close" size={16} />
+      </button>
     </div>
   )
 }
