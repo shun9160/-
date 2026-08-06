@@ -6,6 +6,7 @@ import { isSupabaseConfigured } from './lib/supabase'
 import { getAppConfig, updateAppConfig } from './lib/appConfig'
 import { BRAND } from './lib/brand'
 import Logo from './components/Logo'
+import Avatar from './components/Avatar'
 import Onboarding from './components/Onboarding'
 import { BottomNav, NAV_ITEMS, type ScreenKey } from './components/Nav'
 import Sidebar from './components/Sidebar'
@@ -170,16 +171,17 @@ export default function App() {
               >
                 <Icon name="refresh" size={17} />
               </button>
-              {authed && (
-                <button
-                  onClick={openAccount}
-                  className="btn btn-quiet px-2.5 md:hidden"
-                  title="アカウントと連携設定"
-                  aria-label="アカウント"
-                >
-                  <Icon name="info" size={17} />
-                </button>
-              )}
+              {/* 自分のところ。押すと基本情報と連携の設定を開く */}
+              <button
+                onClick={openAccount}
+                className={`flex items-center rounded-full p-0.5 transition-colors md:hidden ${
+                  showAccount ? 'ring-2 ring-brand' : 'hover:bg-sunken'
+                }`}
+                title="アカウントと連携"
+                aria-label="アカウントと連携"
+              >
+                <Avatar email={userEmail} size={30} />
+              </button>
             </div>
           </div>
         </header>
@@ -232,7 +234,12 @@ export default function App() {
                 <Icon name="back" size={17} />
                 戻る
               </button>
-              <AccountPanel email={userEmail} onSignOut={signOut} />
+              <AccountPanel
+                email={userEmail}
+                onSignOut={signOut}
+                onOpenAccounts={demo ? undefined : openAccounts}
+                accountCount={accounts.length}
+              />
             </>
           ) : showAccounts ? (
             <>

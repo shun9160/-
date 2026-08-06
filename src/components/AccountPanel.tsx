@@ -15,14 +15,24 @@ import {
   type PasskeyItem,
 } from '../lib/passkey'
 import { fmtJst } from '../lib/timezone'
+import Avatar from './Avatar'
 import Icon from './Icon'
 
 interface Props {
   email: string | null
   onSignOut: () => Promise<void>
+  /** 取引口座の設定を開く */
+  onOpenAccounts?: () => void
+  /** 登録済みの口座数 */
+  accountCount?: number
 }
 
-export default function AccountPanel({ email, onSignOut }: Props) {
+export default function AccountPanel({
+  email,
+  onSignOut,
+  onOpenAccounts,
+  accountCount,
+}: Props) {
   const [tokens, setTokens] = useState<IngestToken[]>([])
   const [loading, setLoading] = useState(true)
   const [busy, setBusy] = useState(false)
@@ -89,17 +99,42 @@ export default function AccountPanel({ email, onSignOut }: Props) {
         <p className="text-sm text-ink3">ログイン情報とMT5連携の設定</p>
       </div>
 
-      {/* ログイン情報 */}
+      {/* 基本情報 */}
       <section className="card p-5">
-        <p className="label">ログイン中</p>
-        <p className="mt-1 text-base font-semibold">{email ?? '—'}</p>
-        <p className="mt-1 text-xs text-ink3">
+        <div className="flex items-center gap-3">
+          <Avatar email={email} size={44} />
+          <div className="min-w-0">
+            <p className="label">ログイン中</p>
+            <p className="truncate text-base font-semibold">{email ?? '—'}</p>
+          </div>
+        </div>
+        <p className="mt-3 text-xs text-ink3">
           取引データはこのアカウントにのみ保存され、他の人からは見えません
         </p>
         <button className="btn btn-quiet mt-4" onClick={onSignOut}>
           ログアウト
         </button>
       </section>
+
+      {/* 取引口座 */}
+      {onOpenAccounts && (
+        <button
+          onClick={onOpenAccounts}
+          className="card flex items-center gap-3 p-5 text-left transition-colors hover:bg-sunken"
+        >
+          <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-brand-soft text-brand">
+            <Icon name="wallet" size={20} />
+          </span>
+          <span className="min-w-0 flex-1">
+            <span className="block text-base font-bold">取引口座</span>
+            <span className="block text-sm text-ink2">
+              ブローカー・口座番号・原資の設定
+              {accountCount != null && <span className="ml-1.5 text-ink3">{accountCount}件</span>}
+            </span>
+          </span>
+          <Icon name="right" size={18} className="shrink-0 text-ink3" />
+        </button>
+      )}
 
       <PasskeySection />
 

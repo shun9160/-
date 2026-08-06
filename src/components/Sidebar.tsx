@@ -1,5 +1,5 @@
-import { BRAND } from '../lib/brand'
 import Logo from './Logo'
+import Avatar from './Avatar'
 import Icon from './Icon'
 import { NAV_ITEMS, type ScreenKey } from './Nav'
 
@@ -55,22 +55,33 @@ export default function Sidebar({
         </Group>
       </nav>
 
+      {/* 自分の情報。押すと基本情報と連携の設定を開く */}
       <div className="border-t border-line p-3">
-        <Item
-          active={Boolean(accountActive)}
-          icon="info"
-          label="アカウントと連携"
+        <button
           onClick={onOpenAccount}
-        />
-        <div className="mt-2 flex items-center gap-2.5 rounded-xl px-3 py-2">
-          <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-brand-soft text-xs font-bold text-brand">
-            {(email ?? '?').slice(0, 1).toUpperCase()}
+          aria-current={accountActive ? 'page' : undefined}
+          title="アカウントと連携"
+          className={`flex w-full items-center gap-2.5 rounded-xl px-3 py-2 text-left transition-colors ${
+            accountActive ? 'bg-brand-soft' : 'hover:bg-sunken'
+          }`}
+        >
+          <Avatar email={email} size={32} />
+          <span className="min-w-0 flex-1">
+            <span
+              className={`block truncate text-xs font-semibold ${
+                accountActive ? 'text-brand' : 'text-ink'
+              }`}
+            >
+              {email ?? 'サンプル表示'}
+            </span>
+            <span className="block truncate text-[11px] text-ink3">アカウントと連携</span>
           </span>
-          <span className="min-w-0">
-            <span className="block truncate text-xs font-semibold">{email ?? 'サンプル表示'}</span>
-            <span className="block truncate text-[11px] text-ink3">{BRAND.name}</span>
-          </span>
-        </div>
+          <Icon
+            name="right"
+            size={15}
+            className={accountActive ? 'shrink-0 text-brand' : 'shrink-0 text-ink3'}
+          />
+        </button>
       </div>
     </aside>
   )
