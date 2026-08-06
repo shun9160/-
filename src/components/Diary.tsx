@@ -4,7 +4,6 @@ import { fetchRecentTradeImages } from '../lib/repo'
 import { fetchLatest } from '../lib/diagnosisClient'
 import type { DiagnosisResult } from '../lib/diagnosis/types'
 import { jstDayKey } from '../lib/timezone'
-import DiaryCalendar from './diary/DiaryCalendar'
 import DayHeadline from './diary/DayHeadline'
 import DayInsights from './diary/DayInsights'
 import NoteCard from './diary/NoteCard'
@@ -77,11 +76,14 @@ export default function Diary({
     () => trades.filter((t) => t.jstDay === selected),
     [trades, selected],
   )
-  const noteDays = useMemo(
-    () => new Set(Object.entries(dayNotes).filter(([, v]) => v && v.trim() !== '').map(([k]) => k)),
-    [dayNotes],
-  )
   const isToday = selected === today
+
+  /** 日をずらす。カレンダーは「カレンダー」タブにあるので、ここでは前後の移動だけ */
+  function shiftDay(delta: number) {
+    const d = new Date(`${selected}T00:00:00Z`)
+    d.setUTCDate(d.getUTCDate() + delta)
+    setSelected(d.toISOString().slice(0, 10))
+  }
 
   // トレーダータイプ（診断していなければ null）
   const [diag, setDiag] = useState<DiagnosisResult | null>(null)
@@ -129,23 +131,15 @@ export default function Diary({
 
   return (
     // 広い画面は「本文＋右側」の2列。
-    // 縦のすき間が出ないよう、本文はひとつの塊にして2行ぶんをまたがせている。
     // DOM の並びがそのままスマホでの並びになる。
-    <div className="flex flex-col gap-4 xl:grid xl:grid-cols-[minmax(0,1fr)_320px] xl:grid-rows-[min-content_1fr] xl:items-start">
-      <div className="xl:col-start-2 xl:row-start-1">
-        <DiaryCalendar
-          trades={trades}
-          noteDays={noteDays}
-          selected={selected}
-          onSelect={setSelected}
-        />
-      </div>
-
-      <div className="flex flex-col gap-4 xl:col-start-1 xl:row-span-2 xl:row-start-1">
+    <div className="flex flex-col gap-4 xl:grid xl:grid-cols-[minmax(0,1fr)_320px] xl:items-start">
+      <div className="flex flex-col gap-4">
         <DayHeadline
           day={selected}
           trades={dayTrades}
           isToday={isToday}
+          onShiftDay={shiftDay}
+          onToday={() => setSelected(today)}
           aside={
             <TypeCard
               result={diag}
@@ -183,7 +177,7 @@ export default function Diary({
         />
       </div>
 
-      <div className="flex flex-col gap-4 xl:col-start-2 xl:row-start-2">
+      <div className="flex flex-col gap-4">
         {/* 診断済みなら狭い画面では上のカードに出ているので、ここでは広い画面だけ */}
         <div className={diag ? 'hidden xl:block' : ''}>{typeCard}</div>
         <PerformanceCard trades={trades} day={selected} />

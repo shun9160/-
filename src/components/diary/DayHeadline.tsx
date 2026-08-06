@@ -12,12 +12,22 @@ interface Props {
   day: string
   trades: EnrichedTrade[]
   isToday: boolean
+  /** 前後の日へ動かす */
+  onShiftDay?: (delta: number) => void
+  onToday?: () => void
   /** 狭い画面ではこのカードの中にキャラクターを入れる */
   aside?: ReactNode
 }
 
 /** その日の見出し。日付・損益・評価と、主な数字を並べる */
-export default function DayHeadline({ day, trades, isToday, aside }: Props) {
+export default function DayHeadline({
+  day,
+  trades,
+  isToday,
+  onShiftDay,
+  onToday,
+  aside,
+}: Props) {
   const iso = `${day}T00:00:00+09:00`
   const weekday = WEEKDAYS_JA[new Date(`${day}T00:00:00Z`).getUTCDay()]
   const sum = summarize(trades)
@@ -58,6 +68,32 @@ export default function DayHeadline({ day, trades, isToday, aside }: Props) {
             </p>
           </div>
           <p className="mt-0.5 text-xs text-ink3">{fmtJst(iso, 'EEEE')}</p>
+
+          {/* 日を前後に動かす。月をまたいで選ぶのは「カレンダー」タブから */}
+          {onShiftDay && (
+            <div className="mt-2.5 flex items-center gap-1">
+              <button
+                className="btn btn-quiet px-2"
+                onClick={() => onShiftDay(-1)}
+                aria-label="前の日"
+              >
+                <Icon name="left" size={16} />
+              </button>
+              <button
+                className="btn btn-quiet px-2"
+                onClick={() => onShiftDay(1)}
+                aria-label="次の日"
+                disabled={isToday}
+              >
+                <Icon name="right" size={16} />
+              </button>
+              {!isToday && onToday && (
+                <button className="btn btn-quiet ml-1 px-2.5 text-xs" onClick={onToday}>
+                  今日
+                </button>
+              )}
+            </div>
+          )}
         </div>
 
         <div className="min-w-0 flex-1">

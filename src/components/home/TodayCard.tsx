@@ -6,6 +6,7 @@ import { currencyLabel } from '../../lib/appConfig'
 import { fmtMoney, fmtNum, fmtPct } from '../../lib/format'
 import { fmtJst } from '../../lib/timezone'
 import Icon from '../Icon'
+import type { IconName } from '../Icon'
 
 interface Props {
   today: TodayCompare
@@ -22,20 +23,20 @@ interface Props {
 }
 
 /** 今日の出来を一言で。数字だけだと良し悪しが分かりにくいので添える。 */
-function verdict(t: TodayCompare): { emoji: string; title: string; body: string } {
+function verdict(t: TodayCompare): { title: string; body: string; icon: IconName } {
   if (t.todayCount === 0) {
-    return { emoji: '🌱', title: 'まだ取引なし', body: '今日はこれからです' }
+    return { title: 'まだ取引なし', body: '今日はこれからです', icon: 'plus' }
   }
   if (t.todayNet > 0 && t.diff >= 0) {
-    return { emoji: '🏆', title: '素晴らしい！', body: '今日は良いトレードでした' }
+    return { title: '素晴らしい', body: '今日は良いトレードでした', icon: 'check' }
   }
   if (t.todayNet > 0) {
-    return { emoji: '👍', title: 'プラスで終了', body: '利益を積み上げられました' }
+    return { title: 'プラスで終了', body: '利益を積み上げられました', icon: 'check' }
   }
   if (t.todayNet === 0) {
-    return { emoji: '➖', title: '差し引きゼロ', body: '無理に取りにいかない日も大事です' }
+    return { title: '差し引きゼロ', body: '無理に取りにいかない日も大事です', icon: 'info' }
   }
-  return { emoji: '📝', title: 'マイナスの日', body: '何が起きたか書き残しましょう' }
+  return { title: 'マイナスの日', body: '何が起きたか書き残しましょう', icon: 'pencil' }
 }
 
 /**
@@ -154,7 +155,7 @@ function Front({
   count,
 }: {
   today: TodayCompare
-  verdict: { emoji: string; title: string; body: string }
+  verdict: { title: string; body: string; icon: IconName }
   netTotal: number
   count: number
 }) {
@@ -173,11 +174,13 @@ function Front({
           </p>
         </div>
 
-        <span className="flex shrink-0 items-center gap-1.5 rounded-full bg-white/20 px-3 py-1.5">
-          <span className="text-base leading-none" aria-hidden="true">
-            {v.emoji}
-          </span>
-          <span className="text-xs font-bold">{v.title}</span>
+        {/* 今日の出来。白い輪の中の印で示す。言葉は読み上げと吹き出しに残す */}
+        <span
+          title={v.title}
+          aria-label={v.title}
+          className="flex h-12 w-12 shrink-0 items-center justify-center rounded-full border-2 border-white/60 text-white"
+        >
+          <Icon name={v.icon} size={20} />
         </span>
       </div>
 
