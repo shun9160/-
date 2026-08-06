@@ -1,12 +1,17 @@
 import type { TodayCompare } from '../../lib/analytics'
 import { currencyLabel } from '../../lib/appConfig'
-import { colorOf, fmtMoney, fmtPct } from '../../lib/format'
+import { fmtMoney, fmtPct } from '../../lib/format'
 import Icon from '../Icon'
 
 interface Props {
   today: TodayCompare
   /** 全期間の累計損益 */
   netTotal: number
+  /**
+   * 画面のいちばん上にあるか。
+   * 上に何も無いときだけ、上部バーとつなげて画面いっぱいに広げる。
+   */
+  flush?: boolean
   onSeeDetail: () => void
 }
 
@@ -27,56 +32,78 @@ function verdict(t: TodayCompare): { emoji: string; title: string; body: string 
   return { emoji: '📝', title: 'マイナスの日', body: '何が起きたか書き残しましょう' }
 }
 
-export default function TodayCard({ today, netTotal, onSeeDetail }: Props) {
+/**
+ * 今日の結果。ブランドの色（紫→青）を敷いた見出しの面。
+ *
+ * 色の上では緑と赤が読みにくいので、損益の向きは
+ * 符号（＋/−）と「利益／損失」の言葉と矢印で示す。色だけに頼らない。
+ */
+export default function TodayCard({ today, netTotal, flush, onSeeDetail }: Props) {
   const v = verdict(today)
   const up = today.diff > 0
+  const plus = today.todayNet > 0
+  const minus = today.todayNet < 0
 
   return (
-    <section className="overflow-hidden rounded-2xl border border-brand/15 bg-gradient-to-br from-brand-soft/70 to-surface shadow-card">
-      <div className="flex items-start gap-4 p-5">
-        <div className="min-w-0 flex-1">
-          <p className="label">今日の損益</p>
-          <p className={`mt-1 text-hero font-bold tabular-nums ${colorOf(today.todayNet)}`}>
+    <section
+      className={[
+        'overflow-hidden bg-gradient-to-br from-[#6741FF] to-[#3B5BFF] text-white',
+        flush
+          ? '-mx-4 -mt-5 rounded-b-[28px] px-5 pb-5 pt-6 sm:mx-0 sm:mt-0 sm:rounded-2xl sm:pt-5 sm:shadow-raised'
+          : 'rounded-2xl px-5 py-5 shadow-raised',
+      ].join(' ')}
+    >
+      <div className="flex items-start justify-between gap-3">
+        <div className="min-w-0">
+          <p className="text-xs font-semibold text-white/90">今日の損益</p>
+          <p className="mt-1 text-hero font-bold tabular-nums">
             {fmtMoney(today.todayNet, { sign: true })}
-            <span className="ml-1.5 text-base font-semibold text-ink3">{currencyLabel()}</span>
-          </p>
-          <p className="mt-1.5 flex flex-wrap items-center gap-1.5 text-sm">
-            <span className="text-ink3">昨日比</span>
-            <span className={`font-bold tabular-nums ${colorOf(today.diff)}`}>
-              {fmtMoney(today.diff, { sign: true })}
-              {today.ratio != null && (
-                <span className="ml-1 font-semibold">
-                  ({today.ratio > 0 ? '+' : ''}
-                  {fmtPct(today.ratio)})
-                </span>
-              )}
-            </span>
-            {today.diff !== 0 && (
-              <span className={colorOf(today.diff)}>
-                <Icon name={up ? 'trendUp' : 'trendDown'} size={15} />
-              </span>
-            )}
+            <span className="ml-1.5 text-base font-semibold text-white/90">{currencyLabel()}</span>
           </p>
         </div>
 
         {/* 今日の出来 */}
-        <div className="flex w-28 shrink-0 flex-col items-center justify-center rounded-full bg-surface/90 px-3 py-4 text-center shadow-card">
-          <span className="text-xl leading-none" aria-hidden="true">
+        <span className="flex shrink-0 items-center gap-1.5 rounded-full bg-white/20 px-3 py-1.5">
+          <span className="text-base leading-none" aria-hidden="true">
             {v.emoji}
           </span>
-          <span className="mt-1.5 text-xs font-bold text-ink">{v.title}</span>
-          <span className="mt-0.5 text-[11px] leading-tight text-ink2">{v.body}</span>
-        </div>
+          <span className="text-xs font-bold">{v.title}</span>
+        </span>
       </div>
 
-      <div className="flex items-center justify-between gap-3 border-t border-brand/10 px-5 py-3">
+      <p className="mt-2 flex flex-wrap items-center gap-x-2 gap-y-1 text-sm">
+        {(plus || minus) && (
+          <span className="flex items-center gap-1 rounded-md bg-white/20 px-1.5 py-0.5 text-xs font-bold">
+            <Icon name={plus ? 'trendUp' : 'trendDown'} size={13} />
+            {plus ? '利益' : '損失'}
+          </span>
+        )}
+        <span className="text-white/90">昨日比</span>
+        <span className="font-bold tabular-nums">
+          {fmtMoney(today.diff, { sign: true })}
+          {today.ratio != null && (
+            <span className="ml-1 font-semibold">
+              ({today.ratio > 0 ? '+' : ''}
+              {fmtPct(today.ratio)})
+            </span>
+          )}
+        </span>
+        {today.diff !== 0 && <Icon name={up ? 'trendUp' : 'trendDown'} size={15} />}
+      </p>
+
+      <p className="mt-1 text-xs text-white/90">{v.body}</p>
+
+      <div className="mt-4 flex items-center justify-between gap-3 border-t border-white/25 pt-3">
         <p className="text-sm">
-          <span className="text-ink3">累計 </span>
-          <span className={`font-bold tabular-nums ${colorOf(netTotal)}`}>
+          <span className="text-white/90">累計 </span>
+          <span className="font-bold tabular-nums">
             {fmtMoney(netTotal, { sign: true })} {currencyLabel()}
           </span>
         </p>
-        <button className="btn btn-ghost px-2 text-brand" onClick={onSeeDetail}>
+        <button
+          className="flex items-center gap-1 rounded-lg bg-white/20 px-2.5 py-1.5 text-sm font-semibold transition-colors hover:bg-white/30"
+          onClick={onSeeDetail}
+        >
           詳細を見る
           <Icon name="right" size={15} />
         </button>

@@ -113,6 +113,12 @@ export default function App() {
         ? 'すべての取引'
         : null
 
+  // ホームは、上部バーからそのままブランドの色の面がつながる作りにする。
+  // ただし口座の切り替えやお知らせが間に入るときは、つなげずに普通のカードで出す。
+  const onHome = screen === 'home' && subScreen == null
+  const switcherShown = !showAccount && !showAccounts && !loading && accounts.length > 1
+  const heroFlush = onHome && !switcherShown && !demo && flash == null
+
   // 認証状態の確認中
   if (!ready) {
     return <div className="py-32 text-center text-sm text-ink3">読み込み中…</div>
@@ -155,7 +161,13 @@ export default function App() {
 
       <div className="flex min-w-0 flex-1 flex-col pb-24 md:pb-0">
         {/* 上部バー */}
-        <header className="sticky top-0 z-20 border-b border-line bg-page/90 px-4 py-3 backdrop-blur">
+        <header
+          className={`sticky top-0 z-20 border-b px-4 py-3 backdrop-blur ${
+            heroFlush
+              ? 'border-transparent bg-[#6741FF] md:border-line md:bg-page/90'
+              : 'border-line bg-page/90'
+          }`}
+        >
           <div className="mx-auto flex max-w-6xl items-center gap-3">
             {/* スマホ。タブの画面は下のバーで場所が分かるので、上には名前を出す。
                 下のバーに無い画面（アカウントなど）のときだけ、そこの名前に差し替える。 */}
@@ -163,7 +175,7 @@ export default function App() {
               {subScreen ? (
                 <span className="truncate text-base font-bold text-ink">{subScreen}</span>
               ) : (
-                <Wordmark size={24} />
+                <Wordmark size={24} onDark={heroFlush} />
               )}
             </span>
             <nav aria-label="現在地" className="hidden text-sm text-ink3 md:block">
@@ -175,7 +187,11 @@ export default function App() {
               <button
                 onClick={openAccount}
                 className={`flex items-center rounded-full p-0.5 transition-colors md:hidden ${
-                  showAccount ? 'ring-2 ring-brand' : 'hover:bg-sunken'
+                  showAccount
+                    ? 'ring-2 ring-brand'
+                    : heroFlush
+                      ? 'ring-2 ring-white/40'
+                      : 'hover:bg-sunken'
                 }`}
                 title="アカウントと連携"
                 aria-label="アカウントと連携"
@@ -277,6 +293,7 @@ export default function App() {
                   onOpenDay={openDay}
                   onChanged={reload}
                   readOnly={demo}
+                  heroFlush={heroFlush}
                 />
               )}
               {screen === 'calendar' && <CalendarScreen trades={trades} onSelectDay={openDay} />}

@@ -109,9 +109,15 @@ function Cell({
     neutral: 'bg-sunken text-ink2',
   }[tone]
   return (
-    <div className="flex flex-col items-center px-2 text-center">
+    <div className="flex min-w-0 flex-col items-center px-1.5 text-center sm:px-2">
       <dt className="text-xs text-ink3">{label}</dt>
-      <dd className={`mt-1 text-lg font-bold tabular-nums ${valueClass ?? 'text-ink'}`}>
+      {/* 金額が長いと折り返して、3つの升目の高さがずれるので折り返さない */}
+      <dd
+        className={`mt-1 w-full truncate whitespace-nowrap text-base font-bold tabular-nums sm:text-lg ${
+          valueClass ?? 'text-ink'
+        }`}
+        title={unit ? `${value} ${unit}` : value}
+      >
         {value}
         {unit && <span className="ml-0.5 text-[11px] font-semibold text-ink3">{unit}</span>}
       </dd>

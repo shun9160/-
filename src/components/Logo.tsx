@@ -72,8 +72,8 @@ export function LogoMark({ size = 32, className = '' }: { size?: number; classNa
   )
 }
 
-/** 文字の中に入れる本。色はグラデーション */
-function BookGlyph({ height }: { height: number }) {
+/** 文字の中に入れる本。色はグラデーション（暗い面の上では白一色） */
+function BookGlyph({ height, solid }: { height: number; solid?: string }) {
   const id = useId()
   return (
     <svg
@@ -83,13 +83,15 @@ function BookGlyph({ height }: { height: number }) {
       aria-hidden="true"
       style={{ width: (height * 30) / 23 }}
     >
-      <defs>
-        <linearGradient id={id} x1="0" y1="0" x2="30" y2="0" gradientUnits="userSpaceOnUse">
-          <stop stopColor={FROM} />
-          <stop offset="1" stopColor={TO} />
-        </linearGradient>
-      </defs>
-      <g fill={`url(#${id})`}>
+      {!solid && (
+        <defs>
+          <linearGradient id={id} x1="0" y1="0" x2="30" y2="0" gradientUnits="userSpaceOnUse">
+            <stop stopColor={FROM} />
+            <stop offset="1" stopColor={TO} />
+          </linearGradient>
+        </defs>
+      )}
+      <g fill={solid ?? `url(#${id})`}>
         {BOOK_PATHS.map((d) => (
           <path key={d} d={d} />
         ))}
@@ -123,9 +125,14 @@ export function Wordmark({
       role="img"
       aria-label="FX BOOK"
     >
+      {/* 暗い面や紫の面の上では、紫のグラデーションが沈むので白一色にする */}
       <span
         aria-hidden="true"
-        className="bg-gradient-to-r from-[#6D4AFF] to-[#2F6BFF] bg-clip-text text-transparent"
+        className={
+          onDark
+            ? 'text-white'
+            : 'bg-gradient-to-r from-[#6D4AFF] to-[#2F6BFF] bg-clip-text text-transparent'
+        }
       >
         FX
       </span>
@@ -141,7 +148,7 @@ export function Wordmark({
           transform: `translateY(${size * 0.025}px)`,
         }}
       >
-        <BookGlyph height={size * 0.79} />
+        <BookGlyph height={size * 0.79} solid={onDark ? '#FFFFFF' : undefined} />
       </span>
       <span className={ink} aria-hidden="true">
         K

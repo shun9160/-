@@ -26,6 +26,8 @@ interface Props {
   onOpenDay: (day: string) => void
   onChanged: () => void
   readOnly?: boolean
+  /** 上に口座の切り替えなどが無く、見出しの面を上部バーとつなげられるか */
+  heroFlush?: boolean
 }
 
 type RangeKey = '7' | '30' | '90' | '0'
@@ -48,6 +50,7 @@ export default function Home({
   onOpenDay,
   onChanged,
   readOnly,
+  heroFlush,
 }: Props) {
   const [range, setRange] = useState<RangeKey>('30')
   /** 原資の編集を開いているか */
@@ -117,7 +120,12 @@ export default function Home({
     <div className="flex flex-col gap-4 xl:grid xl:grid-cols-2 xl:items-start">
       {/* --- 左: いまどうなっているか ---------------------------- */}
       <div className="flex flex-col gap-4">
-        <TodayCard today={today} netTotal={all.netTotal} onSeeDetail={() => onOpenDay(todayKey)} />
+        <TodayCard
+          today={today}
+          netTotal={all.netTotal}
+          flush={heroFlush}
+          onSeeDetail={() => onOpenDay(todayKey)}
+        />
 
         <AssetSummary
           account={account}
