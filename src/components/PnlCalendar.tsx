@@ -75,8 +75,9 @@ export default function PnlCalendar({ trades, onSelectDay }: Props) {
 
   return (
     <div className="card p-4 sm:p-5">
-      {/* 期間の移動。広い画面では 日別/月別 も同じ行に置いて縦を詰める */}
-      <div className="flex items-center justify-between gap-3">
+      {/* 期間の移動。広い画面では 日別/月別 も同じ行に置いて縦を詰める。
+          狭い画面では左右の枠が消えるので、真ん中に寄せ直す。 */}
+      <div className="flex items-center justify-center gap-3 sm:justify-between">
         <div className="hidden sm:block sm:w-32" />
         <div className="flex items-center gap-1">
           <button className="btn btn-ghost px-2" onClick={() => shift(-1)} aria-label="前へ">
