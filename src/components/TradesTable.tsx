@@ -1,11 +1,18 @@
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import type { EnrichedTrade } from '../lib/types'
-import { deleteTrade, getTradeScreenshot, updateTrade, updateTradeNote } from '../lib/repo'
+import {
+  deleteTrade,
+  fetchTradeImageCounts,
+  getTradeScreenshot,
+  updateTrade,
+  updateTradeNote,
+} from '../lib/repo'
 import { fmtJst, SESSION_LABELS } from '../lib/timezone'
 import { currencyLabel } from '../lib/appConfig'
 import { colorOf, fmtMoney, fmtNum, fmtPct, fmtRR } from '../lib/format'
 import { friendlyError } from '../lib/errors'
 import TradeForm from './TradeForm'
+import ChartImages from './ChartImages'
 import Icon from './Icon'
 import { Pill, type PillTone } from './ui'
 
@@ -30,7 +37,25 @@ export default function TradesTable({ trades, onChanged, filterDay, readOnly, co
   const [draft, setDraft] = useState('')
   const [editingTrade, setEditingTrade] = useState<string | null>(null)
   const [imgOf, setImgOf] = useState<Record<string, string | null | 'loading'>>({})
+  /** チャートを開いている取引 */
+  const [chartOf, setChartOf] = useState<Record<string, true>>({})
+  /** 取引ごとのチャート枚数。開かなくてもバッジに出す */
+  const [chartCounts, setChartCounts] = useState<Record<string, number>>({})
   const [err, setErr] = useState<string | null>(null)
+
+  // 何枚貼ってあるかだけ先に読む（画像そのものは開いたときに読む）
+  useEffect(() => {
+    if (readOnly) return
+    let alive = true
+    fetchTradeImageCounts()
+      .then((c) => alive && setChartCounts(c))
+      .catch(() => {
+        /* 表が未作成でも一覧は普通に使えるようにする */
+      })
+    return () => {
+      alive = false
+    }
+  }, [readOnly])
 
   const rows = useMemo(() => {
     const list = filterDay ? trades.filter((t) => t.jstDay === filterDay) : trades
@@ -55,6 +80,15 @@ export default function TradesTable({ trades, onChanged, filterDay, readOnly, co
     } catch (e) {
       setErr(friendlyError(e))
     }
+  }
+
+  function toggleChart(id: string) {
+    setChartOf((m) => {
+      const n = { ...m }
+      if (n[id]) delete n[id]
+      else n[id] = true
+      return n
+    })
   }
 
   async function toggleImage(id: string) {
@@ -233,9 +267,18 @@ export default function TradesTable({ trades, onChanged, filterDay, readOnly, co
                       <Icon name="pencil" size={16} />
                       編集
                     </button>
+                    <button className="btn btn-quiet" onClick={() => toggleChart(t.id)}>
+                      <Icon name="chart" size={16} />
+                      {chartOf[t.id] ? 'チャートを閉じる' : 'チャート'}
+                      {!chartOf[t.id] && chartCounts[t.id] > 0 && (
+                        <span className="rounded-full bg-brand-soft px-1.5 text-[11px] font-bold text-brand">
+                          {chartCounts[t.id]}
+                        </span>
+                      )}
+                    </button>
                     <button className="btn btn-quiet" onClick={() => toggleImage(t.id)}>
                       <Icon name="camera" size={16} />
-                      {imgOf[t.id] !== undefined ? '画像を閉じる' : '画像'}
+                      {imgOf[t.id] !== undefined ? 'スクショを閉じる' : 'スクショ'}
                     </button>
                     <button
                       className="btn btn-ghost ml-auto"
@@ -257,7 +300,16 @@ export default function TradesTable({ trades, onChanged, filterDay, readOnly, co
                   </div>
                 )}
 
-                {/* 添付画像 */}
+                {/* チャート画像 */}
+                {chartOf[t.id] && (
+                  <ChartImages
+                    tradeId={t.id}
+                    readOnly={readOnly}
+                    onCountChange={(n) => setChartCounts((c) => ({ ...c, [t.id]: n }))}
+                  />
+                )}
+
+                {/* 取込元のスクショ */}
                 {imgOf[t.id] !== undefined && (
                   <div className="border-t border-line px-4 py-3">
                     {imgOf[t.id] === 'loading' ? (

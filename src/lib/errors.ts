@@ -35,6 +35,9 @@ export function friendlyError(e: unknown): string {
   if (/user_id/i.test(raw) && /column|schema cache|does not exist/i.test(raw)) {
     return `${raw}\n\n→ 利用者ごとにデータを分ける列がまだありません。Supabase の SQL Editor で supabase/migrations/2026-08-05_multi_user.sql を実行してください。`
   }
+  if (/trade_images/i.test(raw) && /relation|does not exist|schema cache/i.test(raw)) {
+    return `${raw}\n\n→ チャート画像を保存する表がまだありません。Supabase の SQL Editor で supabase/migrations/2026-08-06_trade_images.sql を実行してください。`
+  }
   if (/day_notes/i.test(raw) && /relation|does not exist|schema cache/i.test(raw)) {
     return `${raw}\n\n→ 日記を保存する表がまだありません。Supabase の SQL Editor で supabase/schema.sql を実行してください。`
   }

@@ -68,6 +68,19 @@ create table if not exists public.settings (
   updated_at         timestamptz default now()
 );
 
+-- 取引ごとのチャート画像 ----------------------------------------
+-- 1取引に何枚でも貼れる。一覧で重い画像を読まずに済むよう別表にする。
+create table if not exists public.trade_images (
+  id         uuid primary key default gen_random_uuid(),
+  user_id    uuid not null references auth.users(id) on delete cascade default auth.uid(),
+  trade_id   uuid not null references public.trades(id) on delete cascade,
+  image      text not null,                 -- 縮小した data URL
+  caption    text,                          -- 「エントリー」などの説明
+  created_at timestamptz default now()
+);
+create index if not exists trade_images_trade_idx on public.trade_images (trade_id, created_at);
+create index if not exists trade_images_user_idx  on public.trade_images (user_id);
+
 -- 連携コード（MT5のEAなど、外部から書き込むための鍵） -----------
 create table if not exists public.ingest_tokens (
   token        text primary key,
@@ -84,7 +97,13 @@ create index if not exists ingest_tokens_user_idx on public.ingest_tokens (user_
 alter table public.trades        enable row level security;
 alter table public.day_notes     enable row level security;
 alter table public.settings      enable row level security;
+alter table public.trade_images  enable row level security;
 alter table public.ingest_tokens enable row level security;
+
+drop policy if exists "own trade_images" on public.trade_images;
+create policy "own trade_images" on public.trade_images
+  for all to authenticated
+  using (user_id = auth.uid()) with check (user_id = auth.uid());
 
 drop policy if exists "own trades" on public.trades;
 create policy "own trades" on public.trades

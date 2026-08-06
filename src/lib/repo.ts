@@ -1,5 +1,5 @@
 import { supabase } from './supabase'
-import type { DayNote, Settings, Trade, TradeInput } from './types'
+import type { DayNote, Settings, Trade, TradeImage, TradeInput } from './types'
 
 const NO_CLIENT = 'Supabase が未設定です (.env / Netlify の環境変数を確認してください)'
 const NO_USER = 'ログインが必要です'
@@ -189,6 +189,81 @@ export async function upsertDayNote(day: string, note: string): Promise<void> {
     if (insErr) throw insErr
     if (!inserted?.length) throw new Error(WRITE_BLOCKED)
   }
+}
+
+// ---------------------------------------------------------------
+// 取引ごとのチャート画像
+// ---------------------------------------------------------------
+
+/** その取引に貼ってあるチャート画像を、貼った順に取得する */
+export async function fetchTradeImages(tradeId: string): Promise<TradeImage[]> {
+  if (!supabase) throw new Error(NO_CLIENT)
+  const { data, error } = await supabase
+    .from('trade_images')
+    .select('id,trade_id,image,caption,created_at')
+    .eq('trade_id', tradeId)
+    .order('created_at', { ascending: true })
+  if (error) throw error
+  return (data ?? []) as TradeImage[]
+}
+
+/**
+ * どの取引に何枚貼ってあるかだけを数える。
+ * 一覧に枚数を出すために使うので、重い画像そのものは読まない。
+ */
+export async function fetchTradeImageCounts(): Promise<Record<string, number>> {
+  if (!supabase) throw new Error(NO_CLIENT)
+  const userId = await requireUserId()
+  const { data, error } = await supabase
+    .from('trade_images')
+    .select('trade_id')
+    .eq('user_id', userId)
+  if (error) throw error
+
+  const counts: Record<string, number> = {}
+  for (const r of (data ?? []) as { trade_id: string }[]) {
+    counts[r.trade_id] = (counts[r.trade_id] ?? 0) + 1
+  }
+  return counts
+}
+
+/** チャート画像を追加する。返り値は追加できた行。 */
+export async function addTradeImages(
+  tradeId: string,
+  images: { image: string; caption?: string | null }[],
+): Promise<TradeImage[]> {
+  if (!supabase) throw new Error(NO_CLIENT)
+  if (images.length === 0) return []
+  const userId = await requireUserId()
+
+  const rows = images.map((x) => ({
+    user_id: userId,
+    trade_id: tradeId,
+    image: x.image,
+    caption: x.caption ?? null,
+  }))
+  const { data, error } = await supabase
+    .from('trade_images')
+    .insert(rows)
+    .select('id,trade_id,image,caption,created_at')
+  if (error) throw error
+  return (data ?? []) as TradeImage[]
+}
+
+/** チャート画像の説明を書き換える */
+export async function updateTradeImageCaption(id: string, caption: string): Promise<void> {
+  if (!supabase) throw new Error(NO_CLIENT)
+  const { error } = await supabase
+    .from('trade_images')
+    .update({ caption: caption || null })
+    .eq('id', id)
+  if (error) throw error
+}
+
+export async function deleteTradeImage(id: string): Promise<void> {
+  if (!supabase) throw new Error(NO_CLIENT)
+  const { error } = await supabase.from('trade_images').delete().eq('id', id)
+  if (error) throw error
 }
 
 // ---------------------------------------------------------------

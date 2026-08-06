@@ -57,6 +57,17 @@ export interface EnrichedTrade extends Trade {
   session: SessionKey
 }
 
+/** 取引に貼ったチャート画像。1取引に何枚でも持てる */
+export interface TradeImage {
+  id: string
+  trade_id: string
+  /** 縮小した data URL */
+  image: string
+  /** 「エントリー」「決済後」などの説明 */
+  caption: string | null
+  created_at?: string
+}
+
 export type SessionKey = 'tokyo' | 'london' | 'ny' | 'other'
 
 export interface DayNote {
