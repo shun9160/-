@@ -18,10 +18,18 @@ body,
 
 body {
   margin: 0;
-  background: #fafafc;
   color: #18171f;
   -webkit-font-smoothing: antialiased;
   text-rendering: optimizeLegibility;
+
+  /* 下地は白に近い灰色。その上に、ロゴと同じ紫と青をごく薄くのせる。
+     画面の上のほうだけほんのり色づき、下にいくにつれて消える。
+     白いカードが浮いて見えるのが目的なので、濃くしすぎないこと。 */
+  background-color: #fafafc;
+  background-image:
+    radial-gradient(1250px 900px at -5% -22%, rgba(109, 74, 255, 0.24), rgba(109, 74, 255, 0) 62%),
+    radial-gradient(1050px 760px at 105% -16%, rgba(47, 107, 255, 0.2), rgba(47, 107, 255, 0) 62%);
+  background-repeat: no-repeat;
 }
 
 /* iOS のセーフエリアぶんだけ下タブを持ち上げる */

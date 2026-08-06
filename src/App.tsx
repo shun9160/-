@@ -164,8 +164,8 @@ export default function App() {
         <header
           className={`sticky top-0 z-20 border-b px-4 py-3 backdrop-blur ${
             heroFlush
-              ? 'border-transparent bg-[#6741FF] md:border-line md:bg-page/90'
-              : 'border-line bg-page/90'
+              ? 'border-transparent bg-[#6741FF] md:border-line md:bg-page/75'
+              : 'border-line bg-page/75'
           }`}
         >
           <div className="mx-auto flex max-w-6xl items-center gap-3">
