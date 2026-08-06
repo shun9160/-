@@ -89,7 +89,7 @@ export default function AccountSwitcher({ accounts, value, onChange, onManage }:
   }
 
   return (
-    <div className="flex items-center gap-1.5">
+    <div className="flex items-center">
       <div ref={boxRef} className="relative min-w-0 flex-1 sm:max-w-xs">
         <button
           type="button"
@@ -188,20 +188,39 @@ export default function AccountSwitcher({ accounts, value, onChange, onManage }:
                 </div>
               )
             })}
+
+            {/* 口座を足す・直すのはここから。
+                外に鉛筆のボタンを出していたが、押すと何ができるのか
+                分かりにくかったので、開いた中にまとめた。 */}
+            {onManage && (
+              <>
+                <div className="my-1 border-t border-line" />
+                <button
+                  type="button"
+                  onClick={() => {
+                    setOpen(false)
+                    onManage()
+                  }}
+                  className="flex w-full items-center gap-2.5 rounded-xl px-2.5 py-2 text-left transition-colors hover:bg-sunken"
+                >
+                  <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-brand-soft text-brand">
+                    <Icon name="plus" size={16} />
+                  </span>
+                  <span className="min-w-0 flex-1">
+                    <span className="block truncate text-sm font-semibold leading-tight text-ink">
+                      口座を追加・編集
+                    </span>
+                    <span className="block truncate text-[11px] leading-tight text-ink2">
+                      ブローカーや口座番号、原資を設定する
+                    </span>
+                  </span>
+                  <Icon name="right" size={15} className="shrink-0 text-ink3" />
+                </button>
+              </>
+            )}
           </div>
         )}
       </div>
-
-      {onManage && (
-        <button
-          className={`btn shrink-0 px-2.5 text-ink ${GLASS}`}
-          onClick={onManage}
-          aria-label="口座を管理"
-          title="口座を管理"
-        >
-          <Icon name="pencil" size={16} />
-        </button>
-      )}
     </div>
   )
 }
