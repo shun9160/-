@@ -31,8 +31,11 @@ const BOOK_PATHS = [
 ]
 
 /**
- * 本だけのマーク。
- * 小さく置いても読めるよう、角丸の四角にのせて白抜きにしている。
+ * 角丸の四角に「FX」を白抜きしたマーク。
+ *
+ * 文字は書体に頼らず図形で描いてある。
+ * 端末に入っている書体で形が変わったり、
+ * ファビコンで書体が読み込めずに崩れたりしないようにするため。
  */
 export function LogoMark({ size = 32, className = '' }: { size?: number; className?: string }) {
   const id = useId()
@@ -52,11 +55,19 @@ export function LogoMark({ size = 32, className = '' }: { size?: number; classNa
         </linearGradient>
       </defs>
       <rect width="32" height="32" rx="8" fill={`url(#${id})`} />
-      <g transform="translate(5 7.7) scale(0.733)" fill="#FFFFFF">
-        {BOOK_PATHS.map((d) => (
-          <path key={d} d={d} />
-        ))}
+      {/* F */}
+      <g fill="#FFFFFF">
+        <rect x="6.8" y="9" width="3.1" height="14" rx="0.8" />
+        <rect x="6.8" y="9" width="7.6" height="3.1" rx="0.8" />
+        <rect x="6.8" y="14.6" width="6.4" height="3" rx="0.8" />
       </g>
+      {/* X */}
+      <path
+        d="M17.9 10.5 24.3 21.5M24.3 10.5 17.9 21.5"
+        stroke="#FFFFFF"
+        strokeWidth="3.1"
+        strokeLinecap="round"
+      />
     </svg>
   )
 }
@@ -110,18 +121,15 @@ export function Wordmark({
       style={{ fontSize: size }}
       // 読み上げと検索には、ふつうの文字列として伝える
       role="img"
-      aria-label="MyFX BOOK"
+      aria-label="FX BOOK"
     >
-      <span className={ink} aria-hidden="true">
-        My
-      </span>
       <span
         aria-hidden="true"
         className="bg-gradient-to-r from-[#6D4AFF] to-[#2F6BFF] bg-clip-text text-transparent"
       >
         FX
       </span>
-      <span className={ink} aria-hidden="true" style={{ marginLeft: size * 0.2 }}>
+      <span className={ink} aria-hidden="true" style={{ marginLeft: size * 0.22 }}>
         B
       </span>
       <span

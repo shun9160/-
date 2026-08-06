@@ -2,8 +2,8 @@
  * アプリの名前まわり。名前を変えるときはここだけ直せば全画面に反映される。
  */
 export const BRAND = {
-  name: 'MyFX BOOK',
-  nameJa: 'マイFXブック',
+  name: 'FX BOOK',
+  nameJa: 'エフエックスブック',
   /** 何をする道具かを一言で */
   tagline: 'トレードを記録し、成長を積み重ねる',
   /** 短い説明 */

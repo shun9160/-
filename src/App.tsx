@@ -5,7 +5,7 @@ import { useAuth } from './hooks/useAuth'
 import { isSupabaseConfigured } from './lib/supabase'
 import { getAppConfig, updateAppConfig } from './lib/appConfig'
 import { BRAND } from './lib/brand'
-import { LogoMark } from './components/Logo'
+import { Wordmark } from './components/Logo'
 import Avatar from './components/Avatar'
 import Onboarding from './components/Onboarding'
 import { BottomNav, NAV_ITEMS, type ScreenKey } from './components/Nav'
@@ -104,6 +104,14 @@ export default function App() {
     accounts.length > 1 ? [null, ...accounts.map((a) => a.id)] : []
 
   const item = NAV_ITEMS.find((i) => i.key === screen)!
+  /** 下のタブに無い画面を開いているとき、その名前 */
+  const subScreen = showAccount
+    ? 'アカウント'
+    : showAccounts
+      ? '口座'
+      : showAllTrades
+        ? 'すべての取引'
+        : null
 
   // 認証状態の確認中
   if (!ready) {
@@ -149,30 +157,18 @@ export default function App() {
         {/* 上部バー */}
         <header className="sticky top-0 z-20 border-b border-line bg-page/90 px-4 py-3 backdrop-blur">
           <div className="mx-auto flex max-w-6xl items-center gap-3">
-            <span className="md:hidden">
-              <LogoMark size={28} />
-            </span>
-            {/* スマホは、いる場所を上部バーで示す（大きな見出しの代わり） */}
-            <span className="truncate text-base font-bold text-ink md:hidden">
-              {showAccount
-                ? 'アカウント'
-                : showAccounts
-                  ? '口座'
-                  : showAllTrades
-                    ? 'すべての取引'
-                    : item.label}
+            {/* スマホ。タブの画面は下のバーで場所が分かるので、上には名前を出す。
+                下のバーに無い画面（アカウントなど）のときだけ、そこの名前に差し替える。 */}
+            <span className="min-w-0 md:hidden">
+              {subScreen ? (
+                <span className="truncate text-base font-bold text-ink">{subScreen}</span>
+              ) : (
+                <Wordmark size={19} />
+              )}
             </span>
             <nav aria-label="現在地" className="hidden text-sm text-ink3 md:block">
               {BRAND.name} <span className="mx-1">/</span>
-              <span className="font-semibold text-ink">
-                {showAccount
-                  ? 'アカウント'
-                  : showAccounts
-                    ? '口座'
-                    : showAllTrades
-                      ? 'すべての取引'
-                      : item.label}
-              </span>
+              <span className="font-semibold text-ink">{subScreen ?? item.label}</span>
             </nav>
             <div className="ml-auto flex items-center gap-2">
               <button
