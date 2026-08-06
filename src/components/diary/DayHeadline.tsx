@@ -5,6 +5,7 @@ import { colorOf, fmtMoney, fmtNum } from '../../lib/format'
 import { fmtJst } from '../../lib/timezone'
 import { currencyLabel } from '../../lib/appConfig'
 import Icon from '../Icon'
+import AnimatedMoney from '../AnimatedMoney'
 
 const WEEKDAYS_JA = ['日', '月', '火', '水', '木', '金', '土']
 
@@ -99,8 +100,8 @@ export default function DayHeadline({
         <div className="min-w-0 flex-1">
           <div className="sm:mt-6">
             <p className="text-xs text-ink2">{isToday ? '今日の損益' : 'この日の損益'}</p>
-            <p className={`text-3xl font-bold tabular-nums ${colorOf(sum.netTotal)}`}>
-              {fmtMoney(sum.netTotal, { sign: true })}
+            <p className="text-3xl font-bold">
+              <AnimatedMoney value={sum.netTotal} />
               <span className="ml-1 text-sm font-semibold text-ink3">{currencyLabel()}</span>
             </p>
             {trades.length > 0 && (

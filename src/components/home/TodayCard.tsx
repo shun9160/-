@@ -7,6 +7,7 @@ import { fmtMoney, fmtNum, fmtPct } from '../../lib/format'
 import { fmtJst } from '../../lib/timezone'
 import Icon from '../Icon'
 import type { IconName } from '../Icon'
+import AnimatedMoney from '../AnimatedMoney'
 
 interface Props {
   today: TodayCompare
@@ -168,8 +169,9 @@ function Front({
       <div className="flex items-start justify-between gap-3">
         <div className="min-w-0">
           <p className="text-xs font-semibold text-white/90">今日の損益</p>
-          <p className="mt-1 text-hero font-bold tabular-nums">
-            {fmtMoney(today.todayNet, { sign: true })}
+          <p className="mt-1 text-hero font-bold">
+            {/* 紫の面の上なので、緑・赤は付けずに白のまま動かす */}
+            <AnimatedMoney value={today.todayNet} colored={false} />
             <span className="ml-1.5 text-base font-semibold text-white/90">{currencyLabel()}</span>
           </p>
         </div>

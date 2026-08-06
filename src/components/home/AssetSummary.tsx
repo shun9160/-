@@ -2,6 +2,7 @@ import type { Account } from '../../lib/types'
 import { currencyLabel } from '../../lib/appConfig'
 import { colorOf, fmtMoney, fmtPct } from '../../lib/format'
 import Icon from '../Icon'
+import AnimatedMoney from '../AnimatedMoney'
 import type { IconName } from '../Icon'
 
 interface Props {
@@ -48,15 +49,16 @@ export default function AssetSummary({
           <Cell
             icon="wallet"
             label="現在の資産"
-            value={hasCapital ? fmtMoney(capital + netTotal) : fmtMoney(netTotal, { sign: true })}
+            money={hasCapital ? capital + netTotal : netTotal}
+            moneySign={!hasCapital}
+            moneyColored={false}
             unit={currencyLabel()}
           />
           <Cell
             icon="trendUp"
             label="累計利益"
-            value={fmtMoney(netTotal, { sign: true })}
+            money={netTotal}
             unit={currencyLabel()}
-            valueClass={colorOf(netTotal)}
             tone={netTotal >= 0 ? 'up' : 'down'}
           />
           <Cell
@@ -92,13 +94,21 @@ function Cell({
   icon,
   label,
   value,
+  money,
+  moneySign = true,
+  moneyColored = true,
   unit,
   valueClass,
   tone = 'neutral',
 }: {
   icon: IconName
   label: string
-  value: string
+  /** 文字のまま出す値 */
+  value?: string
+  /** 金額。渡すとカウントアップして出る */
+  money?: number
+  moneySign?: boolean
+  moneyColored?: boolean
   unit?: string
   valueClass?: string
   tone?: 'up' | 'down' | 'neutral'
@@ -114,11 +124,14 @@ function Cell({
       {/* 金額が長いと折り返して、3つの升目の高さがずれるので折り返さない */}
       <dd
         className={`mt-1 w-full truncate whitespace-nowrap text-base font-bold tabular-nums sm:text-lg ${
-          valueClass ?? 'text-ink'
+          money != null && moneyColored ? '' : (valueClass ?? 'text-ink')
         }`}
-        title={unit ? `${value} ${unit}` : value}
       >
-        {value}
+        {money != null ? (
+          <AnimatedMoney value={money} sign={moneySign} colored={moneyColored} />
+        ) : (
+          value
+        )}
         {unit && <span className="ml-0.5 text-[11px] font-semibold text-ink3">{unit}</span>}
       </dd>
       <span className={`mt-2 flex h-8 w-8 items-center justify-center rounded-full ${ring}`}>
