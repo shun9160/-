@@ -163,7 +163,7 @@ export default function App() {
               {subScreen ? (
                 <span className="truncate text-base font-bold text-ink">{subScreen}</span>
               ) : (
-                <Wordmark size={19} />
+                <Wordmark size={24} />
               )}
             </span>
             <nav aria-label="現在地" className="hidden text-sm text-ink3 md:block">
