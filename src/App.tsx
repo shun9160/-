@@ -282,6 +282,9 @@ export default function App() {
                   accounts={accounts}
                   onShowAll={() => setShowAllTrades(true)}
                   onAdd={() => go('add')}
+                  onStats={() => go('stats')}
+                  onDiary={() => go('diary')}
+                  onOpenDay={openDay}
                   onChanged={reload}
                   readOnly={demo}
                 />

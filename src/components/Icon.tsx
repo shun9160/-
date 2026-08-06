@@ -17,6 +17,16 @@ export type IconName =
   | 'check'
   | 'close'
   | 'wallet'
+  | 'trendUp'
+  | 'trendDown'
+  | 'percent'
+  | 'scale'
+  | 'clock'
+  | 'target'
+  | 'flame'
+  | 'star'
+  | 'bulb'
+  | 'rocket'
   | 'down'
   | 'info'
 
@@ -87,6 +97,58 @@ const PATHS: Record<IconName, JSX.Element> = {
   check: <path d="m5 12.5 4.5 4.5L19 7" />,
   close: <path d="M6 6l12 12M18 6 6 18" />,
   down: <path d="m6 9.5 6 6 6-6" />,
+  trendUp: (
+    <>
+      <path d="M4 17.5 10 11l3.5 3.5L20 7" />
+      <path d="M15 7h5v5" />
+    </>
+  ),
+  trendDown: (
+    <>
+      <path d="M4 6.5 10 13l3.5-3.5L20 17" />
+      <path d="M15 17h5v-5" />
+    </>
+  ),
+  percent: (
+    <>
+      <path d="M19 5 5 19" />
+      <circle cx="7.5" cy="7.5" r="2.5" />
+      <circle cx="16.5" cy="16.5" r="2.5" />
+    </>
+  ),
+  scale: (
+    <>
+      <path d="M12 4v16M7 20h10M4 9h16" />
+      <path d="M4 9 1.5 15h5zM20 9l-2.5 6h5z" />
+    </>
+  ),
+  clock: (
+    <>
+      <circle cx="12" cy="12" r="9" />
+      <path d="M12 7v5.2l3.2 2" />
+    </>
+  ),
+  target: (
+    <>
+      <circle cx="12" cy="12" r="8.5" />
+      <circle cx="12" cy="12" r="4" />
+      <circle cx="12" cy="12" r="0.8" fill="currentColor" />
+    </>
+  ),
+  flame: <path d="M12 3s4.5 3.6 4.5 8a4.5 4.5 0 0 1-9 0c0-1.4.6-2.6 1.3-3.5.2 1.2.9 2 1.7 2 1 0 1.5-.9 1.5-2.3 0-1.6-.5-3-1-4.2z" />,
+  star: <path d="m12 3.8 2.5 5.1 5.6.8-4 4 .9 5.6-5-2.6-5 2.6.9-5.6-4-4 5.6-.8z" />,
+  bulb: (
+    <>
+      <path d="M9 17h6M10 20.5h4" />
+      <path d="M12 3a6 6 0 0 0-3.5 10.9c.4.3.5.7.5 1.1h6c0-.4.1-.8.5-1.1A6 6 0 0 0 12 3z" />
+    </>
+  ),
+  rocket: (
+    <>
+      <path d="M13.5 4.5C16.5 5.5 19 8 20 11l-6.5 6.5-3-1.5-1.5-3z" />
+      <path d="M8 16c-1.5 1.5-1.5 4-1.5 4s2.5 0 4-1.5" />
+    </>
+  ),
   wallet: (
     <>
       <rect x="3" y="6" width="18" height="13" rx="2.5" />

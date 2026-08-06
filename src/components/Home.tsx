@@ -1,14 +1,18 @@
 import { useMemo, useState } from 'react'
 import type { Account, EnrichedTrade } from '../lib/types'
-import { comparePeriods, netOf, summarize } from '../lib/analytics'
+import { comparePeriods, compareWithYesterday, summarize } from '../lib/analytics'
 import { jstDayKey } from '../lib/timezone'
-import { currencyLabel } from '../lib/appConfig'
-import { colorOf, fmtMoney, fmtNum, fmtPct } from '../lib/format'
 import CapitalCard from './CapitalCard'
-import PnlCharts from './PnlCharts'
-import TradesTable from './TradesTable'
 import Icon from './Icon'
-import { Delta, EmptyState, SectionHeader, SegmentedControl, StatCard } from './ui'
+import { EmptyState, SegmentedControl } from './ui'
+import TodayCard from './home/TodayCard'
+import AssetSummary from './home/AssetSummary'
+import StatTiles from './home/StatTiles'
+import InsightCard from './home/InsightCard'
+import PnlSection from './home/PnlSection'
+import StyleCard from './home/StyleCard'
+import RecentTrades from './home/RecentTrades'
+import GrowthSteps from './home/GrowthSteps'
 
 interface Props {
   trades: EnrichedTrade[]
@@ -17,6 +21,9 @@ interface Props {
   accounts: Account[]
   onShowAll: () => void
   onAdd: () => void
+  onStats: () => void
+  onDiary: () => void
+  onOpenDay: (day: string) => void
   onChanged: () => void
   readOnly?: boolean
 }
@@ -31,10 +38,20 @@ const RANGES: { value: RangeKey; label: string }[] = [
 ]
 
 export default function Home({
-  trades, account, accounts, onShowAll, onAdd, onChanged, readOnly,
+  trades,
+  account,
+  accounts,
+  onShowAll,
+  onAdd,
+  onStats,
+  onDiary,
+  onOpenDay,
+  onChanged,
+  readOnly,
 }: Props) {
   const [range, setRange] = useState<RangeKey>('30')
-  const [chart, setChart] = useState<'cumulative' | 'daily'>('cumulative')
+  /** 原資の編集を開いているか */
+  const [editingCapital, setEditingCapital] = useState(false)
   const days = Number(range)
 
   const cmp = useMemo(() => comparePeriods(trades, days), [trades, days])
@@ -43,9 +60,10 @@ export default function Home({
   const all = useMemo(() => summarize(trades), [trades])
 
   const todayKey = jstDayKey(new Date())
-  const todayNet = useMemo(
-    () => netOf(trades.filter((t) => t.jstDay === todayKey)),
-    [trades, todayKey],
+  const yesterdayKey = jstDayKey(new Date(Date.now() - 86400_000))
+  const today = useMemo(
+    () => compareWithYesterday(trades, todayKey, yesterdayKey),
+    [trades, todayKey, yesterdayKey],
   )
 
   const recent = useMemo(
@@ -53,23 +71,32 @@ export default function Home({
     [trades],
   )
 
-  const netDelta = cmp.ratioOf(netOf)
-  const countDelta = cmp.ratioOf((t) => t.length)
-  const winDelta = cmp.ratioOf((t) =>
-    t.length ? t.filter((x) => x.win).length / t.length : 0,
-  )
   const rangeLabel = days > 0 ? `直近${days}日` : '全期間'
 
   if (trades.length === 0) {
     return (
       <div className="flex flex-col gap-4">
-        <CapitalCard
+        <AssetSummary
           account={account}
           accounts={accounts}
           netTotal={0}
-          onChanged={onChanged}
+          onEditCapital={() => setEditingCapital(true)}
           readOnly={readOnly}
         />
+        {editingCapital && (
+          <CapitalCard
+            account={account}
+            accounts={accounts}
+            netTotal={0}
+            onChanged={() => {
+              setEditingCapital(false)
+              onChanged()
+            }}
+            readOnly={readOnly}
+            startEditing
+            onClose={() => setEditingCapital(false)}
+          />
+        )}
         <EmptyState
           icon="upload"
           title="まだ取引がありません"
@@ -86,142 +113,63 @@ export default function Home({
   }
 
   return (
-    // 画面幅にかかわらず、口座の残高を一番上に置く。
-    // 広い画面では、その下を2列（グラフ／内訳）に分ける。
-    <div className="flex flex-col gap-4 xl:grid xl:grid-cols-[1.6fr_1fr] xl:items-start">
-      {/* 残高と原資 — 最初に見たい数字 */}
-      <div className="order-1 xl:order-none xl:col-span-2 xl:row-start-1">
-        <CapitalCard
+    // 広い画面では2列。左に「いまの状態」、右に「中身の確認」を並べる。
+    <div className="flex flex-col gap-4 xl:grid xl:grid-cols-2 xl:items-start">
+      {/* --- 左: いまどうなっているか ---------------------------- */}
+      <div className="flex flex-col gap-4">
+        <TodayCard today={today} netTotal={all.netTotal} onSeeDetail={() => onOpenDay(todayKey)} />
+
+        <AssetSummary
           account={account}
           accounts={accounts}
           netTotal={all.netTotal}
-          onChanged={onChanged}
+          onEditCapital={() => setEditingCapital(true)}
           readOnly={readOnly}
         />
+
+        {editingCapital && (
+          <CapitalCard
+            account={account}
+            accounts={accounts}
+            netTotal={all.netTotal}
+            onChanged={() => {
+              setEditingCapital(false)
+              onChanged()
+            }}
+            readOnly={readOnly}
+            startEditing
+            onClose={() => setEditingCapital(false)}
+          />
+        )}
+
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <SegmentedControl value={range} onChange={setRange} options={RANGES} />
+          <button className="btn btn-quiet" onClick={onAdd}>
+            <Icon name="plus" size={16} />
+            取引を記録
+          </button>
+        </div>
+
+        <StatTiles trades={ranged} sum={sum} />
+
+        <InsightCard trades={ranged} sum={sum} onSeeStats={onStats} />
+
+        <PnlSection trades={ranged} netTotal={sum.netTotal} rangeLabel={rangeLabel} />
       </div>
 
-      {/* 期間の切り替え */}
-      <div className="order-2 flex flex-wrap items-center justify-between gap-3 xl:order-none xl:col-span-2 xl:row-start-2">
-        <SegmentedControl value={range} onChange={setRange} options={RANGES} />
-        <button className="btn btn-quiet" onClick={onAdd}>
-          <Icon name="plus" size={16} />
-          取引を記録
-        </button>
+      {/* --- 右: 中身をたしかめる -------------------------------- */}
+      <div className="flex flex-col gap-4">
+        <StyleCard trades={ranged} sum={sum} rangeLabel={rangeLabel} />
+
+        <RecentTrades
+          recent={recent}
+          total={trades.length}
+          onShowAll={onShowAll}
+          onOpenDay={onOpenDay}
+        />
+
+        <GrowthSteps onRecord={onAdd} onStats={onStats} onDiary={onDiary} />
       </div>
-
-      {/* 主要な数値 */}
-      <div className="order-3 grid grid-cols-2 gap-3 xl:order-none xl:col-span-2 xl:row-start-3 xl:grid-cols-4">
-        <StatCard
-          icon="chart"
-          label={`${rangeLabel}の損益`}
-          value={fmtMoney(sum.netTotal, { sign: true })}
-          unit={currencyLabel()}
-          valueClass={colorOf(sum.netTotal)}
-          delta={days > 0 ? <Delta ratio={netDelta} /> : undefined}
-          hint="手数料・スワップ込み"
-        />
-        <StatCard
-          icon="check"
-          label="勝率"
-          value={fmtPct(sum.winRate)}
-          delta={days > 0 ? <Delta ratio={winDelta} /> : undefined}
-          hint={`${sum.wins}勝 ${sum.losses}敗`}
-        />
-        <StatCard
-          icon="book"
-          label="取引数"
-          value={`${sum.count}`}
-          unit="件"
-          delta={days > 0 ? <Delta ratio={countDelta} /> : undefined}
-        />
-        <StatCard
-          icon="home"
-          label="今日の損益"
-          value={fmtMoney(todayNet, { sign: true })}
-          unit={currencyLabel()}
-          valueClass={colorOf(todayNet)}
-          hint={`累計 ${fmtMoney(all.netTotal, { sign: true })}`}
-        />
-      </div>
-
-      {/* 損益の推移 */}
-      <section className="order-4 card p-5 xl:order-none xl:col-start-1 xl:row-start-4 xl:row-span-2">
-          <SectionHeader
-            title="損益の推移"
-            sub={rangeLabel}
-            actions={
-              <SegmentedControl
-                size="sm"
-                value={chart}
-                onChange={setChart}
-                options={[
-                  { value: 'cumulative', label: '累積' },
-                  { value: 'daily', label: '日別' },
-                ]}
-              />
-            }
-          />
-          <p className={`text-2xl font-bold tabular-nums ${colorOf(sum.netTotal)}`}>
-            {fmtMoney(sum.netTotal, { sign: true })}
-            <span className="ml-1 text-sm font-semibold text-ink3">{currencyLabel()}</span>
-          </p>
-          {days > 0 && (
-            <div className="mt-1">
-              <Delta ratio={netDelta} />
-            </div>
-          )}
-          <div className="mt-4">
-            <PnlCharts trades={ranged} kind={chart} />
-          </div>
-      </section>
-
-      {/* 平均のすがた */}
-      <section className="order-5 card p-5 xl:order-none xl:col-start-2 xl:row-start-4 xl:self-start">
-        <SectionHeader title="平均のすがた" sub={rangeLabel} />
-        <dl className="flex flex-col gap-3">
-          <Row label="平均ロット" value={fmtNum(sum.avgVolume, 2)} />
-          <Row
-            label="損益比"
-            value={
-              sum.profitFactor == null
-                ? '—'
-                : sum.profitFactor === Infinity
-                  ? '∞'
-                  : fmtNum(sum.profitFactor)
-            }
-          />
-          <Row
-            label="実際の損益倍率"
-            value={sum.avgRMultiple != null ? `${fmtNum(sum.avgRMultiple)} R` : '—'}
-            cls={sum.avgRMultiple != null ? colorOf(sum.avgRMultiple) : undefined}
-          />
-          <Row label="TPまで届いた割合" value={fmtPct(sum.tpHitRate)} />
-        </dl>
-      </section>
-
-      {/* 最近の取引 */}
-      <section className="order-6 xl:order-none xl:col-span-2 xl:row-start-6">
-        <SectionHeader
-          title="最近の取引"
-          sub={`全${trades.length}件のうち直近${recent.length}件`}
-          actions={
-            <button className="btn btn-quiet" onClick={onShowAll}>
-              すべて見る
-              <Icon name="right" size={15} />
-            </button>
-          }
-        />
-        <TradesTable trades={recent} onChanged={onChanged} readOnly compact />
-      </section>
-    </div>
-  )
-}
-
-function Row({ label, value, cls }: { label: string; value: string; cls?: string }) {
-  return (
-    <div className="flex items-baseline justify-between gap-3">
-      <dt className="text-sm text-ink2">{label}</dt>
-      <dd className={`text-base font-bold tabular-nums ${cls ?? 'text-ink'}`}>{value}</dd>
     </div>
   )
 }

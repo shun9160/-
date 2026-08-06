@@ -18,10 +18,16 @@ interface Props {
   netTotal: number
   onChanged: () => void
   readOnly?: boolean
+  /** 開いた時点で編集を出す（ホームから呼ぶとき） */
+  startEditing?: boolean
+  /** 編集をやめたときに閉じる */
+  onClose?: () => void
 }
 
-export default function CapitalCard({ account, accounts, netTotal, onChanged, readOnly }: Props) {
-  const [editing, setEditing] = useState(false)
+export default function CapitalCard({
+  account, accounts, netTotal, onChanged, readOnly, startEditing, onClose,
+}: Props) {
+  const [editing, setEditing] = useState(Boolean(startEditing))
 
   // 「すべて」のときは各口座の原資を足す。
   // ただし通貨が混ざっていると足せないので、その場合は原資を出さない。
@@ -50,12 +56,18 @@ export default function CapitalCard({ account, accounts, netTotal, onChanged, re
               setEditing(false)
               onChanged()
             }}
-            onCancel={() => setEditing(false)}
+            onCancel={() => {
+              setEditing(false)
+              onClose?.()
+            }}
           />
         </div>
       </section>
     )
   }
+
+  // ホームからは編集だけを開くので、閉じたら何も残さない
+  if (startEditing) return null
 
   return (
     <section className="card p-5">

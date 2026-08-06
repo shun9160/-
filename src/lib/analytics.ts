@@ -268,3 +268,159 @@ function avg(xs: number[]): number {
 function isNum(x: number | null | undefined): x is number {
   return typeof x === 'number' && !isNaN(x) && isFinite(x)
 }
+
+// ---------------------------------------------------------------
+// ホーム画面で使う、もう少し踏み込んだ数字
+// ---------------------------------------------------------------
+
+/** 連勝・連敗の様子 */
+export interface StreakInfo {
+  /** いま何連勝か（負けが続いていれば 0） */
+  winStreak: number
+  /** いま何連敗か（勝ちが続いていれば 0） */
+  lossStreak: number
+  /** これまでの最高連勝 */
+  bestWinStreak: number
+}
+
+export function streakOf(trades: EnrichedTrade[]): StreakInfo {
+  const sorted = [...trades].sort((a, b) => a.openJst.getTime() - b.openJst.getTime())
+  let best = 0
+  let run = 0
+  for (const t of sorted) {
+    run = t.win ? run + 1 : 0
+    if (run > best) best = run
+  }
+  // いまの連続。うしろから同じ結果が続くあいだ数える
+  let winStreak = 0
+  let lossStreak = 0
+  for (let i = sorted.length - 1; i >= 0; i--) {
+    if (sorted[i].win) {
+      if (lossStreak > 0) break
+      winStreak++
+    } else {
+      if (winStreak > 0) break
+      lossStreak++
+    }
+  }
+  return { winStreak, lossStreak, bestWinStreak: best }
+}
+
+/** 日ごとの成績から分かること */
+export interface DailyStats {
+  /** いちばん勝った日の額 */
+  bestDayNet: number | null
+  /** 資産のいちばん大きな落ち込み（累積の山からの下げ幅、マイナスで表す） */
+  maxDrawdown: number | null
+  /** 取引した日1日あたりの平均損益 */
+  avgDailyNet: number | null
+}
+
+export function dailyStats(trades: EnrichedTrade[]): DailyStats {
+  const days = dailySeries(trades)
+  if (days.length === 0) return { bestDayNet: null, maxDrawdown: null, avgDailyNet: null }
+
+  let peak = 0
+  let cum = 0
+  let maxDd = 0
+  for (const d of days) {
+    cum += d.net
+    if (cum > peak) peak = cum
+    const dd = cum - peak
+    if (dd < maxDd) maxDd = dd
+  }
+  return {
+    bestDayNet: Math.max(...days.map((d) => d.net)),
+    maxDrawdown: maxDd,
+    avgDailyNet: days.reduce((s, d) => s + d.net, 0) / days.length,
+  }
+}
+
+/** 決済までの平均の長さ（分）。決済時刻がある取引だけで見る */
+export function avgHoldMinutes(trades: EnrichedTrade[]): number | null {
+  const held = trades
+    .filter((t) => t.closeJst)
+    .map((t) => (t.closeJst!.getTime() - t.openJst.getTime()) / 60000)
+    .filter((m) => m >= 0)
+  if (held.length === 0) return null
+  return held.reduce((s, m) => s + m, 0) / held.length
+}
+
+/** 「2時間18分」のように読める形にする */
+export function fmtDuration(minutes: number | null): string {
+  if (minutes == null) return '—'
+  const m = Math.round(minutes)
+  if (m < 60) return `${m}分`
+  const h = Math.floor(m / 60)
+  const rest = m % 60
+  return rest === 0 ? `${h}時間` : `${h}時間 ${rest}分`
+}
+
+/** 今日と昨日をくらべる */
+export interface TodayCompare {
+  todayNet: number
+  yesterdayNet: number
+  diff: number
+  /** 昨日に対する増減の割合。昨日が0なら null */
+  ratio: number | null
+  todayCount: number
+}
+
+export function compareWithYesterday(
+  trades: EnrichedTrade[],
+  todayKey: string,
+  yesterdayKey: string,
+): TodayCompare {
+  const today = trades.filter((t) => t.jstDay === todayKey)
+  const yest = trades.filter((t) => t.jstDay === yesterdayKey)
+  const todayNet = netOf(today)
+  const yesterdayNet = netOf(yest)
+  return {
+    todayNet,
+    yesterdayNet,
+    diff: todayNet - yesterdayNet,
+    ratio: yesterdayNet === 0 ? null : (todayNet - yesterdayNet) / Math.abs(yesterdayNet),
+    todayCount: today.length,
+  }
+}
+
+/**
+ * 1件の取引を5段階で評価する。
+ *
+ * 予想ではなく、記録された事実だけから決めている:
+ *  ・損切りを置いていたか（置いていないと大きな負けにつながる）
+ *  ・決めた通りに終われたか（TP/SL に届いたか、途中でやめたか）
+ *  ・損益比の計画と結果
+ * 「当たったから偉い」ではなく「決めた通りにやれたか」を見る。
+ */
+export interface TradeGrade {
+  /** 1〜5 */
+  stars: number
+  /** なぜその評価か */
+  reason: string
+}
+
+export function gradeTrade(t: EnrichedTrade): TradeGrade {
+  // 損切りを置いていない取引は、勝っていても運任せなので上限を作る
+  if (t.sl == null) {
+    return t.win
+      ? { stars: 3, reason: '損切りを置かずに勝った取引です' }
+      : { stars: 1, reason: '損切りを置かずに負けた取引です' }
+  }
+
+  if (t.tpHit) return { stars: 5, reason: '決めた利確ラインまで持てました' }
+  if (t.slHit) return { stars: 3, reason: '決めた損切りで止められました' }
+
+  if (t.win) {
+    // 狙いのどれくらいを取れたか
+    const c = t.capturedRatio
+    if (c != null && c >= 0.7) return { stars: 5, reason: '狙いのほとんどを取れました' }
+    if (c != null && c >= 0.4) return { stars: 4, reason: '狙いの半分ほどを取れました' }
+    return { stars: 4, reason: '計画どおりに利確できました' }
+  }
+
+  // 負け。損切りより手前で切れていれば傷は浅い
+  const r = t.rMultiple
+  if (r != null && r > -1) return { stars: 3, reason: '損切りより手前で止められました' }
+  return { stars: 2, reason: '決めた損切りより深く負けています' }
+}
