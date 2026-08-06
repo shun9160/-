@@ -34,12 +34,21 @@ const DEMO_SETTINGS: Settings = {
 /**
  * @param authed ログイン済みか。未ログイン時はサンプルデータを表示する。
  */
+// 「まだ読めていない」ときに返す中身。毎回同じ実体を返して再描画を増やさない。
+const NO_TRADES: EnrichedTrade[] = []
+const NO_NOTES: Record<string, string> = {}
+
 export function useTrades(authed: boolean): State {
   const [rawTrades, setRawTrades] = useState<EnrichedTrade[]>([])
   const [dayNotes, setDayNotes] = useState<Record<string, string>>({})
   const [settings, setSettings] = useState<Settings | null>(null)
-  const [loading, setLoading] = useState(true)
+  const [busy, setBusy] = useState(true)
   const [error, setError] = useState<string | null>(null)
+  /**
+   * いま持っているデータが、ログイン済み(true)・未ログイン(false)
+   * どちらのものか。null はまだ何も読んでいない。
+   */
+  const [loadedFor, setLoadedFor] = useState<boolean | null>(null)
 
   const live = isSupabaseConfigured && authed
 
@@ -49,10 +58,11 @@ export function useTrades(authed: boolean): State {
       setRawTrades(enrichAll(demoTrades()))
       setDayNotes({})
       setSettings(DEMO_SETTINGS)
-      setLoading(false)
+      setLoadedFor(false)
+      setBusy(false)
       return
     }
-    setLoading(true)
+    setBusy(true)
     setError(null)
     try {
       const [trades, notes] = await Promise.all([fetchTrades(), fetchDayNotes()])
@@ -64,8 +74,6 @@ export function useTrades(authed: boolean): State {
       setDayNotes(map)
     } catch (e) {
       setError(friendlyError(e))
-    } finally {
-      setLoading(false)
     }
 
     // 設定テーブルは後から追加したもの。未作成でも本体が止まらないよう個別に扱う。
@@ -74,23 +82,34 @@ export function useTrades(authed: boolean): State {
     } catch {
       setSettings(null)
     }
+
+    // 取引と設定がそろってから見せる。片方だけ先に出すと数字がちらつく。
+    setLoadedFor(true)
+    setBusy(false)
   }, [live])
 
   useEffect(() => {
     void reload()
   }, [reload])
 
+  /**
+   * ログイン状態が変わった直後は、まだ前の状態のデータを持っている。
+   * そのまま出すと、リロードのたびに他人事のような数字が一瞬映る。
+   * 読み直しが終わるまでは「読み込み中」として何も見せない。
+   */
+  const stale = loadedFor !== live
+
   return useMemo(
     () => ({
-      trades: rawTrades,
-      dayNotes,
-      settings,
-      loading,
+      trades: stale ? NO_TRADES : rawTrades,
+      dayNotes: stale ? NO_NOTES : dayNotes,
+      settings: stale ? null : settings,
+      loading: busy || stale,
       error,
       configured: isSupabaseConfigured,
       demo: !live,
       reload,
     }),
-    [rawTrades, dayNotes, settings, loading, error, live, reload],
+    [rawTrades, dayNotes, settings, busy, stale, error, live, reload],
   )
 }
