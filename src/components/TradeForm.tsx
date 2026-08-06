@@ -17,11 +17,13 @@ interface Props {
     opts: { screenshotChanged: boolean; charts: string[] },
   ) => Promise<void>
   onCancel?: () => void
+  /** 記録先が決まっていないなど、まだ登録できない状態 */
+  disabled?: boolean
 }
 
 const numOrNull = (s: string) => (s.trim() === '' ? null : Number(s))
 
-export default function TradeForm({ mode, trade, onSubmit, onCancel }: Props) {
+export default function TradeForm({ mode, trade, onSubmit, onCancel, disabled }: Props) {
   const fileRef = useRef<HTMLInputElement>(null)
   const [busy, setBusy] = useState(false)
   const [err, setErr] = useState<string | null>(null)
@@ -375,7 +377,12 @@ export default function TradeForm({ mode, trade, onSubmit, onCancel }: Props) {
       )}
 
       <div className="flex gap-2">
-        <button className="btn btn-primary flex-1 sm:flex-none" onClick={submit} disabled={busy} type="button">
+        <button
+          className="btn btn-primary flex-1 sm:flex-none"
+          onClick={submit}
+          disabled={busy || disabled}
+          type="button"
+        >
           {busy ? '保存中…' : mode === 'add' ? '記録する' : '変更を保存'}
         </button>
         {onCancel && (

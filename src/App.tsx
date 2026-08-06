@@ -5,7 +5,6 @@ import { useAuth } from './hooks/useAuth'
 import { isSupabaseConfigured } from './lib/supabase'
 import { getAppConfig, updateAppConfig } from './lib/appConfig'
 import { BRAND } from './lib/brand'
-import { accountLabel } from './lib/types'
 import Logo from './components/Logo'
 import Onboarding from './components/Onboarding'
 import { BottomNav, NAV_ITEMS, type ScreenKey } from './components/Nav'
@@ -282,8 +281,8 @@ export default function App() {
               {screen === 'calendar' && <CalendarScreen trades={trades} onSelectDay={openDay} />}
               {screen === 'add' && (
                 <UploadPanel
-                  accountId={writeAccount?.id ?? null}
-                  accountName={writeAccount ? accountLabel(writeAccount) : null}
+                  accounts={accounts}
+                  selectedAccountId={accountId}
                   onChanged={reload}
                   disabled={!configured}
                   onDone={finishAdd}

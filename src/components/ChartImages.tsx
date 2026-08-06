@@ -8,6 +8,7 @@ import {
 } from '../lib/repo'
 import { fileToDownscaledDataUrl } from '../lib/image'
 import { friendlyError } from '../lib/errors'
+import { dropDuplicates, hashDataUrl } from '../lib/imageHash'
 import Icon from './Icon'
 
 // チャートは細い線と数字を見るので、スクショより少し大きめ・高画質で残す。
@@ -52,15 +53,32 @@ export default function ChartImages({ tradeId, readOnly, onCountChange }: Props)
     setErr(null)
     try {
       const shrunk = await Promise.all(
-        files.map(async (f) => ({
-          image: await fileToDownscaledDataUrl(f, MAX_DIM, QUALITY),
-          caption: null,
-        })),
+        files.map(async (f) => {
+          const image = await fileToDownscaledDataUrl(f, MAX_DIM, QUALITY)
+          return { image, caption: null, hash: await hashDataUrl(image) }
+        }),
       )
-      const added = await addTradeImages(tradeId, shrunk)
-      const next = [...(images ?? []), ...added]
-      setImages(next)
-      onCountChange?.(next.length)
+
+      // すでに貼ってあるものと同じ画像は足さない
+      const known = new Set(await Promise.all((images ?? []).map((x) => hashDataUrl(x.image))))
+      const { keepIndexes, duplicates } = await dropDuplicates(shrunk, known)
+
+      if (keepIndexes.length) {
+        const added = await addTradeImages(
+          tradeId,
+          keepIndexes.map((i) => ({ image: shrunk[i].image, caption: shrunk[i].caption })),
+        )
+        const next = [...(images ?? []), ...added]
+        setImages(next)
+        onCountChange?.(next.length)
+      }
+      if (duplicates > 0) {
+        setErr(
+          keepIndexes.length
+            ? `${duplicates}枚は貼り付け済みの画像だったので追加していません`
+            : '同じ画像です。すでに貼り付けられています',
+        )
+      }
     } catch (e2) {
       setErr(friendlyError(e2))
     } finally {

@@ -1,18 +1,19 @@
 import { useRef, useState } from 'react'
-import type { TradeInput } from '../lib/types'
+import type { Account, TradeInput } from '../lib/types'
+import { accountLabel } from '../lib/types'
 import { friendlyError } from '../lib/errors'
 import { parseAuto } from '../lib/mt5Parser'
 import { addTradeImages, insertTrades } from '../lib/repo'
 import { seedTrades } from '../lib/seed'
 import BatchImport from './BatchImport'
+import BrokerMark from './BrokerMark'
 import TradeForm from './TradeForm'
 import Icon from './Icon'
 
 interface Props {
-  /** 記録先の口座。未登録なら null */
-  accountId: string | null
-  /** 記録先の口座名（画面に出す） */
-  accountName: string | null
+  accounts: Account[]
+  /** 画面上部で選ばれている口座。「すべて」なら null */
+  selectedAccountId: string | null
   onChanged: () => void
   disabled?: boolean
   /** 保存できたら呼ぶ。ホームへ移して結果を見せる。 */
@@ -22,12 +23,23 @@ interface Props {
 type Method = 'shots' | 'manual' | 'file'
 
 export default function UploadPanel({
-  accountId, accountName, onChanged, disabled, onDone,
+  accounts, selectedAccountId, onChanged, disabled, onDone,
 }: Props) {
   const fileRef = useRef<HTMLInputElement>(null)
   const [method, setMethod] = useState<Method>('shots')
   const [busy, setBusy] = useState(false)
   const [msg, setMsg] = useState<{ text: string; ok: boolean } | null>(null)
+  /** 「すべて」を見ているときに、この画面で選んだ記録先 */
+  const [pickedId, setPickedId] = useState<string | null>(null)
+
+  // 上で口座を選んでいればそこへ。「すべて」なら、
+  // 口座が1つだけのときは迷いようがないのでその口座、
+  // 2つ以上あるときは取り違えるので必ず選んでもらう。
+  const accountId =
+    selectedAccountId ?? (accounts.length === 1 ? accounts[0].id : pickedId)
+  const target = accounts.find((a) => a.id === accountId) ?? null
+  const mustChoose = accountId == null && accounts.length > 1
+  const noAccount = accounts.length === 0
 
   /**
    * 保存できたときの後始末。
@@ -106,11 +118,57 @@ export default function UploadPanel({
         />
       </div>
 
-      {accountName && (
-        <p className="text-sm text-ink2">
-          記録先: <span className="font-semibold text-ink">{accountName}</span>
-          <span className="ml-1 text-ink3">（上の口座の切り替えで変えられます）</span>
-        </p>
+      {/* どの口座の記録かを必ずはっきりさせる */}
+      {noAccount ? (
+        <div className="rounded-2xl border border-down/25 bg-down-soft px-4 py-3 text-sm text-down">
+          <p className="font-semibold">先に口座を登録してください</p>
+          <p className="mt-0.5">上の「口座を登録する」から、ブローカー名と口座番号を入れてください。</p>
+        </div>
+      ) : mustChoose ? (
+        <div className="card p-4">
+          <p className="text-sm font-bold text-ink">どの口座の記録ですか？</p>
+          <p className="mt-0.5 text-xs text-ink2">
+            「すべての口座」を見ているため、記録先が決まっていません。選んでください。
+          </p>
+          <ul className="mt-3 flex flex-col gap-1.5">
+            {accounts.map((a) => (
+              <li key={a.id}>
+                <button
+                  type="button"
+                  onClick={() => setPickedId(a.id)}
+                  className="flex w-full items-center gap-2.5 rounded-xl border border-line px-3 py-2 text-left transition-colors hover:bg-sunken"
+                >
+                  <BrokerMark broker={a.broker} size={30} />
+                  <span className="min-w-0 flex-1">
+                    <span className="block truncate text-sm font-semibold text-ink">
+                      {a.broker ?? accountLabel(a)}
+                    </span>
+                    <span className="block truncate text-[11px] tabular-nums text-ink3">
+                      {a.login ?? '口座番号なし'}
+                    </span>
+                  </span>
+                  <Icon name="right" size={16} className="shrink-0 text-ink3" />
+                </button>
+              </li>
+            ))}
+          </ul>
+        </div>
+      ) : (
+        target && (
+          <div className="flex items-center gap-2.5 rounded-xl border border-line bg-surface px-3 py-2">
+            <BrokerMark broker={target.broker} size={28} />
+            <span className="min-w-0 flex-1 text-sm">
+              <span className="text-ink3">記録先: </span>
+              <span className="font-semibold text-ink">{target.broker ?? accountLabel(target)}</span>
+              {target.login && <span className="ml-1.5 tabular-nums text-ink2">{target.login}</span>}
+            </span>
+            {selectedAccountId == null && accounts.length > 1 && (
+              <button className="btn btn-ghost shrink-0 px-2 py-1" onClick={() => setPickedId(null)}>
+                変える
+              </button>
+            )}
+          </div>
+        )
       )}
 
       {msg && (
@@ -129,7 +187,7 @@ export default function UploadPanel({
       {method === 'shots' ? (
         <BatchImport
           accountId={accountId}
-          disabled={disabled}
+          disabled={disabled || mustChoose || noAccount}
           onSaved={(n) => {
             onChanged()
             succeed(`スクショから ${n}件保存しました`)
@@ -139,6 +197,7 @@ export default function UploadPanel({
         <div className="card p-4 sm:p-5">
           <TradeForm
             mode="add"
+            disabled={mustChoose || noAccount}
             onSubmit={async (input, { charts }) => {
               await commit([input], '取引を', charts)
             }}
@@ -155,7 +214,7 @@ export default function UploadPanel({
           <button
             className="btn btn-primary mt-4 w-full sm:w-auto"
             onClick={() => fileRef.current?.click()}
-            disabled={disabled || busy}
+            disabled={disabled || busy || mustChoose || noAccount}
           >
             <Icon name="upload" size={17} />
             {busy ? '読み込み中…' : 'ファイルを選ぶ'}
@@ -177,7 +236,7 @@ export default function UploadPanel({
             <button
               className="btn btn-quiet mt-1.5"
               onClick={() => commit(seedTrades, 'サンプルを')}
-              disabled={disabled || busy}
+              disabled={disabled || busy || mustChoose || noAccount}
             >
               サンプル2件を入れる
             </button>

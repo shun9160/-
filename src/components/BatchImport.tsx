@@ -3,6 +3,7 @@ import type { Side, TradeInput } from '../lib/types'
 import { friendlyError } from '../lib/errors'
 import { fileToDownscaledDataUrl } from '../lib/image'
 import { readTradesFromImages } from '../lib/ocr'
+import { hashFile } from '../lib/imageHash'
 import { addTradeImages, insertTrades } from '../lib/repo'
 import { getAppConfig } from '../lib/appConfig'
 import { parseMt5DateTime } from '../lib/timezone'
@@ -49,6 +50,8 @@ export default function BatchImport({ onSaved, disabled, accountId }: Props) {
   const [progress, setProgress] = useState({ done: 0, total: 0, ratio: 0 })
   const [saving, setSaving] = useState(false)
   const [err, setErr] = useState<string | null>(null)
+  /** 読み取り済みの画像の指紋。同じ画像を二重に読ませないために覚えておく */
+  const seen = useRef<Set<string>>(new Set())
 
   async function onPick(e: React.ChangeEvent<HTMLInputElement>) {
     const files = Array.from(e.target.files ?? [])
@@ -56,10 +59,33 @@ export default function BatchImport({ onSaved, disabled, accountId }: Props) {
     if (files.length === 0) return
 
     setErr(null)
+
+    // 同じ画像を二重に読み取らない。中身で見分けるので、
+    // 名前を変えただけの同じ写真もはじく。
+    const fresh: File[] = []
+    let duplicates = 0
+    for (const f of files) {
+      const h = await hashFile(f)
+      if (seen.current.has(h)) {
+        duplicates++
+        continue
+      }
+      seen.current.add(h)
+      fresh.push(f)
+    }
+    if (duplicates > 0) {
+      setErr(
+        fresh.length
+          ? `${duplicates}枚は読み取り済みの画像だったので除きました`
+          : '同じ画像です。すでに読み取っています',
+      )
+    }
+    if (fresh.length === 0) return
+
     setReading(true)
-    setProgress({ done: 0, total: files.length, ratio: 0 })
+    setProgress({ done: 0, total: fresh.length, ratio: 0 })
     try {
-      const results = await readTradesFromImages(files, (done, total, ratio) =>
+      const results = await readTradesFromImages(fresh, (done, total, ratio) =>
         setProgress({ done, total, ratio }),
       )
       const made: Draft[] = []
@@ -174,6 +200,7 @@ export default function BatchImport({ onSaved, disabled, accountId }: Props) {
       }
 
       setDrafts([])
+      seen.current.clear()
       onSaved(saved.length)
     } catch (e) {
       setErr(friendlyError(e))
@@ -260,7 +287,11 @@ export default function BatchImport({ onSaved, disabled, accountId }: Props) {
               >
                 すべて選ぶ
               </button>
-              <button className="btn btn-ghost" onClick={() => setDrafts([])}>
+              <button className="btn btn-ghost" onClick={() => {
+                  setDrafts([])
+                  seen.current.clear()
+                  setErr(null)
+                }}>
                 やり直す
               </button>
             </div>

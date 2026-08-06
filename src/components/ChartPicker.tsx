@@ -1,6 +1,7 @@
 import { useRef, useState } from 'react'
 import { fileToDownscaledDataUrl } from '../lib/image'
 import { friendlyError } from '../lib/errors'
+import { dropDuplicates, hashDataUrl } from '../lib/imageHash'
 import Icon from './Icon'
 
 // チャートは細い線と数字を見るので、スクショより大きめ・高画質で残す。
@@ -37,7 +38,22 @@ export default function ChartPicker({ value, onChange, disabled, hint }: Props) 
       const shrunk = await Promise.all(
         files.map((f) => fileToDownscaledDataUrl(f, CHART_MAX_DIM, CHART_QUALITY)),
       )
-      onChange([...value, ...shrunk])
+
+      // 同じ画像を二重に貼らない。すでに選んだものとも見比べる。
+      const known = new Set(await Promise.all(value.map(hashDataUrl)))
+      const incoming = await Promise.all(
+        shrunk.map(async (image) => ({ image, hash: await hashDataUrl(image) })),
+      )
+      const { keepIndexes, duplicates } = await dropDuplicates(incoming, known)
+
+      if (keepIndexes.length) onChange([...value, ...keepIndexes.map((i) => incoming[i].image)])
+      if (duplicates > 0) {
+        setErr(
+          keepIndexes.length
+            ? `${duplicates}枚は同じ画像だったので追加していません`
+            : `同じ画像です。すでに追加されています`,
+        )
+      }
     } catch (e2) {
       setErr(friendlyError(e2))
     } finally {
