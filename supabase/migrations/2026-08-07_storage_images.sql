@@ -18,6 +18,23 @@
 -- =============================================================
 
 -- -------------------------------------------------------------
+-- 0) バケットの制限
+--
+-- 1枚あたりの上限と、置ける種類を絞る。
+-- 画面の「Settings」タブはプロジェクト全体の設定で、無料プランでは
+-- 触れない。バケットごとの制限はこの表を直接書き換えれば入る。
+--
+-- 上限は 5MB。アプリ側で長辺1200pxに縮めてから送るので、
+-- 実際は200〜300KB程度。5MBは「異常なものを弾く」ための線。
+-- -------------------------------------------------------------
+
+update storage.buckets
+   set file_size_limit   = 5 * 1024 * 1024,
+       allowed_mime_types = array['image/webp', 'image/jpeg', 'image/png'],
+       public             = false
+ where id = 'trade-images';
+
+-- -------------------------------------------------------------
 -- 1) Storage の権限
 --
 -- ファイルは {自分のユーザーID}/... という形で置く。
@@ -89,8 +106,13 @@ comment on column public.accounts.capital_screenshot_path is
 
 -- -------------------------------------------------------------
 -- 確認用
---   実行後、ここを流すと権限が4件ぶん出る
+--   実行後、この2つを流すと結果が見られる
 -- -------------------------------------------------------------
+-- 権限が4件（select / insert / update / delete）出れば成功
 -- select policyname, cmd from pg_policies
 --  where schemaname = 'storage' and tablename = 'objects'
 --    and policyname like 'own trade-images%';
+
+-- バケットの制限が入ったか
+-- select id, public, file_size_limit, allowed_mime_types
+--   from storage.buckets where id = 'trade-images';
