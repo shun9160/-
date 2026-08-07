@@ -32,6 +32,36 @@ body {
   background-repeat: no-repeat;
 }
 
+/* ------------------------------------------------------------------
+   日記だけ、下地をロゴの色そのものにする。
+
+   ほかの画面は白に近い灰色で、白いカードとの差はごくわずか。
+   日記は「その日を読み返す場所」なので、周りを濃くして
+   カードだけが浮かんで見えるようにしている。
+
+   下からめくれる（iOSのバウンス）ときも同じ色でいてほしいので、
+   色は body に置き、fixed で画面に貼り付けている。
+   ------------------------------------------------------------------ */
+body[data-bg='brand'] {
+  background-color: #4a4bfb;
+  background-image: linear-gradient(163deg, #6741ff 0%, #5546ff 46%, #3b5bff 100%);
+  background-attachment: fixed;
+}
+
+/* 下のタブバーの手前で、カードを溶かしていく帯。
+   下地の色が画面ごとに変わるので、色は変数で受け取る。 */
+:root {
+  --fade: #fafafc;
+  --fade-soft: rgba(250, 250, 252, 0.85);
+}
+body[data-bg='brand'] {
+  --fade: #3f57ff;
+  --fade-soft: rgba(63, 87, 255, 0.85);
+}
+.nav-fade {
+  background-image: linear-gradient(to top, var(--fade), var(--fade-soft) 55%, transparent);
+}
+
 /* iOS のセーフエリアぶんだけ下タブを持ち上げる */
 .pb-safe {
   padding-bottom: env(safe-area-inset-bottom, 0px);

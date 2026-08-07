@@ -13,6 +13,8 @@ interface Props {
   readOnly?: boolean
   onChanged: () => void
   onAdd?: () => void
+  /** ロゴ色の下地の上に置かれている。見出しを白にする */
+  onBrand?: boolean
 }
 
 /** その日の取引。絞り込みと並び替えを添えて出す */
@@ -23,6 +25,7 @@ export default function TradeSection({
   readOnly,
   onChanged,
   onAdd,
+  onBrand,
 }: Props) {
   const [account, setAccount] = useState<string>('all')
   const [order, setOrder] = useState<TradeOrder>('new')
@@ -42,16 +45,27 @@ export default function TradeSection({
   return (
     <section className="flex flex-col gap-3">
       <div className="flex flex-wrap items-center gap-x-3 gap-y-2">
-        <h2 className="flex items-center gap-2 text-base font-bold">
-          <span className="flex h-6 w-6 items-center justify-center rounded-md bg-brand-soft text-brand">
+        {/* この見出しはカードの外＝下地の上に直に乗る。
+            日記の下地はロゴ色なので、そのままでは黒文字が沈む。 */}
+        <h2 className={`flex items-center gap-2 text-base font-bold ${onBrand ? 'text-white' : ''}`}>
+          <span
+            className={`flex h-6 w-6 items-center justify-center rounded-md ${
+              onBrand ? 'bg-white/20 text-white' : 'bg-brand-soft text-brand'
+            }`}
+          >
             <Icon name="book" size={13} />
           </span>
           {isToday ? '今日のトレード' : 'この日のトレード'}
         </h2>
-        <span className="text-xs text-ink3">
+        <span className={`text-xs ${onBrand ? 'text-white' : 'text-ink3'}`}>
           {rows.length}件
           <span className="mx-1">·</span>
-          <span className={`font-bold tabular-nums ${colorOf(net)}`}>
+          {/* 緑と赤は濃い下地の上だと沈むので、白い小さな板に載せて色を残す */}
+          <span
+            className={`font-bold tabular-nums ${colorOf(net)} ${
+              onBrand ? 'rounded-md bg-white px-1.5 py-0.5' : ''
+            }`}
+          >
             {fmtMoney(net, { sign: true })}
           </span>
         </span>

@@ -34,11 +34,13 @@ export function BottomNav({
 }) {
   return (
     <nav
-      className="pb-safe fixed inset-x-0 bottom-0 z-30 bg-gradient-to-t from-page via-page/85 to-transparent md:hidden"
+      className="nav-fade pb-safe fixed inset-x-0 bottom-0 z-30 md:hidden"
       aria-label="メインメニュー"
     >
       <div className="px-4 pb-3 pt-6">
-        <ul className="mx-auto flex max-w-lg items-center justify-between gap-1 rounded-full bg-gradient-to-r from-[#6741FF] to-[#3B5BFF] p-1.5 shadow-raised">
+        {/* 日記の下地はこの帯と同じロゴ色。ふちに薄い白を回して、
+            下地に溶けてしまわないようにする（白い画面では見えない） */}
+        <ul className="mx-auto flex max-w-lg items-center justify-between gap-1 rounded-full border border-white/25 bg-gradient-to-r from-[#6741FF] to-[#3B5BFF] p-1.5 shadow-raised">
           {NAV_ITEMS.map((it) => {
             const active = current === it.key
             return (

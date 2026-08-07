@@ -10,6 +10,8 @@ interface Props {
   onChange: (id: AccountFilter) => void
   /** 口座の管理画面を開く */
   onManage?: () => void
+  /** ロゴ色の下地の上に置かれている（日記）。ガラスを濃いめにし、文字を締める */
+  onBrand?: boolean
 }
 
 const NO_BROKER = 'その他'
@@ -17,10 +19,15 @@ const NO_BROKER = 'その他'
 /**
  * 背景をうっすら透かす見た目。
  * 真っ白のカードだと、いちばん上に置いたときに主役より目立ってしまうため。
- * 文字はそのまま黒なので、読みやすさは落ちない。
+ *
+ * 下地がロゴ色（日記）のときは、そのままだと透けた紫が混ざって
+ * 灰色の小さい文字が沈む。ガラスを濃いめにし、文字も締める。
  */
-const GLASS =
-  'border border-white/60 bg-white/45 backdrop-blur-sm hover:bg-white/65'
+function glassOf(onBrand?: boolean) {
+  return onBrand
+    ? 'border border-white/70 bg-white/65 backdrop-blur-sm hover:bg-white/80'
+    : 'border border-white/60 bg-white/45 backdrop-blur-sm hover:bg-white/65'
+}
 
 /** 口座を会社ごとにまとめる。並びは登録した順のまま。 */
 function groupByBroker(accounts: Account[]) {
@@ -43,7 +50,7 @@ function accountTitle(a: Account): string {
  * 見ている口座を切り替えるプルダウン。
  * 会社を押すとその会社の口座が開き、口座を押すと切り替わる。
  */
-export default function AccountSwitcher({ accounts, value, onChange, onManage }: Props) {
+export default function AccountSwitcher({ accounts, value, onChange, onManage, onBrand }: Props) {
   const [open, setOpen] = useState(false)
   /** 開いている会社 */
   const [openBroker, setOpenBroker] = useState<string | null>(null)
@@ -96,7 +103,7 @@ export default function AccountSwitcher({ accounts, value, onChange, onManage }:
           onClick={() => setOpen((v) => !v)}
           aria-haspopup="listbox"
           aria-expanded={open}
-          className={`flex w-full items-center gap-2.5 rounded-xl px-3 py-2 text-left transition-colors ${GLASS}`}
+          className={`flex w-full items-center gap-2.5 rounded-xl px-3 py-2 text-left transition-colors ${glassOf(onBrand)}`}
         >
           {selected ? (
             <BrokerMark broker={selected.broker} size={30} />
@@ -110,7 +117,11 @@ export default function AccountSwitcher({ accounts, value, onChange, onManage }:
               {selected ? (selected.broker ?? NO_BROKER) : 'すべての口座'}
             </span>
             {/* 背景を透かしたぶん薄い灰色だと読みにくくなるので、1段濃い色にする */}
-            <span className="block truncate text-[11px] leading-tight text-ink2">
+            <span
+              className={`block truncate text-[11px] leading-tight ${
+                onBrand ? 'text-ink' : 'text-ink2'
+              }`}
+            >
               {selected ? (
                 <span className="tabular-nums">{accountTitle(selected)}</span>
               ) : (
@@ -121,7 +132,7 @@ export default function AccountSwitcher({ accounts, value, onChange, onManage }:
           <Icon
             name="down"
             size={16}
-            className={`shrink-0 text-ink3 ${open ? 'rotate-180' : ''}`}
+            className={`shrink-0 ${onBrand ? 'text-ink' : 'text-ink3'} ${open ? 'rotate-180' : ''}`}
           />
         </button>
 

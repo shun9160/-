@@ -174,6 +174,8 @@ export default function Diary({
           readOnly={readOnly}
           onChanged={onChanged}
           onAdd={onAdd}
+          // 日記の下地はロゴ色。カードの外に出る見出しは白にする
+          onBrand
         />
       </div>
 
