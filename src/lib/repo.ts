@@ -693,18 +693,24 @@ export async function countUnmigratedImages(): Promise<number> {
   const counts = await Promise.all(
     SOURCES.map(async (src) => {
       try {
-        const { count } = await supabase!
+        const { count, error } = await supabase!
           .from(src.table)
           .select('id', { count: 'exact', head: true })
           .is(src.pathCol, null)
           .not(src.dataCol, 'is', null)
+        // 表がまだ無い環境では数えられない。それは「0枚」でよい。
+        // ただし数えられなかったことと0枚は別物なので、分けて扱う。
+        if (error) return isMissingColumn(error) ? 0 : null
         return count ?? 0
       } catch {
-        return 0
+        return null
       }
     }),
   )
-  return counts.reduce((a, b) => a + b, 0)
+  // ひとつでも数えられなかったら、合計は出さない。
+  // 黙って0にすると「本当は残っているのに終わったように見える」
+  if (counts.some((c) => c == null)) throw new Error('残りの枚数を数えられませんでした')
+  return counts.reduce((a: number, b) => a + (b as number), 0)
 }
 
 /** 画像が入っている場所。増えたらここに足す */

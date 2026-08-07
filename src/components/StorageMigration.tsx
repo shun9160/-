@@ -24,7 +24,12 @@ export default function StorageMigration() {
   useEffect(() => {
     countUnmigratedImages()
       .then(setLeft)
-      .catch(() => setLeft(0))
+      .catch((e) => {
+        // 数えられなかったことを、0枚と同じ扱いにしない。
+        // カードごと消えると、残っていることに気づけなくなる
+        setLeft(0)
+        setErr(friendlyError(e))
+      })
   }, [])
 
   async function run() {
@@ -62,7 +67,7 @@ export default function StorageMigration() {
 
   // 数え終わる前と、移すものが無いときは何も出さない
   if (left == null) return null
-  if (left === 0 && !done) return null
+  if (left === 0 && !done && !err) return null
 
   return (
     <section className="card p-5">
