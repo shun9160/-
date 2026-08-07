@@ -1,10 +1,12 @@
 import { useState } from 'react'
 import type { CharacterState } from '../../lib/diagnosis/types'
+import { drawCharacter, hasDrawing } from './characters'
 
 /**
  * タイプのキャラクター。
  *
- * 用意された絵がまだ無いので、いまは同じ形の代用図を出している。
+ * 絵は図形で描いている（characters.tsx）。まだ描いていないタイプは
+ * 同じ形の代用図を出す。
  * public/characters/<characterId>/<state>.webp を置いて
  * HAS_ASSETS を true にすれば、そのまま差し替わる。
  * （Rive を使う場合も同じ場所に .riv を置き、この1ファイルだけ差し替える）
@@ -51,10 +53,17 @@ export default function CharacterFigure({ characterId, state, color, name, size 
       aria-label={label}
       className="shrink-0"
     >
-      <rect x="0" y="0" width="120" height="120" rx="28" fill={color} opacity="0.12" />
-      <circle cx="60" cy="58" r="34" fill={color} opacity="0.9" />
-      <Face state={state} />
-      <rect x="24" y="100" width="72" height="8" rx="4" fill={color} opacity="0.25" />
+      {hasDrawing(characterId) ? (
+        drawCharacter(characterId, { state, color })
+      ) : (
+        // まだ描いていないタイプ。形だけ揃えた代用図を出す
+        <>
+          <rect x="0" y="0" width="120" height="120" rx="28" fill={color} opacity="0.12" />
+          <circle cx="60" cy="58" r="34" fill={color} opacity="0.9" />
+          <Face state={state} />
+          <rect x="24" y="100" width="72" height="8" rx="4" fill={color} opacity="0.25" />
+        </>
+      )}
     </svg>
   )
 }
