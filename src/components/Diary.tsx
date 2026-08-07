@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
 import type { Account, EnrichedTrade, TradeImage } from '../lib/types'
-import { fetchRecentTradeImages } from '../lib/repo'
+import { fetchRecentTradeImages, fetchTradeImageCounts } from '../lib/repo'
 import { fetchLatest } from '../lib/diagnosisClient'
 import type { DiagnosisResult } from '../lib/diagnosis/types'
 import { jstDayKey } from '../lib/timezone'
@@ -11,6 +11,8 @@ import TypeCard from './diary/TypeCard'
 import PerformanceCard from './diary/PerformanceCard'
 import ScreenshotStrip from './diary/ScreenshotStrip'
 import TradeSection from './diary/TradeSection'
+import DiaryAgenda from './diary/DiaryAgenda'
+import Icon from './Icon'
 
 interface Props {
   trades: EnrichedTrade[]
@@ -25,8 +27,11 @@ interface Props {
   onOpenType?: () => void
   /** 分析へ */
   onStats?: () => void
-  /** いま見ている日。横に振って日を移れるよう、外へ伝える */
-  onDayChange?: (day: string) => void
+  /**
+   * いま見ている日。横に振って日を移れるよう、外へ伝える。
+   * 一覧を出しているあいだは null。日ではなく口座が動くようにする
+   */
+  onDayChange?: (day: string | null) => void
 }
 
 /**
@@ -58,9 +63,19 @@ export default function Diary({
   }, [trades])
 
   const [selected, setSelected] = useState<string>(focusDay ?? today)
+  /**
+   * 一覧を出しているか、その日を開いているか。
+   * 入口は一覧にする。書いた日と書いていない日が並んで見えるほうが、
+   * 日記として続けやすいため。ほかの画面から日を指定して来たときだけ、
+   * いきなりその日を開く。
+   */
+  const [openDay, setOpenDay] = useState(!!focusDay)
 
   useEffect(() => {
-    if (focusDay) setSelected(focusDay)
+    if (focusDay) {
+      setSelected(focusDay)
+      setOpenDay(true)
+    }
   }, [focusDay])
 
   // 今日にまだ何も無く、過去に記録があるなら、そちらを開いておく
@@ -75,10 +90,11 @@ export default function Diary({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [latestTradeDay])
 
-  // 横に振って日を移れるよう、いま見ている日を外へ知らせる
+  // 横に振って日を移れるよう、いま見ている日を外へ知らせる。
+  // 一覧のときは知らせない（一覧で振っても日が動くのは分かりにくい）
   useEffect(() => {
-    onDayChange?.(selected)
-  }, [selected, onDayChange])
+    onDayChange?.(openDay ? selected : null)
+  }, [selected, openDay, onDayChange])
 
   const dayTrades = useMemo(
     () => trades.filter((t) => t.jstDay === selected),
@@ -109,6 +125,16 @@ export default function Diary({
     }
   }, [])
 
+  // 一覧に「写真あり」を出すための枚数。重い画像そのものは読まない
+  const [imageCounts, setImageCounts] = useState<Record<string, number>>({})
+  useEffect(() => {
+    fetchTradeImageCounts()
+      .then(setImageCounts)
+      .catch(() => {
+        /* 数えられなくても一覧は出せる */
+      })
+  }, [trades.length])
+
   // 最近貼ったチャート
   const [images, setImages] = useState<TradeImage[]>([])
   useEffect(() => {
@@ -137,10 +163,41 @@ export default function Diary({
     />
   )
 
+  // 入口の一覧
+  if (!openDay) {
+    return (
+      <section className="card p-4 sm:p-5">
+        <div className="mb-1 flex items-baseline justify-between gap-3">
+          <h2 className="text-base font-bold">日記</h2>
+          <span className="text-xs text-ink3">日を選ぶと書けます</span>
+        </div>
+        <DiaryAgenda
+          trades={trades}
+          dayNotes={dayNotes}
+          imageCounts={imageCounts}
+          today={today}
+          onOpen={(d) => {
+            setSelected(d)
+            setOpenDay(true)
+            window.scrollTo({ top: 0 })
+          }}
+        />
+      </section>
+    )
+  }
+
   return (
     // 広い画面は「本文＋右側」の2列。
     // DOM の並びがそのままスマホでの並びになる。
     <div className="flex flex-col gap-4 xl:grid xl:grid-cols-[minmax(0,1fr)_320px] xl:items-start">
+      <button
+        className="btn btn-ghost -ml-2 self-start xl:col-span-2"
+        onClick={() => setOpenDay(false)}
+      >
+        <Icon name="back" size={17} />
+        日記の一覧へ
+      </button>
+
       <div className="flex flex-col gap-4">
         <DayHeadline
           day={selected}

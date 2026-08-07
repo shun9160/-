@@ -151,20 +151,25 @@ export default function SwipePager<T>({ items, current, onChange, children }: Pr
   const dxRef = useRef(0)
   dxRef.current = dx
 
-  if (!enabled) return <>{children}</>
-
   return (
+    // 切り替え先が無いときも、同じ形の箱を返すこと。
+    // ここで <>{children}</> に変えると、切り替え先の数が 1 をまたいだ瞬間に
+    // 木の形が変わって中身が作り直され、中で持っている状態が消える。
     <div
       ref={boxRef}
       // 縦スクロールは browser に任せ、横だけこちらで受け持つ
-      style={{ touchAction: 'pan-y' }}
-      className="overflow-x-clip"
+      style={enabled ? { touchAction: 'pan-y' } : undefined}
+      className={enabled ? 'overflow-x-clip' : undefined}
     >
       <div
-        style={{
-          transform: `translate3d(${dx}px, 0, 0)`,
-          transition: sliding ? `transform ${SLIDE_MS}ms cubic-bezier(.22,.61,.36,1)` : 'none',
-        }}
+        style={
+          enabled
+            ? {
+                transform: `translate3d(${dx}px, 0, 0)`,
+                transition: sliding ? `transform ${SLIDE_MS}ms cubic-bezier(.22,.61,.36,1)` : 'none',
+              }
+            : undefined
+        }
       >
         {children}
       </div>
