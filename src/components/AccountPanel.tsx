@@ -17,6 +17,7 @@ import {
 import { fmtJst } from '../lib/timezone'
 import Avatar from './Avatar'
 import Icon from './Icon'
+import StorageMigration from './StorageMigration'
 
 interface Props {
   email: string | null
@@ -98,6 +99,9 @@ export default function AccountPanel({
         <h2 className="text-xl font-bold tracking-tight">アカウント</h2>
         <p className="text-sm text-ink3">ログイン情報とMT5連携の設定</p>
       </div>
+
+      {/* 昔の画像が残っているときだけ出る。移し終われば消える */}
+      <StorageMigration />
 
       {/* 基本情報 */}
       <section className="card p-5">

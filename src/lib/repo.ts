@@ -115,7 +115,15 @@ export async function saveAccountCapital(
     initial_capital: patch.initial_capital,
     capital_note: patch.capital_note,
   }
-  if (patch.capital_screenshot !== undefined) row.capital_screenshot = patch.capital_screenshot
+  if (patch.capital_screenshot !== undefined) {
+    // 中身ではなく置き場所を書く。置けなければ今までどおり中身を入れる
+    const path =
+      typeof patch.capital_screenshot === 'string'
+        ? await toStored(patch.capital_screenshot, 'capital')
+        : null
+    row.capital_screenshot = path ? null : patch.capital_screenshot
+    row.capital_screenshot_path = path
+  }
   const { error } = await supabase.from('accounts').update(row).eq('id', id)
   if (error) throw error
 }
@@ -125,11 +133,15 @@ export async function getAccountCapitalScreenshot(id: string): Promise<string | 
   if (!supabase) throw new Error(NO_CLIENT)
   const { data, error } = await supabase
     .from('accounts')
-    .select('capital_screenshot')
+    .select('capital_screenshot,capital_screenshot_path')
     .eq('id', id)
     .maybeSingle()
   if (error) throw error
-  return (data?.capital_screenshot as string | null) ?? null
+  const row = data as
+    | { capital_screenshot: string | null; capital_screenshot_path: string | null }
+    | null
+  if (row?.capital_screenshot_path) return await signedUrl(row.capital_screenshot_path)
+  return row?.capital_screenshot ?? null
 }
 
 /** 個別トレードの添付スクショ (data URL) を取得。無ければ null。 */
