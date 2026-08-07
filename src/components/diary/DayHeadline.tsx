@@ -4,6 +4,7 @@ import { gradeTrade, summarize } from '../../lib/analytics'
 import { colorOf, fmtMoney, fmtNum } from '../../lib/format'
 import { fmtJst } from '../../lib/timezone'
 import { currencyLabel } from '../../lib/appConfig'
+import { useReveal } from '../../lib/useInView'
 import Icon from '../Icon'
 import AnimatedMoney from '../AnimatedMoney'
 
@@ -171,9 +172,9 @@ function Tile({
 function MiniRing({ ratio }: { ratio: number }) {
   const r = 9
   const c = 2 * Math.PI * r
-  const on = Math.max(0, Math.min(1, ratio))
+  const [ref, on] = useReveal<SVGSVGElement>(Math.max(0, Math.min(1, ratio)))
   return (
-    <svg width="22" height="22" viewBox="0 0 24 24" aria-hidden="true" className="shrink-0">
+    <svg ref={ref} width="22" height="22" viewBox="0 0 24 24" aria-hidden="true" className="shrink-0">
       <circle cx="12" cy="12" r={r} fill="none" stroke="currentColor" strokeWidth="3" className="text-line" />
       <circle
         cx="12"
@@ -183,9 +184,10 @@ function MiniRing({ ratio }: { ratio: number }) {
         stroke="currentColor"
         strokeWidth="3"
         strokeLinecap="round"
-        strokeDasharray={`${c * on} ${c}`}
+        strokeDasharray={c}
+        strokeDashoffset={c * (1 - on)}
         transform="rotate(-90 12 12)"
-        className="text-up"
+        className="rise text-up"
       />
     </svg>
   )

@@ -2,6 +2,7 @@ import type { EnrichedTrade } from '../../lib/types'
 import type { Summary } from '../../lib/analytics'
 import { streakOf } from '../../lib/analytics'
 import { fmtNum, fmtPct } from '../../lib/format'
+import { useReveal } from '../../lib/useInView'
 import Icon from '../Icon'
 import AnimatedNumber from '../AnimatedNumber'
 import type { IconName } from '../Icon'
@@ -135,14 +136,31 @@ function Sparkline({ values }: { values: number[] }) {
     .map((v, i) => `${i === 0 ? 'M' : 'L'}${(i * step).toFixed(1)} ${(H - ((v - min) / span) * H).toFixed(1)}`)
     .join(' ')
 
+  // 画面に入ってから、線が左から右へ引かれていく。
+  // pathLength=1 にすると、長さを 0〜1 で扱えるので線の長短に左右されない
+  const [ref, drawn] = useReveal<SVGSVGElement>(1)
+
   return (
     <svg
+      ref={ref}
       viewBox={`0 0 ${W} ${H}`}
       preserveAspectRatio="none"
       className="mt-2.5 h-7 w-full text-brand"
       aria-hidden="true"
     >
-      <path d={d} fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" vectorEffect="non-scaling-stroke" />
+      <path
+        d={d}
+        fill="none"
+        stroke="currentColor"
+        strokeWidth="1.8"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        vectorEffect="non-scaling-stroke"
+        pathLength={1}
+        strokeDasharray={1}
+        strokeDashoffset={1 - drawn}
+        className="rise"
+      />
     </svg>
   )
 }

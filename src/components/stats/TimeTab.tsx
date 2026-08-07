@@ -3,6 +3,7 @@ import type { EnrichedTrade } from '../../lib/types'
 import { heatmap, hourBreakdown, sessionBreakdown } from '../../lib/analytics'
 import { SESSION_LABELS } from '../../lib/timezone'
 import { colorOf, fmtMoney, fmtPct } from '../../lib/format'
+import { useReveal } from '../../lib/useInView'
 import { Bar, Empty, Head, Money } from './parts'
 import { SegmentedControl } from '../ui'
 
@@ -165,14 +166,10 @@ function Hours({ trades }: { trades: EnrichedTrade[] }) {
               <span className="w-10 shrink-0 text-right text-xs tabular-nums text-ink2">
                 {r.hour}時
               </span>
-              <span className="relative h-6 flex-1 overflow-hidden rounded-md bg-sunken">
-                <span
-                  className={`absolute inset-y-0 left-0 rounded-md ${
-                    r.net >= 0 ? 'bg-up/70' : 'bg-down/70'
-                  }`}
-                  style={{ width: `${Math.max(3, (Math.abs(r.net) / peak) * 100)}%` }}
-                />
-              </span>
+              <HourBar
+                pct={Math.max(3, (Math.abs(r.net) / peak) * 100)}
+                up={r.net >= 0}
+              />
               <span className="w-24 shrink-0 text-right">
                 <span className={`block text-xs font-bold tabular-nums ${colorOf(r.net)}`}>
                   {fmtMoney(r.net, { sign: true })}
@@ -184,5 +181,18 @@ function Hours({ trades }: { trades: EnrichedTrade[] }) {
         </ul>
       )}
     </section>
+  )
+}
+
+/** 時間帯ごとの帯。画面に入ってから左へ伸びる */
+function HourBar({ pct, up }: { pct: number; up: boolean }) {
+  const [ref, w] = useReveal<HTMLSpanElement>(pct)
+  return (
+    <span ref={ref} className="relative h-6 flex-1 overflow-hidden rounded-md bg-sunken">
+      <span
+        className={`rise absolute inset-y-0 left-0 rounded-md ${up ? 'bg-up/70' : 'bg-down/70'}`}
+        style={{ width: `${w}%` }}
+      />
+    </span>
   )
 }

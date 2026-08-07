@@ -15,6 +15,7 @@ import {
 import type { EnrichedTrade } from '../lib/types'
 import { cumulativeSeries, dailySeries } from '../lib/analytics'
 import { CHART, fmtMoney } from '../lib/format'
+import { useInView } from '../lib/useInView'
 
 interface Props {
   trades: EnrichedTrade[]
@@ -22,6 +23,9 @@ interface Props {
 }
 
 const axisTick = { fill: CHART.axis, fontSize: 11 }
+
+/** 数字のカウントアップと同じ息づかいに揃える */
+const ANIM = { isAnimationActive: true, animationDuration: 1100, animationEasing: 'ease-out' } as const
 
 function label(day: string) {
   const [, m, d] = day.split('-')
@@ -58,6 +62,10 @@ export default function PnlCharts({ trades, kind }: Props) {
     [trades],
   )
 
+  // 画面に入ってから描き始める。スマホだと、開いた時点ではまだ
+  // グラフが下にあって見えていないため
+  const [wrapRef, inView] = useInView<HTMLDivElement>()
+
   if (trades.length === 0) {
     return (
       <div className="flex h-56 items-center justify-center rounded-xl bg-sunken text-sm text-ink3">
@@ -65,6 +73,9 @@ export default function PnlCharts({ trades, kind }: Props) {
       </div>
     )
   }
+
+  // 見えるまでは高さだけ確保しておく。あとから入っても位置がずれない
+  if (!inView) return <div ref={wrapRef} style={{ height: 240 }} />
 
   if (kind === 'daily') {
     return (
@@ -82,7 +93,7 @@ export default function PnlCharts({ trades, kind }: Props) {
           <Tooltip content={<ChartTooltip />} cursor={{ fill: 'rgba(109,74,255,0.06)' }} />
           <ReferenceLine y={0} stroke={CHART.axis} strokeWidth={1} />
           {/* 利益と損失は上下の向き＋色の二重符号。値は符号つきで表示される */}
-          <Bar dataKey="net" radius={[4, 4, 0, 0]} maxBarSize={26}>
+          <Bar dataKey="net" radius={[4, 4, 0, 0]} maxBarSize={26} {...ANIM}>
             {daily.map((d, i) => (
               <Cell key={i} fill={d.net >= 0 ? CHART.up : CHART.down} />
             ))}
@@ -120,6 +131,7 @@ export default function PnlCharts({ trades, kind }: Props) {
           fill="url(#cumFill)"
           dot={false}
           activeDot={{ r: 4, strokeWidth: 2, stroke: '#fff' }}
+          {...ANIM}
         />
       </AreaChart>
     </ResponsiveContainer>

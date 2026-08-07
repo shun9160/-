@@ -1,5 +1,6 @@
 import { useLayoutEffect, useRef } from 'react'
 import type { ReactNode } from 'react'
+import { useInView } from '../lib/useInView'
 
 interface Props {
   /** 出したい数。まだ出せないときは null */
@@ -56,7 +57,9 @@ export default function AnimatedNumber({
 }: Props) {
   const numRef = useRef<HTMLSpanElement>(null)
   const sheenRef = useRef<HTMLSpanElement>(null)
-  const boxRef = useRef<HTMLSpanElement>(null)
+  // 画面に入ってから動かす。スマホだと、下のほうのカードは
+  // 開いた時点ではまだ見えていないため
+  const [boxRef, inView] = useInView<HTMLSpanElement>()
   /** いま出している数。次に動かすときの出発点になる */
   const shown = useRef(0)
 
@@ -101,6 +104,13 @@ export default function AnimatedNumber({
     }
 
     const from = shown.current
+
+    // まだ画面に入っていない。出発点だけ描いて、入るまで待つ
+    if (!inView) {
+      draw(from)
+      return
+    }
+
     if (!animate || reduced() || from === target) {
       finish()
       return
@@ -130,7 +140,7 @@ export default function AnimatedNumber({
     return () => cancelAnimationFrame(raf)
     // format は毎回作り直される関数なので、依存に入れると毎描画で動き直してしまう
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [target, fallback, decimals, duration, animate, sheen])
+  }, [target, fallback, decimals, duration, animate, sheen, inView])
 
   const ORIGIN = { left: 'origin-left', center: 'origin-center', right: 'origin-right' }[origin]
 

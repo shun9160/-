@@ -1,4 +1,5 @@
 import { fmtPct } from '../../lib/format'
+import { useReveal } from '../../lib/useInView'
 import Icon from '../Icon'
 import AnimatedMoney from '../AnimatedMoney'
 import type { IconName } from '../Icon'
@@ -47,9 +48,17 @@ export function Metric({
 export function Ring({ ratio, size = 56 }: { ratio: number; size?: number }) {
   const r = 20
   const c = 2 * Math.PI * r
-  const on = Math.max(0, Math.min(1, ratio))
+  // 画面に入ってから、輪が0から本来の長さまで描かれていく
+  const [ref, on] = useReveal<SVGSVGElement>(Math.max(0, Math.min(1, ratio)))
   return (
-    <svg width={size} height={size} viewBox="0 0 48 48" aria-hidden="true" className="shrink-0">
+    <svg
+      ref={ref}
+      width={size}
+      height={size}
+      viewBox="0 0 48 48"
+      aria-hidden="true"
+      className="shrink-0"
+    >
       <circle cx="24" cy="24" r={r} fill="none" stroke="currentColor" strokeWidth="5" className="text-line" />
       <circle
         cx="24"
@@ -59,9 +68,10 @@ export function Ring({ ratio, size = 56 }: { ratio: number; size?: number }) {
         stroke="currentColor"
         strokeWidth="5"
         strokeLinecap="round"
-        strokeDasharray={`${c * on} ${c}`}
+        strokeDasharray={c}
+        strokeDashoffset={c * (1 - on)}
         transform="rotate(-90 24 24)"
-        className="text-brand"
+        className="rise text-brand"
       />
     </svg>
   )
@@ -121,12 +131,11 @@ export function Money({ value, className = '' }: { value: number; className?: st
 /** 割合の帯 */
 export function Bar({ ratio, tone = 'brand' }: { ratio: number; tone?: 'brand' | 'up' | 'down' }) {
   const bg = { brand: 'bg-brand', up: 'bg-up', down: 'bg-down' }[tone]
+  // 画面に入ってから、帯が左から伸びる
+  const [ref, pct] = useReveal<HTMLSpanElement>(Math.max(2, Math.min(100, ratio * 100)))
   return (
-    <span className="block h-1.5 w-full overflow-hidden rounded-full bg-sunken">
-      <span
-        className={`block h-full rounded-full ${bg}`}
-        style={{ width: `${Math.max(2, Math.min(100, ratio * 100))}%` }}
-      />
+    <span ref={ref} className="block h-1.5 w-full overflow-hidden rounded-full bg-sunken">
+      <span className={`rise block h-full rounded-full ${bg}`} style={{ width: `${pct}%` }} />
     </span>
   )
 }
