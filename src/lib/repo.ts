@@ -672,6 +672,8 @@ export interface MigrationProgress {
   moved: number
   /** この回で移せなかった枚数 */
   failed: number
+  /** 移せなかった理由。推測で終わらせないために必ず持ち帰る */
+  errors: string[]
 }
 
 /** 1回に移す枚数。多いと端末が固まるので、少しずつ */
@@ -722,10 +724,16 @@ const SOURCES = [
  * 呼ぶたびに MIGRATE_BATCH 枚ずつ進む。remaining が 0 になれば完了。
  */
 export async function migrateImagesToStorage(): Promise<MigrationProgress> {
-  if (!supabase) return { remaining: 0, moved: 0, failed: 0 }
+  if (!supabase) return { remaining: 0, moved: 0, failed: 0, errors: [] }
 
   let moved = 0
   let failed = 0
+  const errors: string[] = []
+  const note = (e: unknown) => {
+    const m = e instanceof Error ? e.message : String(e)
+    // 同じ理由を何度も並べても読みづらいので、種類だけ残す
+    if (!errors.includes(m)) errors.push(m)
+  }
 
   // 先頭の場所から順に片づける。1回の呼び出しで MIGRATE_BATCH 枚まで
   for (const src of SOURCES) {
@@ -742,8 +750,15 @@ export async function migrateImagesToStorage(): Promise<MigrationProgress> {
     if (error) continue
 
     for (const row of (data ?? []) as Record<string, string>[]) {
-      const path = await toStored(row[src.dataCol], src.folder)
+      // 1枚こけても、残りは続ける
+      let path: string | null = null
+      try {
+        path = await toStored(row[src.dataCol], src.folder)
+      } catch (e) {
+        note(e)
+      }
       if (!path) {
+        if (errors.length === 0) note(new Error('画像の形式を読み取れませんでした'))
         failed += 1
         continue
       }
@@ -756,6 +771,7 @@ export async function migrateImagesToStorage(): Promise<MigrationProgress> {
       if (upErr) {
         // DBに書けなかったら、置いた画像は捨てる
         await removeImages([path])
+        note(upErr)
         failed += 1
         continue
       }
@@ -763,5 +779,5 @@ export async function migrateImagesToStorage(): Promise<MigrationProgress> {
     }
   }
 
-  return { remaining: await countUnmigratedImages(), moved, failed }
+  return { remaining: await countUnmigratedImages(), moved, failed, errors }
 }

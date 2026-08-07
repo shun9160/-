@@ -17,6 +17,7 @@ export default function StorageMigration() {
   const [running, setRunning] = useState(false)
   const [moved, setMoved] = useState(0)
   const [failed, setFailed] = useState(0)
+  const [why, setWhy] = useState<string[]>([])
   const [err, setErr] = useState<string | null>(null)
   const [done, setDone] = useState(false)
 
@@ -32,18 +33,24 @@ export default function StorageMigration() {
     setDone(false)
     let total = 0
     let bad = 0
+    const seen: string[] = []
+    // 一時的な失敗（通信の瞬断など）で止まらないよう、少しだけ粘る
+    let dry = 0
     try {
       // 残りが無くなるまで、5枚ずつ繰り返す
       for (;;) {
         const r = await migrateImagesToStorage()
         total += r.moved
         bad += r.failed
+        for (const m of r.errors) if (!seen.includes(m)) seen.push(m)
         setMoved(total)
         setFailed(bad)
+        setWhy([...seen])
         setLeft(r.remaining)
         if (r.remaining === 0) break
-        // この回で1枚も移せなかったなら、続けても同じなので止める
-        if (r.moved === 0) break
+        // 1枚も進まない回が続いたら、同じことの繰り返しなので止める
+        dry = r.moved === 0 ? dry + 1 : 0
+        if (dry >= 3) break
       }
       setDone(true)
     } catch (e) {
@@ -91,6 +98,19 @@ export default function StorageMigration() {
             </p>
           )}
 
+          {why.length > 0 && (
+            <div className="mt-2 rounded-xl border border-line bg-sunken px-3 py-2">
+              <p className="text-[11px] font-semibold text-ink2">移せなかった理由</p>
+              <ul className="mt-1 flex flex-col gap-0.5">
+                {why.map((m) => (
+                  <li key={m} className="break-all text-[11px] text-ink3">
+                    {m}
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
+
           {err && (
             <p className="mt-2 rounded-xl border border-down/25 bg-down-soft px-3 py-2 text-sm text-down">
               {err}
@@ -100,7 +120,7 @@ export default function StorageMigration() {
           {left > 0 && (
             <>
               <button className="btn btn-primary mt-3" onClick={run} disabled={running}>
-                {running ? '移しています…' : '移す'}
+                {running ? '移しています…' : moved > 0 || failed > 0 ? 'もう一度移す' : '移す'}
               </button>
               <p className="mt-2 text-[11px] text-ink3">
                 枚数が多いと時間がかかります。この画面を開いたままにしてください。
