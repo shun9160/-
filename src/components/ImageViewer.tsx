@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
+import { createPortal } from 'react-dom'
 import type { ReactNode } from 'react'
 import Icon from './Icon'
 
@@ -11,6 +12,7 @@ import Icon from './Icon'
  *  - 画像の下にボタンを置いていたので、合計が画面を超えてはみ出していた
  *  - 後ろのページが動くので、指で送ると裏側がスクロールしていた
  *  - 拡大できないので、細かいローソク足が読めなかった
+ *  - 画面いっぱいのはずが、ページの先頭まで戻らないと見えなかった
  *
  * 直し方:
  *  - 高さは dvh（いま実際に見えている高さ）で取る
@@ -18,6 +20,7 @@ import Icon from './Icon'
  *    どんな縦横比でもはみ出さない
  *  - 開いているあいだは後ろを止める
  *  - つまむ・二本指・ダブルタップで拡大。拡大中は指でずらせる
+ *  - body の直下に出す（ポータル）。下の「置き場所」の項を読むこと
  */
 
 interface Props {
@@ -153,7 +156,15 @@ export default function ImageViewer({ src, alt, caption, onClose, actions }: Pro
     apply(scale * (e.deltaY > 0 ? 0.9 : 1.1))
   }
 
-  return (
+  // 置き場所について。
+  //
+  // ここは普通に置くと、画面ではなく「ページの先頭」に出てしまう。
+  // 口座を左右に振って切り替える仕組み（SwipePager）が transform を
+  // 使っており、CSSの決まりで、transform の中にある position: fixed は
+  // 画面ではなくその要素を基準にするため。
+  //
+  // body の直下へ出して、その影響から抜ける。
+  return createPortal(
     <div
       role="dialog"
       aria-modal="true"
@@ -228,6 +239,7 @@ export default function ImageViewer({ src, alt, caption, onClose, actions }: Pro
         </p>
         {actions}
       </div>
-    </div>
+    </div>,
+    document.body,
   )
 }
