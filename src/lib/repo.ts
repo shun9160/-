@@ -1,4 +1,6 @@
 import { supabase } from './supabase'
+import { dataUrlToBlob } from './image'
+import { isDataUrl, removeImages, signedUrl, signedUrls, uploadImage } from './storage'
 import type { Account, DayNote, Settings, Trade, TradeImage, TradeInput } from './types'
 
 const NO_CLIENT = 'Supabase が未設定です (.env / Netlify の環境変数を確認してください)'
@@ -135,11 +137,13 @@ export async function getTradeScreenshot(id: string): Promise<string | null> {
   if (!supabase) throw new Error(NO_CLIENT)
   const { data, error } = await supabase
     .from('trades')
-    .select('screenshot')
+    .select('screenshot,screenshot_path')
     .eq('id', id)
     .single()
   if (error) throw error
-  return (data?.screenshot as string | null) ?? null
+  const row = data as { screenshot: string | null; screenshot_path: string | null } | null
+  if (row?.screenshot_path) return await signedUrl(row.screenshot_path)
+  return row?.screenshot ?? null
 }
 
 /** 既存トレードの項目を更新する。patch に含めたキーだけ更新。 */
@@ -148,7 +152,16 @@ export async function updateTrade(
   patch: Partial<TradeInput>,
 ): Promise<void> {
   if (!supabase) throw new Error(NO_CLIENT)
-  const { error } = await supabase.from('trades').update(patch).eq('id', id)
+  const row: Record<string, unknown> = { ...patch }
+  // スクショが新しく差し替えられたら、中身ではなく置き場所を書く
+  if (typeof patch.screenshot === 'string' && isDataUrl(patch.screenshot)) {
+    const path = await toStored(patch.screenshot, id)
+    if (path) {
+      row.screenshot = null
+      row.screenshot_path = path
+    }
+  }
+  const { error } = await supabase.from('trades').update(row).eq('id', id)
   if (error) throw error
 }
 
@@ -309,16 +322,57 @@ export async function upsertDayNote(day: string, note: string): Promise<void> {
 // 取引ごとのチャート画像
 // ---------------------------------------------------------------
 
+
+// ---------------------------------------------------------------
+// 画像の置き場所（Storage）との橋渡し
+//
+// 画面側は今までどおり「image に入っている文字を <img src> に入れる」だけ。
+// それが data URL でも、Storage の時限URLでも、扱いは変わらない。
+// おかげで、置き場所を変えても画面側のコードは1行も直さずに済む。
+// ---------------------------------------------------------------
+
+/** DBから読んだそのままの形。image と image_path のどちらかが入っている */
+type StoredImage = TradeImage & { image_path?: string | null }
+
+/**
+ * image_path があればそこから時限URLを作り、image に入れて返す。
+ * 無ければ今までどおり image の中身をそのまま使う。
+ * 引っ越しの途中で新旧が混ざっていても、どちらも表示できる。
+ */
+async function resolveImages(rows: StoredImage[]): Promise<TradeImage[]> {
+  const paths = rows.map((r) => r.image_path).filter((p): p is string => !!p)
+  // 1枚ずつ問い合わせると枚数ぶん往復するので、まとめて作る
+  const urls = paths.length ? await signedUrls(paths) : {}
+  return rows.map((r) => ({
+    ...r,
+    image: r.image_path ? (urls[r.image_path] ?? '') : r.image,
+  }))
+}
+
+/**
+ * data URL を Storage へ送り、置き場所を返す。
+ * 送れなかったときは null を返し、呼び元が今までどおりDBに入れる。
+ * 「画像が保存できなくて記録そのものが失敗する」のを避けるため。
+ */
+async function toStored(dataUrl: string, folder: string): Promise<string | null> {
+  if (!isDataUrl(dataUrl)) return null
+  try {
+    return await uploadImage(await dataUrlToBlob(dataUrl), folder)
+  } catch {
+    return null
+  }
+}
+
 /** その取引に貼ってあるチャート画像を、貼った順に取得する */
 export async function fetchTradeImages(tradeId: string): Promise<TradeImage[]> {
   if (!supabase) throw new Error(NO_CLIENT)
   const { data, error } = await supabase
     .from('trade_images')
-    .select('id,trade_id,image,image_hash,caption,created_at')
+    .select('id,trade_id,image,image_path,image_hash,caption,created_at')
     .eq('trade_id', tradeId)
     .order('created_at', { ascending: true })
   if (error) throw error
-  return (data ?? []) as TradeImage[]
+  return resolveImages((data ?? []) as StoredImage[])
 }
 
 /**
@@ -330,11 +384,11 @@ export async function fetchRecentTradeImages(limit = 6): Promise<TradeImage[]> {
   try {
     const { data, error } = await supabase
       .from('trade_images')
-      .select('id,trade_id,image,caption,created_at')
+      .select('id,trade_id,image,image_path,caption,created_at')
       .order('created_at', { ascending: false })
       .limit(limit)
     if (error) return []
-    return (data ?? []) as TradeImage[]
+    return await resolveImages((data ?? []) as StoredImage[])
   } catch {
     return []
   }
@@ -369,19 +423,31 @@ export async function addTradeImages(
   if (images.length === 0) return []
   const userId = await requireUserId()
 
-  const rows = images.map((x) => ({
-    user_id: userId,
-    trade_id: tradeId,
-    image: x.image,
-    caption: x.caption ?? null,
-    image_hash: x.hash ?? null,
-  }))
+  // 画像そのものは Storage へ。DBには置き場所だけを書く
+  const rows = await Promise.all(
+    images.map(async (x) => {
+      const path = await toStored(x.image, tradeId)
+      return {
+        user_id: userId,
+        trade_id: tradeId,
+        // 置けたら中身は持たない。置けなかったときだけ今までどおり入れる
+        image: path ? null : x.image,
+        image_path: path,
+        caption: x.caption ?? null,
+        image_hash: x.hash ?? null,
+      }
+    }),
+  )
   const { data, error } = await supabase
     .from('trade_images')
     .insert(rows)
-    .select('id,trade_id,image,image_hash,caption,created_at')
-  if (error) throw error
-  return (data ?? []) as TradeImage[]
+    .select('id,trade_id,image,image_path,image_hash,caption,created_at')
+  if (error) {
+    // 行を作れなかったら、置いた画像は捨てる。残すと容量だけ食う
+    await removeImages(rows.map((r) => r.image_path))
+    throw error
+  }
+  return resolveImages((data ?? []) as StoredImage[])
 }
 
 // ---------------------------------------------------------------
@@ -451,8 +517,17 @@ export async function updateTradeImageCaption(id: string, caption: string): Prom
 
 export async function deleteTradeImage(id: string): Promise<void> {
   if (!supabase) throw new Error(NO_CLIENT)
+  // 先に置き場所を控える。行を消したあとでは分からなくなる
+  const { data } = await supabase
+    .from('trade_images')
+    .select('image_path')
+    .eq('id', id)
+    .maybeSingle()
+
   const { error } = await supabase.from('trade_images').delete().eq('id', id)
   if (error) throw error
+  // 画面から消えても、置き場に残っていると容量を食い続ける
+  await removeImages([(data as { image_path?: string | null } | null)?.image_path])
 }
 
 // ---------------------------------------------------------------
@@ -584,4 +659,78 @@ function generateToken(): string {
     out += alphabet[bytes[i] % alphabet.length]
   }
   return out // 例: ABCDE-FGHJK-LMNPQ-RSTUV
+}
+
+// ---------------------------------------------------------------
+// 既存の画像を Storage へ引っ越す
+//
+// これまでDBの中に入れていた画像を、ファイル置き場へ移す。
+// 少しずつ進められるようにして、途中で止めても壊れないようにする。
+// （移し終わった行から順に、置き場所を書いて中身を消していく）
+// ---------------------------------------------------------------
+
+export interface MigrationProgress {
+  /** まだDBの中に残っている枚数 */
+  remaining: number
+  /** この回で移せた枚数 */
+  moved: number
+  /** この回で移せなかった枚数 */
+  failed: number
+}
+
+/** 1回に移す枚数。多いと端末が固まるので、少しずつ */
+const MIGRATE_BATCH = 5
+
+/** まだ移していない画像の枚数を数える */
+export async function countUnmigratedImages(): Promise<number> {
+  if (!supabase) return 0
+  const { count } = await supabase
+    .from('trade_images')
+    .select('id', { count: 'exact', head: true })
+    .is('image_path', null)
+    .not('image', 'is', null)
+  return count ?? 0
+}
+
+/**
+ * まだ移していない画像を、少しだけ移す。
+ * 呼ぶたびに MIGRATE_BATCH 枚ずつ進む。remaining が 0 になれば完了。
+ */
+export async function migrateImagesToStorage(): Promise<MigrationProgress> {
+  if (!supabase) return { remaining: 0, moved: 0, failed: 0 }
+
+  const { data, error } = await supabase
+    .from('trade_images')
+    .select('id,trade_id,image')
+    .is('image_path', null)
+    .not('image', 'is', null)
+    .limit(MIGRATE_BATCH)
+  if (error) throw error
+
+  const rows = (data ?? []) as { id: string; trade_id: string; image: string }[]
+  let moved = 0
+  let failed = 0
+
+  for (const r of rows) {
+    const path = await toStored(r.image, r.trade_id)
+    if (!path) {
+      failed += 1
+      continue
+    }
+    // 置き場所を書いてから中身を消す。順番が逆だと、
+    // 途中で失敗したときに画像が消えたまま残る
+    const { error: upErr } = await supabase
+      .from('trade_images')
+      .update({ image_path: path, image: null })
+      .eq('id', r.id)
+    if (upErr) {
+      // DBに書けなかったら、置いた画像は捨てる
+      await removeImages([path])
+      failed += 1
+      continue
+    }
+    moved += 1
+  }
+
+  return { remaining: await countUnmigratedImages(), moved, failed }
 }
