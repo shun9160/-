@@ -117,12 +117,10 @@ export async function saveAccountCapital(
   }
   if (patch.capital_screenshot !== undefined) {
     // 中身ではなく置き場所を書く。置けなければ今までどおり中身を入れる
-    const path =
+    row.capital_screenshot_path =
       typeof patch.capital_screenshot === 'string'
         ? await toStored(patch.capital_screenshot, 'capital')
         : null
-    row.capital_screenshot = path ? null : patch.capital_screenshot
-    row.capital_screenshot_path = path
   }
   const { error } = await supabase.from('accounts').update(row).eq('id', id)
   if (error) throw error
@@ -133,15 +131,12 @@ export async function getAccountCapitalScreenshot(id: string): Promise<string | 
   if (!supabase) throw new Error(NO_CLIENT)
   const { data, error } = await supabase
     .from('accounts')
-    .select('capital_screenshot,capital_screenshot_path')
+    .select('capital_screenshot_path')
     .eq('id', id)
     .maybeSingle()
   if (error) throw error
-  const row = data as
-    | { capital_screenshot: string | null; capital_screenshot_path: string | null }
-    | null
-  if (row?.capital_screenshot_path) return await signedUrl(row.capital_screenshot_path)
-  return row?.capital_screenshot ?? null
+  const row = data as { capital_screenshot_path: string | null } | null
+  return row?.capital_screenshot_path ? await signedUrl(row.capital_screenshot_path) : null
 }
 
 /** 個別トレードの添付スクショ (data URL) を取得。無ければ null。 */
@@ -149,13 +144,12 @@ export async function getTradeScreenshot(id: string): Promise<string | null> {
   if (!supabase) throw new Error(NO_CLIENT)
   const { data, error } = await supabase
     .from('trades')
-    .select('screenshot,screenshot_path')
+    .select('screenshot_path')
     .eq('id', id)
     .single()
   if (error) throw error
-  const row = data as { screenshot: string | null; screenshot_path: string | null } | null
-  if (row?.screenshot_path) return await signedUrl(row.screenshot_path)
-  return row?.screenshot ?? null
+  const row = data as { screenshot_path: string | null } | null
+  return row?.screenshot_path ? await signedUrl(row.screenshot_path) : null
 }
 
 /** 既存トレードの項目を更新する。patch に含めたキーだけ更新。 */
@@ -168,10 +162,8 @@ export async function updateTrade(
   // スクショが新しく差し替えられたら、中身ではなく置き場所を書く
   if (typeof patch.screenshot === 'string' && isDataUrl(patch.screenshot)) {
     const path = await toStored(patch.screenshot, id)
-    if (path) {
-      row.screenshot = null
-      row.screenshot_path = path
-    }
+    delete row.screenshot
+    row.screenshot_path = path
   }
   const { error } = await supabase.from('trades').update(row).eq('id', id)
   if (error) throw error
@@ -347,32 +339,27 @@ export async function upsertDayNote(day: string, note: string): Promise<void> {
 type StoredImage = TradeImage & { image_path?: string | null }
 
 /**
- * image_path があればそこから時限URLを作り、image に入れて返す。
- * 無ければ今までどおり image の中身をそのまま使う。
- * 引っ越しの途中で新旧が混ざっていても、どちらも表示できる。
+ * 置き場所から表示用の時限URLを作り、image に入れて返す。
+ * 画面側は image をそのまま <img src> に入れるだけでよい。
  */
 async function resolveImages(rows: StoredImage[]): Promise<TradeImage[]> {
   const paths = rows.map((r) => r.image_path).filter((p): p is string => !!p)
   // 1枚ずつ問い合わせると枚数ぶん往復するので、まとめて作る
   const urls = paths.length ? await signedUrls(paths) : {}
-  return rows.map((r) => ({
-    ...r,
-    image: r.image_path ? (urls[r.image_path] ?? '') : r.image,
-  }))
+  return rows.map((r) => ({ ...r, image: (r.image_path && urls[r.image_path]) || '' }))
 }
 
 /**
  * data URL を Storage へ送り、置き場所を返す。
- * 送れなかったときは null を返し、呼び元が今までどおりDBに入れる。
- * 「画像が保存できなくて記録そのものが失敗する」のを避けるため。
+ *
+ * 以前は「送れなければDBに入れる」逃げ道を持っていたが、
+ * 画像を入れる列そのものを無くしたので、その道はもう無い。
+ * 黙って握りつぶすと「保存できたのに画像が無い」状態になるため、
+ * ここでははっきり失敗させて、画面にエラーを出す。
  */
 async function toStored(dataUrl: string, folder: string): Promise<string | null> {
   if (!isDataUrl(dataUrl)) return null
-  try {
-    return await uploadImage(await dataUrlToBlob(dataUrl), folder)
-  } catch {
-    return null
-  }
+  return await uploadImage(await dataUrlToBlob(dataUrl), folder)
 }
 
 /** その取引に貼ってあるチャート画像を、貼った順に取得する */
@@ -380,7 +367,7 @@ export async function fetchTradeImages(tradeId: string): Promise<TradeImage[]> {
   if (!supabase) throw new Error(NO_CLIENT)
   const { data, error } = await supabase
     .from('trade_images')
-    .select('id,trade_id,image,image_path,image_hash,caption,created_at')
+    .select('id,trade_id,image_path,image_hash,caption,created_at')
     .eq('trade_id', tradeId)
     .order('created_at', { ascending: true })
   if (error) throw error
@@ -396,7 +383,7 @@ export async function fetchRecentTradeImages(limit = 6): Promise<TradeImage[]> {
   try {
     const { data, error } = await supabase
       .from('trade_images')
-      .select('id,trade_id,image,image_path,caption,created_at')
+      .select('id,trade_id,image_path,caption,created_at')
       .order('created_at', { ascending: false })
       .limit(limit)
     if (error) return []
@@ -438,13 +425,10 @@ export async function addTradeImages(
   // 画像そのものは Storage へ。DBには置き場所だけを書く
   const rows = await Promise.all(
     images.map(async (x) => {
-      const path = await toStored(x.image, tradeId)
       return {
         user_id: userId,
         trade_id: tradeId,
-        // 置けたら中身は持たない。置けなかったときだけ今までどおり入れる
-        image: path ? null : x.image,
-        image_path: path,
+        image_path: await toStored(x.image, tradeId),
         caption: x.caption ?? null,
         image_hash: x.hash ?? null,
       }
@@ -453,7 +437,7 @@ export async function addTradeImages(
   const { data, error } = await supabase
     .from('trade_images')
     .insert(rows)
-    .select('id,trade_id,image,image_path,image_hash,caption,created_at')
+    .select('id,trade_id,image_path,image_hash,caption,created_at')
   if (error) {
     // 行を作れなかったら、置いた画像は捨てる。残すと容量だけ食う
     await removeImages(rows.map((r) => r.image_path))
