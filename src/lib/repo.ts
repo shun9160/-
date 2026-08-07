@@ -693,16 +693,45 @@ export interface MigrationProgress {
 /** 1回に移す枚数。多いと端末が固まるので、少しずつ */
 const MIGRATE_BATCH = 5
 
-/** まだ移していない画像の枚数を数える */
+/**
+ * まだ移していない画像の枚数を数える。
+ *
+ * 画像は3か所に入っている。数え漏らすと「移し終わった」ように見えて、
+ * 実際にはデータベースに残り続けるので、必ず全部を見る。
+ *   trade_images.image            … 取引に貼ったチャート画像
+ *   trades.screenshot             … スクショ登録で取り込んだ画像
+ *   accounts.capital_screenshot   … 原資の証拠
+ */
 export async function countUnmigratedImages(): Promise<number> {
   if (!supabase) return 0
-  const { count } = await supabase
-    .from('trade_images')
-    .select('id', { count: 'exact', head: true })
-    .is('image_path', null)
-    .not('image', 'is', null)
-  return count ?? 0
+  const counts = await Promise.all(
+    SOURCES.map(async (src) => {
+      try {
+        const { count } = await supabase!
+          .from(src.table)
+          .select('id', { count: 'exact', head: true })
+          .is(src.pathCol, null)
+          .not(src.dataCol, 'is', null)
+        return count ?? 0
+      } catch {
+        return 0
+      }
+    }),
+  )
+  return counts.reduce((a, b) => a + b, 0)
 }
+
+/** 画像が入っている場所。増えたらここに足す */
+const SOURCES = [
+  { table: 'trade_images', dataCol: 'image', pathCol: 'image_path', folder: 'chart' },
+  { table: 'trades', dataCol: 'screenshot', pathCol: 'screenshot_path', folder: 'trade' },
+  {
+    table: 'accounts',
+    dataCol: 'capital_screenshot',
+    pathCol: 'capital_screenshot_path',
+    folder: 'capital',
+  },
+] as const
 
 /**
  * まだ移していない画像を、少しだけ移す。
@@ -711,37 +740,43 @@ export async function countUnmigratedImages(): Promise<number> {
 export async function migrateImagesToStorage(): Promise<MigrationProgress> {
   if (!supabase) return { remaining: 0, moved: 0, failed: 0 }
 
-  const { data, error } = await supabase
-    .from('trade_images')
-    .select('id,trade_id,image')
-    .is('image_path', null)
-    .not('image', 'is', null)
-    .limit(MIGRATE_BATCH)
-  if (error) throw error
-
-  const rows = (data ?? []) as { id: string; trade_id: string; image: string }[]
   let moved = 0
   let failed = 0
 
-  for (const r of rows) {
-    const path = await toStored(r.image, r.trade_id)
-    if (!path) {
-      failed += 1
-      continue
+  // 先頭の場所から順に片づける。1回の呼び出しで MIGRATE_BATCH 枚まで
+  for (const src of SOURCES) {
+    if (moved + failed >= MIGRATE_BATCH) break
+    const room = MIGRATE_BATCH - (moved + failed)
+
+    const { data, error } = await supabase
+      .from(src.table)
+      .select(`id,${src.dataCol}`)
+      .is(src.pathCol, null)
+      .not(src.dataCol, 'is', null)
+      .limit(room)
+    // その表がまだ無い環境でも、ほかの表の引っ越しは続ける
+    if (error) continue
+
+    for (const row of (data ?? []) as Record<string, string>[]) {
+      const path = await toStored(row[src.dataCol], src.folder)
+      if (!path) {
+        failed += 1
+        continue
+      }
+      // 置き場所を書いてから中身を消す。順番が逆だと、
+      // 途中で失敗したときに画像が消えたまま残る
+      const { error: upErr } = await supabase
+        .from(src.table)
+        .update({ [src.pathCol]: path, [src.dataCol]: null })
+        .eq('id', row.id)
+      if (upErr) {
+        // DBに書けなかったら、置いた画像は捨てる
+        await removeImages([path])
+        failed += 1
+        continue
+      }
+      moved += 1
     }
-    // 置き場所を書いてから中身を消す。順番が逆だと、
-    // 途中で失敗したときに画像が消えたまま残る
-    const { error: upErr } = await supabase
-      .from('trade_images')
-      .update({ image_path: path, image: null })
-      .eq('id', r.id)
-    if (upErr) {
-      // DBに書けなかったら、置いた画像は捨てる
-      await removeImages([path])
-      failed += 1
-      continue
-    }
-    moved += 1
   }
 
   return { remaining: await countUnmigratedImages(), moved, failed }

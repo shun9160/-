@@ -66,7 +66,7 @@ export default function StorageMigration() {
         <div className="min-w-0 flex-1">
           <h2 className="text-base font-bold">画像の置き場所を移す</h2>
           <p className="mt-1 text-sm text-ink2">
-            以前に貼ったチャート画像が、データベースの中に入ったままです。
+以前に取り込んだ画像が、データベースの中に入ったままです。
             ファイル置き場へ移すと、表示が速くなり、保管の費用も下がります。
             見た目は変わりません。
           </p>
