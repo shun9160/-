@@ -1,9 +1,10 @@
-import { useRef, useState } from 'react'
+import { useMemo, useRef, useState } from 'react'
 import type { Account, TradeInput } from '../lib/types'
 import { accountLabel } from '../lib/types'
 import { friendlyError } from '../lib/errors'
 import { parseAuto } from '../lib/mt5Parser'
 import { addTradeImages, insertTrades } from '../lib/repo'
+import { knownSetups } from '../lib/setups'
 import { seedTrades } from '../lib/seed'
 import BatchImport from './BatchImport'
 import BrokerMark from './BrokerMark'
@@ -11,6 +12,8 @@ import TradeForm from './TradeForm'
 import Icon from './Icon'
 
 interface Props {
+  /** すでに使ったことのある型を作るための、いままでの取引 */
+  allTrades?: { setup?: string | null }[]
   accounts: Account[]
   /** 画面上部で選ばれている口座。「すべて」なら null */
   selectedAccountId: string | null
@@ -23,8 +26,13 @@ interface Props {
 type Method = 'shots' | 'manual' | 'file'
 
 export default function UploadPanel({
-  accounts, selectedAccountId, onChanged, disabled, onDone,
+  accounts, selectedAccountId, onChanged, disabled, onDone, allTrades = [],
 }: Props) {
+  // 一度使った型は、次から押すだけで付けられるようにする
+  const setupOptions = useMemo(
+    () => knownSetups(allTrades as never),
+    [allTrades],
+  )
   const fileRef = useRef<HTMLInputElement>(null)
   const [method, setMethod] = useState<Method>('shots')
   const [busy, setBusy] = useState(false)
@@ -203,6 +211,7 @@ export default function UploadPanel({
       ) : method === 'manual' ? (
         <div className="card p-4 sm:p-5">
           <TradeForm
+            knownSetups={setupOptions}
             mode="add"
             disabled={mustChoose || noAccount}
             onSubmit={async (input, { charts }) => {

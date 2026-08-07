@@ -51,6 +51,8 @@ export interface Trade {
   profit: number
   currency: string
   note: string | null
+  /** 自分の型の名前。「押し目買い」など。未入力は null */
+  setup?: string | null
   /** 添付スクショ (縮小した data URL)。一覧取得では省略され undefined になる */
   screenshot?: string | null
   /** 取込元スクショの指紋。同じ画像を二度取り込まないために使う */

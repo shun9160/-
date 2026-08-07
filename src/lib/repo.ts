@@ -28,7 +28,7 @@ async function requireUserId(): Promise<string> {
 
 // 一覧取得では重い screenshot 列を除外して転送量を抑える。
 const LIST_COLUMNS =
-  'id,account_id,ticket,symbol,side,volume,open_price,close_price,sl,tp,open_time,close_time,commission,swap,profit,currency,note,source,created_at'
+  'id,account_id,ticket,symbol,side,volume,open_price,close_price,sl,tp,open_time,close_time,commission,swap,profit,currency,note,setup,source,created_at'
 
 export async function fetchTrades(): Promise<Trade[]> {
   if (!supabase) throw new Error(NO_CLIENT)

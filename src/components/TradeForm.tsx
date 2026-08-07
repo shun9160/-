@@ -19,15 +19,19 @@ interface Props {
   onCancel?: () => void
   /** 記録先が決まっていないなど、まだ登録できない状態 */
   disabled?: boolean
+  /** すでに使ったことのある型。選ぶだけで付けられるようにする */
+  knownSetups?: string[]
 }
 
 const numOrNull = (s: string) => (s.trim() === '' ? null : Number(s))
 
-export default function TradeForm({ mode, trade, onSubmit, onCancel, disabled }: Props) {
+export default function TradeForm({ mode, trade, onSubmit, onCancel, disabled, knownSetups = [] }: Props) {
   const fileRef = useRef<HTMLInputElement>(null)
   const [busy, setBusy] = useState(false)
   const [err, setErr] = useState<string | null>(null)
   const [showDetail, setShowDetail] = useState(mode === 'edit')
+  /** 自分の型の名前 */
+  const [setup, setSetup] = useState(trade?.setup ?? '')
   // 登録と同時に貼るチャート。保存できてから取引に付ける
   const [charts, setCharts] = useState<PickedImage[]>([])
 
@@ -181,6 +185,7 @@ export default function TradeForm({ mode, trade, onSubmit, onCancel, disabled }:
       profit: Number(f.profit) || 0,
       currency: f.currency.trim() || getAppConfig().accountCurrency,
       note: trade?.note ?? null,
+      setup: setup.trim() || null,
       source: mode === 'add' ? (shot ? 'screenshot' : 'manual') : (trade?.source ?? 'manual'),
     }
     const screenshotChanged = shot !== undefined
@@ -365,6 +370,10 @@ export default function TradeForm({ mode, trade, onSubmit, onCancel, disabled }:
         </button>
       )}
 
+      {/* 型（セットアップ）。押すだけで付けられるようにして、
+          書く気力が無い日でも記録が残るようにする */}
+      <SetupField value={setup} onChange={setSetup} known={knownSetups} disabled={busy} />
+
       {err && (
         <p className="rounded-xl border border-down/25 bg-down-soft px-3 py-2 text-sm text-down">
           {err}
@@ -397,4 +406,83 @@ export default function TradeForm({ mode, trade, onSubmit, onCancel, disabled }:
 
 function str(v: number | null | undefined, dflt = ''): string {
   return v == null ? dflt : String(v)
+}
+
+/**
+ * 型（セットアップ）を選ぶところ。
+ *
+ * 「押し目買い」のように自分の型に名前を付けておくと、同じ型の取引と
+ * チャートが集まってアルバムになる。貼った画像が「その取引の添付物」で
+ * 終わらず、自分の勝ちパターン集として意味を持つようになる。
+ *
+ * 一度使った名前は押すだけで付けられるようにしてある。
+ * 毎回打たせると、面倒になって付けなくなり、集まらなくなるため。
+ */
+function SetupField({
+  value,
+  onChange,
+  known,
+  disabled,
+}: {
+  value: string
+  onChange: (v: string) => void
+  known: string[]
+  disabled?: boolean
+}) {
+  const [typing, setTyping] = useState(false)
+  const showInput = typing || known.length === 0 || (!!value && !known.includes(value))
+
+  return (
+    <div className="rounded-xl border border-line bg-sunken/50 p-3.5">
+      <p className="text-sm font-semibold">どの型で入りましたか？</p>
+      <p className="mt-0.5 text-[11px] text-ink3">
+        名前を付けておくと、同じ型のトレードとチャートが集まります。あとからでも付けられます。
+      </p>
+
+      {known.length > 0 && (
+        <div className="mt-2.5 flex flex-wrap gap-1.5">
+          {known.map((k) => (
+            <button
+              key={k}
+              type="button"
+              disabled={disabled}
+              onClick={() => {
+                // もう一度押すと外れる。付け間違いを直しやすくする
+                onChange(value === k ? '' : k)
+                setTyping(false)
+              }}
+              className={`rounded-lg px-2.5 py-1.5 text-xs font-semibold transition-colors ${
+                value === k
+                  ? 'bg-brand text-white'
+                  : 'border border-line bg-surface text-ink2 hover:border-brand hover:text-brand'
+              }`}
+            >
+              {k}
+            </button>
+          ))}
+          {!showInput && (
+            <button
+              type="button"
+              disabled={disabled}
+              onClick={() => setTyping(true)}
+              className="rounded-lg border border-dashed border-line px-2.5 py-1.5 text-xs font-semibold text-ink3 hover:border-brand hover:text-brand"
+            >
+              <Icon name="plus" size={12} /> 新しい型
+            </button>
+          )}
+        </div>
+      )}
+
+      {showInput && (
+        <input
+          className="input mt-2.5"
+          value={value}
+          onChange={(e) => onChange(e.target.value)}
+          placeholder="押し目買い、ブレイク狙い など"
+          maxLength={24}
+          disabled={disabled}
+        />
+      )}
+    </div>
+  )
 }

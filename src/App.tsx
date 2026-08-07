@@ -381,6 +381,7 @@ export default function App() {
               {screen === 'calendar' && <CalendarScreen trades={trades} onSelectDay={openDay} />}
               {screen === 'add' && (
                 <UploadPanel
+                  allTrades={allTrades}
                   accounts={accounts}
                   selectedAccountId={accountId}
                   onChanged={reload}

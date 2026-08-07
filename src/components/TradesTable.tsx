@@ -12,6 +12,7 @@ import { fmtJst, SESSION_LABELS } from '../lib/timezone'
 import { currencyLabel } from '../lib/appConfig'
 import { colorOf, fmtMoney, fmtNum, fmtPct, fmtRR } from '../lib/format'
 import { sortTrades } from '../lib/tradeSort'
+import { knownSetups } from '../lib/setups'
 import type { TradeOrder } from '../lib/tradeSort'
 import { friendlyError } from '../lib/errors'
 import TradeForm from './TradeForm'
@@ -75,6 +76,9 @@ export default function TradesTable({
       alive = false
     }
   }, [readOnly])
+
+  // 一度使った型は、次から押すだけで付けられるようにする
+  const setups = useMemo(() => knownSetups(trades), [trades])
 
   const rows = useMemo(() => {
     const list = filterDay ? trades.filter((t) => t.jstDay === filterDay) : trades
@@ -213,6 +217,11 @@ export default function TradesTable({
                 {t.side === 'buy' ? '買い' : '売り'}
               </span>
               <span className="truncate text-sm font-bold">{t.symbol}</span>
+              {t.setup && (
+                <span className="shrink-0 rounded-md bg-brand-soft px-1.5 py-0.5 text-[11px] font-semibold text-brand">
+                  {t.setup}
+                </span>
+              )}
               <span className="shrink-0 text-xs text-ink3">{fmtNum(t.volume, 2)} lot</span>
               <span
                 className={`ml-auto shrink-0 text-base font-bold tabular-nums ${colorOf(t.netProfit)}`}
@@ -244,6 +253,7 @@ export default function TradesTable({
             {isEditing ? (
               <div className="border-t border-line px-4 py-4">
                 <TradeForm
+                  knownSetups={setups}
                   mode="edit"
                   trade={t}
                   onSubmit={async (input) => {
