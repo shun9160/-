@@ -2,6 +2,7 @@ import { useState } from 'react'
 import type { TradeImage } from '../../lib/types'
 import { fmtJst } from '../../lib/timezone'
 import Icon from '../Icon'
+import ImageViewer from '../ImageViewer'
 
 interface Props {
   images: TradeImage[]
@@ -58,35 +59,24 @@ export default function ScreenshotStrip({ images, timeOf, onOpenTrade }: Props) 
       )}
 
       {zoom && (
-        <div
-          className="fixed inset-0 z-50 flex items-center justify-center bg-ink/70 p-4"
-          role="dialog"
-          aria-label="チャート"
-          onClick={() => setZoom(null)}
-        >
-          <div className="max-h-full w-full max-w-2xl" onClick={(e) => e.stopPropagation()}>
-            <img
-              src={zoom.image}
-              alt={zoom.caption ?? 'チャート'}
-              className="max-h-[75vh] w-full rounded-xl object-contain"
-            />
-            <div className="mt-3 flex items-center gap-2">
-              <button
-                className="btn btn-primary"
-                onClick={() => {
-                  onOpenTrade(zoom.trade_id)
-                  setZoom(null)
-                }}
-              >
-                この取引の日を開く
-                <Icon name="right" size={15} />
-              </button>
-              <button className="btn btn-quiet" onClick={() => setZoom(null)}>
-                閉じる
-              </button>
-            </div>
-          </div>
-        </div>
+        <ImageViewer
+          src={zoom.image}
+          alt={zoom.caption ?? 'チャート'}
+          caption={zoom.caption}
+          onClose={() => setZoom(null)}
+          actions={
+            <button
+              className="btn btn-primary"
+              onClick={() => {
+                onOpenTrade(zoom.trade_id)
+                setZoom(null)
+              }}
+            >
+              この取引の日を開く
+              <Icon name="right" size={15} />
+            </button>
+          }
+        />
       )}
     </section>
   )

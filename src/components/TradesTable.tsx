@@ -17,6 +17,7 @@ import { friendlyError } from '../lib/errors'
 import TradeForm from './TradeForm'
 import ChartImages from './ChartImages'
 import Icon from './Icon'
+import ImageViewer from './ImageViewer'
 import { Pill, type PillTone } from './ui'
 
 /** 終わり方を、色と文字の両方で示す */
@@ -58,6 +59,8 @@ export default function TradesTable({
   /** 取引ごとのチャート枚数。開かなくてもバッジに出す */
   const [chartCounts, setChartCounts] = useState<Record<string, number>>({})
   const [err, setErr] = useState<string | null>(null)
+  /** 画面いっぱいで見ている画像 */
+  const [viewer, setViewer] = useState<string | null>(null)
 
   // 何枚貼ってあるかだけ先に読む（画像そのものは開いたときに読む）
   useEffect(() => {
@@ -342,11 +345,24 @@ export default function TradesTable({
                     {imgOf[t.id] === 'loading' ? (
                       <p className="text-xs text-ink3">読み込み中…</p>
                     ) : imgOf[t.id] ? (
-                      <img
-                        src={imgOf[t.id] as string}
-                        alt="この取引のスクリーンショット"
-                        className="max-h-80 w-full rounded-xl border border-line object-contain"
-                      />
+                      // 中に大きく置くと、下の内容が押し下がって読みにくい。
+                      // ここは小さく出し、押したら画面いっぱいで見る
+                      <button
+                        type="button"
+                        onClick={() => setViewer(imgOf[t.id] as string)}
+                        className="group relative block w-full overflow-hidden rounded-xl border border-line"
+                        aria-label="スクリーンショットを大きく見る"
+                      >
+                        <img
+                          src={imgOf[t.id] as string}
+                          alt="この取引のスクリーンショット"
+                          className="max-h-44 w-full bg-sunken object-contain"
+                        />
+                        <span className="absolute bottom-1.5 right-1.5 flex items-center gap-1 rounded-lg bg-ink/70 px-2 py-1 text-[11px] font-semibold text-white">
+                          <Icon name="search" size={12} />
+                          大きく見る
+                        </span>
+                      </button>
                     ) : (
                       <p className="text-xs text-ink3">画像は登録されていません</p>
                     )}
@@ -384,6 +400,14 @@ export default function TradesTable({
           </article>
         )
       })}
+
+      {viewer && (
+        <ImageViewer
+          src={viewer}
+          alt="この取引のスクリーンショット"
+          onClose={() => setViewer(null)}
+        />
+      )}
     </div>
   )
 }

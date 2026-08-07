@@ -12,6 +12,7 @@ import { friendlyError } from '../lib/errors'
 import { hashFile } from '../lib/imageHash'
 import { duplicateMessage } from './ChartPicker'
 import Icon from './Icon'
+import ImageViewer from './ImageViewer'
 
 // チャートは細い線と数字を見るので、スクショより少し大きめ・高画質で残す。
 const MAX_DIM = 1600
@@ -202,40 +203,14 @@ export default function ChartImages({ tradeId, readOnly, onCountChange }: Props)
         </ul>
       )}
 
-      {zoom && <Lightbox img={zoom} onClose={() => setZoom(null)} />}
-    </div>
-  )
-}
-
-/** 画面いっぱいに広げてチャートを見る */
-function Lightbox({ img, onClose }: { img: TradeImage; onClose: () => void }) {
-  useEffect(() => {
-    const onKey = (e: KeyboardEvent) => e.key === 'Escape' && onClose()
-    window.addEventListener('keydown', onKey)
-    return () => window.removeEventListener('keydown', onKey)
-  }, [onClose])
-
-  return (
-    <div
-      role="dialog"
-      aria-modal="true"
-      aria-label={img.caption ?? 'チャート'}
-      onClick={onClose}
-      className="fixed inset-0 z-50 flex flex-col items-center justify-center bg-ink/95 p-4 backdrop-blur-sm"
-    >
-      <img
-        src={img.image}
-        alt={img.caption ?? 'チャート'}
-        onClick={(e) => e.stopPropagation()}
-        className="max-h-[85vh] max-w-full rounded-xl bg-surface object-contain"
-      />
-      <div className="mt-3 flex items-center gap-3">
-        {img.caption && <p className="text-sm font-semibold text-white">{img.caption}</p>}
-        <button className="btn btn-quiet" onClick={onClose}>
-          <Icon name="close" size={15} />
-          閉じる
-        </button>
-      </div>
+      {zoom && (
+        <ImageViewer
+          src={zoom.image}
+          alt={zoom.caption ?? 'この取引のチャート'}
+          caption={zoom.caption}
+          onClose={() => setZoom(null)}
+        />
+      )}
     </div>
   )
 }
