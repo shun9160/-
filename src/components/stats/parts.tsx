@@ -1,6 +1,6 @@
-import { colorOf, fmtMoney, fmtPct } from '../../lib/format'
-import { currencyLabel } from '../../lib/appConfig'
+import { fmtPct } from '../../lib/format'
 import Icon from '../Icon'
+import AnimatedMoney from '../AnimatedMoney'
 import type { IconName } from '../Icon'
 
 /** 見出し */
@@ -23,7 +23,8 @@ export function Metric({
   children,
 }: {
   label: string
-  value: string
+  /** 文字でも、AnimatedNumber のような要素でも渡せる */
+  value: React.ReactNode
   unit?: string
   note?: string
   valueClass?: string
@@ -77,7 +78,8 @@ export function Row({
 }: {
   icon?: IconName
   label: string
-  value: string
+  /** 文字でも、AnimatedNumber のような要素でも渡せる */
+  value: React.ReactNode
   note?: string
   valueClass?: string
   right?: React.ReactNode
@@ -104,10 +106,15 @@ export function Row({
 /** 金額を色と符号で示す */
 export function Money({ value, className = '' }: { value: number; className?: string }) {
   return (
-    <span className={`font-bold tabular-nums ${colorOf(value)} ${className}`}>
-      {fmtMoney(value, { sign: true })}
-      <span className="ml-0.5 text-[11px] font-semibold text-ink3">{currencyLabel()}</span>
-    </span>
+    <AnimatedMoney
+      value={value}
+      // 一覧に何行も並ぶので、光は流さない
+      sheen={false}
+      origin="right"
+      className={`font-bold ${className}`}
+      unit
+      unitClassName="ml-0.5 text-[11px] font-semibold text-ink3"
+    />
   )
 }
 

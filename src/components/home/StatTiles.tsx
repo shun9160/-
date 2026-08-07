@@ -3,6 +3,7 @@ import type { Summary } from '../../lib/analytics'
 import { streakOf } from '../../lib/analytics'
 import { fmtNum, fmtPct } from '../../lib/format'
 import Icon from '../Icon'
+import AnimatedNumber from '../AnimatedNumber'
 import type { IconName } from '../Icon'
 
 interface Props {
@@ -23,32 +24,34 @@ export default function StatTiles({ trades, sum }: Props) {
       <Tile
         icon="target"
         label="勝率"
-        value={fmtPct(sum.winRate)}
+        value={sum.winRate}
+        format={(n) => fmtPct(n)}
         spark={rolling(ordered, (w) => w.filter((t) => t.win).length / w.length)}
       />
       <Tile
         icon="scale"
         label="損益比 (RR)"
-        value={
-          sum.profitFactor == null
-            ? '—'
-            : sum.profitFactor === Infinity
-              ? '∞'
-              : fmtNum(sum.profitFactor)
-        }
+        value={sum.profitFactor}
+        format={(n) => fmtNum(n)}
+        // 負けがないと割り算ができない。そのときは数を出さず ∞ と書く
+        fallback={sum.profitFactor === Infinity ? '∞' : '—'}
         spark={rolling(ordered, profitFactorOf)}
       />
       <Tile
         icon="book"
         label="取引数"
-        value={`${sum.count}`}
+        value={sum.count}
+        format={(n) => `${n}`}
+        decimals={0}
         unit="件"
         spark={ordered.map((_, i) => i + 1)}
       />
       <Tile
         icon="flame"
         label="連勝 / 連敗"
-        value={st.winStreak > 0 ? `${st.winStreak}` : `${st.lossStreak}`}
+        value={st.winStreak > 0 ? st.winStreak : st.lossStreak}
+        format={(n) => `${n}`}
+        decimals={0}
         unit={st.winStreak > 0 ? '連勝' : st.lossStreak > 0 ? '連敗' : ''}
         valueClass={st.winStreak > 0 ? 'text-up' : st.lossStreak > 0 ? 'text-down' : undefined}
         hint={`ベスト: ${st.bestWinStreak}連勝`}
@@ -81,6 +84,9 @@ function Tile({
   icon,
   label,
   value,
+  format,
+  fallback,
+  decimals,
   unit,
   valueClass,
   spark,
@@ -88,7 +94,10 @@ function Tile({
 }: {
   icon: IconName
   label: string
-  value: string
+  value: number | null
+  format: (n: number) => string
+  fallback?: string
+  decimals?: number
   unit?: string
   valueClass?: string
   spark?: number[]
@@ -100,9 +109,10 @@ function Tile({
         <Icon name={icon} size={17} />
       </span>
       <p className="mt-2.5 text-xs text-ink2">{label}</p>
-      <p className={`mt-0.5 text-2xl font-bold tabular-nums ${valueClass ?? 'text-ink'}`}>
-        {value}
-        {unit && <span className="ml-1 text-xs font-semibold text-ink3">{unit}</span>}
+      <p className={`mt-0.5 text-2xl font-bold ${valueClass ?? 'text-ink'}`}>
+        <AnimatedNumber value={value} format={format} fallback={fallback} decimals={decimals}>
+          {unit && <span className="ml-1 text-xs font-semibold text-ink3">{unit}</span>}
+        </AnimatedNumber>
       </p>
       {spark && spark.length >= 2 ? (
         <Sparkline values={spark} />

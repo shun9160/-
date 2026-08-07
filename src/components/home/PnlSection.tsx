@@ -1,9 +1,8 @@
 import { useState } from 'react'
 import type { EnrichedTrade } from '../../lib/types'
 import { dailyStats } from '../../lib/analytics'
-import { currencyLabel } from '../../lib/appConfig'
-import { colorOf, fmtMoney } from '../../lib/format'
 import PnlCharts from '../PnlCharts'
+import AnimatedMoney from '../AnimatedMoney'
 import { SegmentedControl } from '../ui'
 
 interface Props {
@@ -35,9 +34,12 @@ export default function PnlSection({ trades, netTotal, rangeLabel }: Props) {
         />
       </div>
 
-      <p className={`mt-3 text-2xl font-bold tabular-nums ${colorOf(netTotal)}`}>
-        {fmtMoney(netTotal, { sign: true })}
-        <span className="ml-1 text-sm font-semibold text-ink3">{currencyLabel()}</span>
+      <p className="mt-3 text-2xl font-bold">
+        <AnimatedMoney
+          value={netTotal}
+          unit
+          unitClassName="ml-1 text-sm font-semibold text-ink3"
+        />
       </p>
 
       <div className="mt-3">
@@ -45,31 +47,26 @@ export default function PnlSection({ trades, netTotal, rangeLabel }: Props) {
       </div>
 
       <dl className="mt-4 grid grid-cols-3 gap-2 border-t border-line pt-4">
-        <Cell
-          label="最高利益"
-          value={d.bestDayNet != null ? fmtMoney(d.bestDayNet, { sign: true }) : '—'}
-          cls={d.bestDayNet != null ? colorOf(d.bestDayNet) : undefined}
-        />
-        <Cell
-          label="最大ドローダウン"
-          value={d.maxDrawdown != null ? fmtMoney(d.maxDrawdown) : '—'}
-          cls={d.maxDrawdown != null && d.maxDrawdown < 0 ? 'text-down' : undefined}
-        />
-        <Cell
-          label="平均日次利益"
-          value={d.avgDailyNet != null ? fmtMoney(d.avgDailyNet, { sign: true }) : '—'}
-          cls={d.avgDailyNet != null ? colorOf(d.avgDailyNet) : undefined}
-        />
+        <Cell label="最高利益" value={d.bestDayNet} />
+        <Cell label="最大ドローダウン" value={d.maxDrawdown} sign={false} />
+        <Cell label="平均日次利益" value={d.avgDailyNet} />
       </dl>
     </section>
   )
 }
 
-function Cell({ label, value, cls }: { label: string; value: string; cls?: string }) {
+function Cell({ label, value, sign = true }: { label: string; value: number | null; sign?: boolean }) {
   return (
     <div className="rounded-xl bg-sunken px-3 py-2.5 text-center">
       <dt className="text-[11px] text-ink3">{label}</dt>
-      <dd className={`mt-0.5 text-sm font-bold tabular-nums ${cls ?? 'text-ink'}`}>{value}</dd>
+      <dd className="mt-0.5 text-sm font-bold tabular-nums text-ink">
+        {value != null ? (
+          // 3つ並ぶ小さな数字なので、光までは流さない
+          <AnimatedMoney value={value} sign={sign} origin="center" sheen={false} />
+        ) : (
+          '—'
+        )}
+      </dd>
     </div>
   )
 }

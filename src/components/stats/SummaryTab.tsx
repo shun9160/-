@@ -2,8 +2,10 @@ import type { EnrichedTrade } from '../../lib/types'
 import type { Summary } from '../../lib/analytics'
 import { dailyStats, scoreOf, streakOf } from '../../lib/analytics'
 import { currencyLabel } from '../../lib/appConfig'
-import { colorOf, fmtMoney, fmtNum, fmtPct } from '../../lib/format'
+import { fmtNum, fmtPct } from '../../lib/format'
 import Icon from '../Icon'
+import AnimatedMoney from '../AnimatedMoney'
+import AnimatedNumber from '../AnimatedNumber'
 import { Bar, Empty, Metric, Ring } from './parts'
 
 interface Props {
@@ -29,7 +31,14 @@ export default function SummaryTab({ trades, sum, rangeLabel, onSeeDetail }: Pro
           <div className="min-w-0 flex-1">
             <p className="label">記録のつけ方スコア</p>
             <p className="mt-1 flex items-end gap-1 text-brand">
-              <span className="text-5xl font-bold leading-none tabular-nums">{score.total}</span>
+              <span className="text-5xl font-bold leading-none">
+                <AnimatedNumber
+                  value={score.total}
+                  format={(n) => `${n}`}
+                  decimals={0}
+                  sheen
+                />
+              </span>
               <span className="pb-1 text-sm font-semibold text-ink3">/100</span>
             </p>
             <span className="mt-2 flex gap-0.5" aria-label={`5段階中 ${score.stars}`}>
@@ -52,7 +61,15 @@ export default function SummaryTab({ trades, sum, rangeLabel, onSeeDetail }: Pro
               <div className="flex items-baseline justify-between gap-3 text-xs">
                 <span className="text-ink2">{p.label}</span>
                 <span className="shrink-0 tabular-nums text-ink3">
-                  <span className="font-bold text-ink">{p.got}</span> / {p.max}
+                  <span className="font-bold text-ink">
+                    <AnimatedNumber
+                      value={p.got}
+                      format={(n) => `${n}`}
+                      decimals={0}
+                      origin="right"
+                    />
+                  </span>{' '}
+                  / {p.max}
                 </span>
               </div>
               <div className="mt-1">
@@ -78,12 +95,15 @@ export default function SummaryTab({ trades, sum, rangeLabel, onSeeDetail }: Pro
         <div className="grid grid-cols-2 gap-3">
           <Metric
             label="純損益"
-            value={fmtMoney(sum.netTotal, { sign: true })}
+            value={<AnimatedMoney value={sum.netTotal} />}
             unit={currencyLabel()}
-            valueClass={colorOf(sum.netTotal)}
             note="手数料・スワップ込み"
           />
-          <Metric label="勝率" value={fmtPct(sum.winRate)} note={`${sum.wins}勝 ${sum.losses}敗`}>
+          <Metric
+            label="勝率"
+            value={<AnimatedNumber value={sum.winRate} format={(n) => fmtPct(n)} />}
+            note={`${sum.wins}勝 ${sum.losses}敗`}
+          >
             <div className="mt-2 flex justify-center">
               <Ring ratio={sum.winRate} />
             </div>
@@ -91,17 +111,18 @@ export default function SummaryTab({ trades, sum, rangeLabel, onSeeDetail }: Pro
           <Metric
             label="損益比 (RR)"
             value={
-              sum.profitFactor == null
-                ? '—'
-                : sum.profitFactor === Infinity
-                  ? '∞'
-                  : fmtNum(sum.profitFactor)
+              <AnimatedNumber
+                value={sum.profitFactor}
+                format={(n) => fmtNum(n)}
+                // 負けがないと割り算ができない。そのときは数を出さず ∞ と書く
+                fallback={sum.profitFactor === Infinity ? '∞' : '—'}
+              />
             }
             note="勝ち合計 ÷ 負け合計"
           />
           <Metric
             label="平均ロット"
-            value={fmtNum(sum.avgVolume, 2)}
+            value={<AnimatedNumber value={sum.avgVolume} format={(n) => fmtNum(n, 2)} />}
             note={`合計 ${fmtNum(sum.totalVolume, 2)}`}
           />
         </div>
@@ -111,18 +132,39 @@ export default function SummaryTab({ trades, sum, rangeLabel, onSeeDetail }: Pro
       <section className="card p-4">
         <h2 className="mb-2 text-base font-bold">ハイライト</h2>
         <ul className="flex flex-col">
-          <Line icon="flame" label="最大連勝" value={`${st.bestWinStreak} 連勝`} />
+          <Line
+            icon="flame"
+            label="最大連勝"
+            value={
+              <AnimatedNumber
+                value={st.bestWinStreak}
+                format={(n) => `${n} 連勝`}
+                decimals={0}
+                origin="right"
+              />
+            }
+          />
           <Line
             icon="trendDown"
             label="最大ドローダウン"
-            value={d.maxDrawdown != null ? fmtMoney(d.maxDrawdown) : '—'}
-            cls={d.maxDrawdown != null && d.maxDrawdown < 0 ? 'text-down' : undefined}
+            value={
+              d.maxDrawdown != null ? (
+                <AnimatedMoney value={d.maxDrawdown} sign={false} origin="right" sheen={false} />
+              ) : (
+                '—'
+              )
+            }
           />
           <Line
             icon="trendUp"
             label="ベストトレード"
-            value={d.bestDayNet != null ? fmtMoney(d.bestDayNet, { sign: true }) : '—'}
-            cls={d.bestDayNet != null ? colorOf(d.bestDayNet) : undefined}
+            value={
+              d.bestDayNet != null ? (
+                <AnimatedMoney value={d.bestDayNet} origin="right" sheen={false} />
+              ) : (
+                '—'
+              )
+            }
           />
         </ul>
       </section>
@@ -134,12 +176,10 @@ function Line({
   icon,
   label,
   value,
-  cls,
 }: {
   icon: 'flame' | 'trendDown' | 'trendUp'
   label: string
-  value: string
-  cls?: string
+  value: React.ReactNode
 }) {
   return (
     <li className="flex items-center gap-3 border-b border-line py-2.5 last:border-0">
@@ -147,7 +187,7 @@ function Line({
         <Icon name={icon} size={16} />
       </span>
       <span className="flex-1 text-sm text-ink2">{label}</span>
-      <span className={`text-base font-bold tabular-nums ${cls ?? 'text-ink'}`}>{value}</span>
+      <span className="text-base font-bold tabular-nums text-ink">{value}</span>
     </li>
   )
 }

@@ -3,6 +3,7 @@ import type { Summary } from '../../lib/analytics'
 import { avgHoldMinutes, fmtDuration } from '../../lib/analytics'
 import { fmtNum, fmtPct } from '../../lib/format'
 import Icon from '../Icon'
+import AnimatedNumber from '../AnimatedNumber'
 import type { IconName } from '../Icon'
 
 interface Props {
@@ -37,17 +38,20 @@ export default function StyleCard({ trades, sum, rangeLabel }: Props) {
       </div>
 
       <dl className="flex flex-col gap-2">
-        <Row icon="wallet" label="平均ロット" value={fmtNum(sum.avgVolume, 2)} />
+        <Row icon="wallet" label="平均ロット" value={sum.avgVolume} format={(n) => fmtNum(n, 2)} />
         <Row
           icon="scale"
           label="平均RR（狙いの損益比）"
-          value={sum.avgPlannedRR != null ? fmtNum(sum.avgPlannedRR) : '—'}
+          value={sum.avgPlannedRR}
+          format={(n) => fmtNum(n)}
         />
-        <Row icon="clock" label="平均保有時間" value={fmtDuration(hold)} />
+        {/* 「47分」「1時間 20分」と単位ごと変わるので、分の数だけを動かして書式に渡す */}
+        <Row icon="clock" label="平均保有時間" value={hold} format={fmtDuration} decimals={0} />
         <Row
           icon="target"
           label="勝ちトレード割合 (TP到達)"
-          value={sum.tpHitRate != null ? fmtPct(sum.tpHitRate) : '—'}
+          value={sum.tpHitRate}
+          format={(n) => fmtPct(n)}
         />
       </dl>
 
@@ -66,14 +70,29 @@ export default function StyleCard({ trades, sum, rangeLabel }: Props) {
   )
 }
 
-function Row({ icon, label, value }: { icon: IconName; label: string; value: string }) {
+function Row({
+  icon,
+  label,
+  value,
+  format,
+  decimals,
+}: {
+  icon: IconName
+  label: string
+  value: number | null
+  format: (n: number) => string
+  decimals?: number
+}) {
   return (
     <div className="flex items-center gap-3 rounded-xl border border-line px-3.5 py-3">
       <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-brand-soft text-brand">
         <Icon name={icon} size={16} />
       </span>
       <dt className="min-w-0 flex-1 truncate text-sm text-ink2">{label}</dt>
-      <dd className="shrink-0 text-lg font-bold tabular-nums text-ink">{value}</dd>
+      <dd className="shrink-0 text-lg font-bold text-ink">
+        {/* 右そろえなので、ふくらむ軸も右にする。左だと枠から出てしまう */}
+        <AnimatedNumber value={value} format={format} decimals={decimals} origin="right" />
+      </dd>
     </div>
   )
 }
