@@ -37,11 +37,18 @@ export function friendlyError(e: unknown): string {
   }
   if (
     /accounts|account_id/i.test(raw) &&
-    /relation|column|does not exist|schema cache/i.test(raw)
+    /does not exist|schema cache/i.test(raw)
   ) {
     return `${raw}\n\n→ 口座の表がまだありません。Supabase の SQL Editor で supabase/migrations/2026-08-06_accounts.sql を実行してください。`
   }
-  if (/trade_images/i.test(raw) && /relation|does not exist|schema cache/i.test(raw)) {
+  // 画像を Storage に置いたときは image を空にする。
+  // 古い決まり（必ず入っている）が残っていると、ここで弾かれる。
+  if (/null value in column "image"/i.test(raw) && /trade_images/i.test(raw)) {
+    return `${raw}\n\n→ 画像の置き場所を移したため、image 列を空にできるようにする必要があります。Supabase の SQL Editor で supabase/migrations/2026-08-07_image_nullable.sql を実行してください。`
+  }
+  // 「表そのものが無い」ときだけ案内する。
+  // relation は「〜表の〜列」のような文にも出るので、判定には使わない。
+  if (/trade_images/i.test(raw) && /does not exist|schema cache/i.test(raw)) {
     return `${raw}\n\n→ チャート画像を保存する表がまだありません。Supabase の SQL Editor で supabase/migrations/2026-08-06_trade_images.sql を実行してください。`
   }
   if (/day_notes/i.test(raw) && /relation|does not exist|schema cache/i.test(raw)) {
