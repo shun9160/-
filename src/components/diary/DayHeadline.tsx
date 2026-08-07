@@ -19,6 +19,11 @@ interface Props {
   onToday?: () => void
   /** 狭い画面ではこのカードの中にキャラクターを入れる */
   aside?: ReactNode
+  /**
+   * 日付を出さない。画面いっぱいで開くときは、上の見出しに
+   * すでに日付が出ているので、ここで二度出さない
+   */
+  hideDate?: boolean
 }
 
 /** その日の見出し。日付・損益・評価と、主な数字を並べる */
@@ -29,6 +34,7 @@ export default function DayHeadline({
   onShiftDay,
   onToday,
   aside,
+  hideDate,
 }: Props) {
   const iso = `${day}T00:00:00+09:00`
   const weekday = WEEKDAYS_JA[new Date(`${day}T00:00:00Z`).getUTCDay()]
@@ -44,6 +50,7 @@ export default function DayHeadline({
   return (
     <section className="card overflow-hidden">
       <div className="flex flex-col gap-4 p-5 sm:flex-row sm:items-start sm:gap-8">
+        {!hideDate && (
         <div className="shrink-0">
           {/* 日付はすぐ下に大きく出ているので、印は「今日」のときだけ */}
           {isToday && (
@@ -97,9 +104,10 @@ export default function DayHeadline({
             </div>
           )}
         </div>
+        )}
 
         <div className="min-w-0 flex-1">
-          <div className="sm:mt-6">
+          <div className={hideDate ? '' : 'sm:mt-6'}>
             <p className="text-xs text-ink2">{isToday ? '今日の損益' : 'この日の損益'}</p>
             <p className="text-3xl font-bold">
               <AnimatedMoney value={sum.netTotal} />
