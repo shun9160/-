@@ -19,11 +19,16 @@ interface Props {
   accountId?: string | null
   /** ほかの画面から特定のタブを開かせたいとき。n を変えるたびに切り替わる */
   focusTab?: { tab: StatsTabKey; n: number } | null
+  /** いま開いているタブ。横に振って移れるよう、外へ伝える */
+  onTabChange?: (t: StatsTabKey) => void
   onDiary: () => void
 }
 
 type TabKey = StatsTabKey
 type RangeKey = '7' | '30' | '90' | '0'
+
+/** 横に振ったときに移る順番。画面に並んでいる順と同じにする */
+export const STATS_TABS: StatsTabKey[] = ['summary', 'time', 'pattern', 'detail', 'improve', 'type']
 
 const TABS: { key: TabKey; label: string; icon: IconName }[] = [
   { key: 'summary', label: 'サマリー', icon: 'chart' },
@@ -47,7 +52,7 @@ const RANGES: { value: RangeKey; label: string }[] = [
  * 全部を縦に並べると延々とスクロールすることになるので、
  * 「何を知りたいか」で5つに分け、1つずつ見られるようにする。
  */
-export default function StatsPanel({ trades, accountId = null, focusTab, onDiary }: Props) {
+export default function StatsPanel({ trades, accountId = null, focusTab, onTabChange, onDiary }: Props) {
   const [tab, setTab] = useState<TabKey>(focusTab?.tab ?? 'summary')
   const [range, setRange] = useState<RangeKey>('30')
   const days = Number(range)
@@ -58,6 +63,11 @@ export default function StatsPanel({ trades, accountId = null, focusTab, onDiary
   useEffect(() => {
     if (focusN != null && focusKey) setTab(focusKey)
   }, [focusN, focusKey])
+
+  // 横に振ってタブを移れるよう、いまのタブを外へ知らせる
+  useEffect(() => {
+    onTabChange?.(tab)
+  }, [tab, onTabChange])
 
   const ranged = useMemo(
     () => (days > 0 ? comparePeriods(trades, days).current : trades),

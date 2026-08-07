@@ -1,5 +1,6 @@
 import { useMemo, useState } from 'react'
 import { accountLabel } from './lib/types'
+import { jstDayKey } from './lib/timezone'
 import { useTrades } from './hooks/useTrades'
 import SwipePager from './components/SwipePager'
 import { useAuth } from './hooks/useAuth'
@@ -19,7 +20,7 @@ import AccountsPanel from './components/AccountsPanel'
 import AccountSwitcher from './components/AccountSwitcher'
 import Home from './components/Home'
 import CalendarScreen from './components/CalendarScreen'
-import StatsPanel, { type StatsTabKey } from './components/StatsPanel'
+import StatsPanel, { STATS_TABS, type StatsTabKey } from './components/StatsPanel'
 import UploadPanel from './components/UploadPanel'
 import TradesTable from './components/TradesTable'
 import { TRADE_ORDERS } from './lib/tradeSort'
@@ -49,6 +50,10 @@ export default function App() {
   const [flash, setFlash] = useState<string | null>(null)
   /** 分析のどのタブを開くか。日記から「タイプ詳細を見る」で使う */
   const [statsFocus, setStatsFocus] = useState<{ tab: StatsTabKey; n: number } | null>(null)
+  /** 分析でいま開いているタブ。横に振って移るために持つ */
+  const [statsTab, setStatsTab] = useState<StatsTabKey>('summary')
+  /** 日記でいま見ている日。横に振って移るために持つ */
+  const [diaryDay, setDiaryDay] = useState<string | null>(null)
   /** 「すべての取引」の並び順と絞り込み */
   const [allOrder, setAllOrder] = useState<TradeOrder>('new')
   const [allQuery, setAllQuery] = useState('')
@@ -106,9 +111,7 @@ export default function App() {
     window.scrollTo({ top: 0 })
   }
 
-  // スマホで左右に振って口座を切り替える。並びは切り替えの帯と同じ。
-  const swipeOrder: (string | null)[] =
-    accounts.length > 1 ? [null, ...accounts.map((a) => a.id)] : []
+
 
   // 「すべての取引」で探した結果。件数の表示にも使うので、ここで出しておく
   const shownTrades = useMemo(() => {
@@ -129,6 +132,35 @@ export default function App() {
   // ホームは、上部バーからそのままブランドの色の面がつながる作りにする。
   // ただし口座の切り替えやお知らせが間に入るときは、つなげずに普通のカードで出す。
   const onHome = screen === 'home' && subScreen == null
+
+  /**
+   * スマホで左右に振ったとき、何が動くか。
+   *
+   * 画面によって「隣」の意味が違う。分析なら隣のタブ、日記なら前後の日、
+   * それ以外なら隣の口座。同じ指の動きに、その画面で一番ほしい移動を割り当てる。
+   */
+  const swipe: { items: (string | null)[]; current: string | null; go: (v: string | null) => void } =
+    screen === 'stats' && subScreen == null
+      ? {
+          items: STATS_TABS,
+          current: statsTab,
+          // n を変えるたびに分析側が受け取って切り替える
+          go: (v) => setStatsFocus((f) => ({ tab: v as StatsTabKey, n: (f?.n ?? 0) + 1 })),
+        }
+      : screen === 'diary' && subScreen == null && diaryDay
+        ? {
+            // 前後1日ぶんだけ用意する。振るたびに、その日を真ん中にして作り直す
+            items: [addDays(diaryDay, -1), diaryDay, nextDay(diaryDay)].filter(
+              (d): d is string => d != null,
+            ),
+            current: diaryDay,
+            go: (v) => v && setFocusDay(v),
+          }
+        : {
+            items: accounts.length > 1 ? [null, ...accounts.map((a) => a.id)] : [],
+            current: accountId,
+            go: setAccountId,
+          }
   const switcherShown = !showAccount && !showAccounts && !loading && accounts.length > 1
   const heroFlush = onHome && !switcherShown && !demo && flash == null
 
@@ -330,7 +362,7 @@ export default function App() {
               />
             </>
           ) : (
-            <SwipePager items={swipeOrder} current={accountId} onChange={setAccountId}>
+            <SwipePager items={swipe.items} current={swipe.current} onChange={swipe.go}>
               {screen === 'home' && (
                 <Home
                   trades={trades}
@@ -362,6 +394,7 @@ export default function App() {
                   accountId={accountId}
                   focusTab={statsFocus}
                   onDiary={() => go('diary')}
+                  onTabChange={setStatsTab}
                 />
               )}
               {screen === 'diary' && (
@@ -381,6 +414,7 @@ export default function App() {
                     setStatsFocus((f) => ({ tab: 'type', n: (f?.n ?? 0) + 1 }))
                     go('stats')
                   }}
+                  onDayChange={setDiaryDay}
                 />
               )}
             </SwipePager>
@@ -442,4 +476,20 @@ function DemoNotice() {
       </div>
     </div>
   )
+}
+
+/** その日から delta 日ずらした日付（YYYY-MM-DD） */
+function addDays(day: string, delta: number): string {
+  const d = new Date(`${day}T00:00:00Z`)
+  d.setUTCDate(d.getUTCDate() + delta)
+  return d.toISOString().slice(0, 10)
+}
+
+/**
+ * 次の日。ただし今日より先へは行かせない。
+ * 未来の日を開いても何も無く、戻る手間が増えるだけなので。
+ */
+function nextDay(day: string): string | null {
+  const next = addDays(day, 1)
+  return next > jstDayKey(new Date().toISOString()) ? null : next
 }

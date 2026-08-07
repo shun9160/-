@@ -25,6 +25,8 @@ interface Props {
   onOpenType?: () => void
   /** 分析へ */
   onStats?: () => void
+  /** いま見ている日。横に振って日を移れるよう、外へ伝える */
+  onDayChange?: (day: string) => void
 }
 
 /**
@@ -44,6 +46,7 @@ export default function Diary({
   onAdd,
   onOpenType,
   onStats,
+  onDayChange,
 }: Props) {
   const today = useMemo(() => jstDayKey(new Date().toISOString()), [])
 
@@ -71,6 +74,11 @@ export default function Diary({
     // 初回と、取引の読み込みが終わったときだけでよい
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [latestTradeDay])
+
+  // 横に振って日を移れるよう、いま見ている日を外へ知らせる
+  useEffect(() => {
+    onDayChange?.(selected)
+  }, [selected, onDayChange])
 
   const dayTrades = useMemo(
     () => trades.filter((t) => t.jstDay === selected),
