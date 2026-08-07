@@ -32,6 +32,18 @@ interface Props {
 export const DURATION = 1100
 
 /**
+ * この画面を開いてから、一度でも数字を動かしたか。
+ *
+ * 動くのは最初の一度だけでよい。期間を変えるたび、日をめくるたび、
+ * タブを移るたびに動き直すと、落ち着いて数字を読めない。
+ * 読み込み直すと false に戻り、また一度だけ動く。
+ *
+ * 印を付けるのは「最初の1本が動き終わったとき」。始めた時点にすると、
+ * 同じ画面の2本目以降が動かなくなり、1つだけ動く不揃いな見た目になる。
+ */
+let played = false
+
+/**
  * 数字のカウントアップ。
  *
  * 0 から目標の数まで上がっていき、主役の数字だけ、
@@ -95,7 +107,7 @@ export default function AnimatedNumber({
     /** 上がりきったあと、光を一度だけ流す */
     const sweep = () => {
       const el = sheenRef.current
-      if (!el || !sheen || !animate || reduced()) return
+      if (!el || !sheen || !animate || reduced() || played) return
       el.textContent = num.textContent
       el.classList.remove('money-sheen')
       // クラスを付け直すだけでは再生されないので、一度レイアウトを読ませる
@@ -111,7 +123,8 @@ export default function AnimatedNumber({
       return
     }
 
-    if (!animate || reduced() || from === target) {
+    // 一度動いたあとは、動かさずにその値を出すだけにする
+    if (!animate || reduced() || played || from === target) {
       finish()
       return
     }
@@ -134,7 +147,10 @@ export default function AnimatedNumber({
       draw(from + (target - from) * ease(p))
       box.style.transform = `scale(${scaleAt(p).toFixed(4)})`
       if (p < 1) raf = requestAnimationFrame(tick)
-      else finish()
+      else {
+        played = true
+        finish()
+      }
     }
     raf = requestAnimationFrame(tick)
     return () => cancelAnimationFrame(raf)
