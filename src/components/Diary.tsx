@@ -166,8 +166,8 @@ export default function Diary({
   // 入口の一覧
   if (!openDay) {
     return (
-      <section className="card p-4 sm:p-5">
-        <div className="mb-1 flex items-baseline justify-between gap-3">
+      <div>
+        <div className="mb-2 flex items-baseline justify-between gap-3">
           <h2 className="text-base font-bold">日記</h2>
           <span className="text-xs text-ink3">日を選ぶと書けます</span>
         </div>
@@ -182,7 +182,7 @@ export default function Diary({
             window.scrollTo({ top: 0 })
           }}
         />
-      </section>
+      </div>
     )
   }
 
