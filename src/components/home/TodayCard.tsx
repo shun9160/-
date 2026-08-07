@@ -81,12 +81,26 @@ export default function TodayCard({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [flipped])
 
+  // すりガラスの面。色は変えず、少しだけ向こうが透ける濃さにしている。
+  // 透かしただけでは平らな板に見えるので、ふち・つや・影で厚みを出す。
   const face =
-    'absolute inset-x-0 top-0 overflow-hidden bg-gradient-to-br from-[#6741FF] to-[#3B5BFF] text-white ' +
-    (flush
-      ? 'rounded-b-[28px] sm:rounded-2xl sm:shadow-raised'
-      : 'rounded-2xl shadow-raised')
+    'absolute inset-x-0 top-0 overflow-hidden border border-white/25 ' +
+    // 色は変えずに、少しだけ向こうを透かす。
+    // ここは #6741FF/94 のような書き方をしないこと。Tailwind が
+    // 「色を直接書いた場合の透明度」を落としてしまい、色が消える。
+    'bg-gradient-to-br from-[rgba(103,65,255,0.93)] to-[rgba(59,91,255,0.90)] text-white ' +
+    (flush ? 'rounded-b-[28px] sm:rounded-2xl' : 'rounded-2xl')
   const pad = flush ? 'px-5 pb-5 pt-6 sm:pt-5' : 'px-5 py-5'
+
+  // 外の影で浮かせ、内側の細い線でガラスの厚みを出す。
+  // 上は光が当たって白く、下はわずかに沈む。
+  const lift = {
+    boxShadow:
+      '0 18px 38px -16px rgba(64, 48, 214, 0.55),' +
+      '0 8px 18px -10px rgba(64, 48, 214, 0.38),' +
+      'inset 0 1px 0 rgba(255, 255, 255, 0.4),' +
+      'inset 0 -1px 0 rgba(24, 20, 80, 0.18)',
+  }
 
   return (
     <div
@@ -113,12 +127,17 @@ export default function TodayCard({
             aria-label="今日の取引の内訳を見る"
             className={`${face} ${pad} w-full text-left`}
             style={{
+              ...lift,
               backfaceVisibility: 'hidden',
               WebkitBackfaceVisibility: 'hidden',
               pointerEvents: flipped ? 'none' : 'auto',
             }}
           >
-            <Front today={today} verdict={v} netTotal={netTotal} count={todayTrades.length} />
+            <Glass />
+            {/* つやより手前に文字を置く。でないと左上の文字が白っぽくかすむ */}
+            <div className="relative">
+              <Front today={today} verdict={v} netTotal={netTotal} count={todayTrades.length} />
+            </div>
           </button>
 
           {/* 裏。どこを押しても表に戻す（一覧をなぞって動かす場合は押した扱いにならない） */}
@@ -128,18 +147,22 @@ export default function TodayCard({
             onClick={() => setFlipped(false)}
             className={`${face} ${pad} cursor-pointer`}
             style={{
+              ...lift,
               backfaceVisibility: 'hidden',
               WebkitBackfaceVisibility: 'hidden',
               transform: 'rotateY(180deg)',
               pointerEvents: flipped ? 'auto' : 'none',
             }}
           >
-            <Back
-              trades={todayTrades}
-              net={today.todayNet}
-              onClose={() => setFlipped(false)}
-              onSeeDetail={onSeeDetail}
-            />
+            <Glass />
+            <div className="relative">
+              <Back
+                trades={todayTrades}
+                net={today.todayNet}
+                onClose={() => setFlipped(false)}
+                onSeeDetail={onSeeDetail}
+              />
+            </div>
           </div>
         </div>
       </div>
@@ -148,6 +171,35 @@ export default function TodayCard({
 }
 
 // ---------------------------------------------------------------
+
+/**
+ * ガラスらしさを作る層。
+ *
+ * ただ半透明にしただけでは、うしろが白い紙なので「薄い紫の板」にしか
+ * 見えない。そこで、板の中に色の光をにじませ、その上に斜めのつやを重ねる。
+ * にじみと、うっすら透けた下地と、つやの三枚で厚みが出る。
+ *
+ * backdrop-filter（うしろをぼかす）は使っていない。
+ * このカードは裏返る作りで、iPhone の Safari では
+ * backface-visibility と組み合わせるとぼかす場所がずれるため。
+ */
+function Glass() {
+  return (
+    <span aria-hidden="true" className="pointer-events-none absolute inset-0 overflow-hidden">
+      {/* 板の中でにじむ光。ここを明るくしすぎると色があせて、
+          白い文字も読みにくくなる。控えめに。 */}
+      <span className="absolute -left-16 -top-24 h-56 w-56 rounded-full bg-[#A78BFA] opacity-30 blur-3xl" />
+      <span className="absolute -right-12 top-1/4 h-52 w-52 rounded-full bg-[#3B82F6] opacity-28 blur-3xl" />
+      {/* 影。光だけでは平らに見える。暗い側があってはじめて厚みが出る */}
+      <span className="absolute -bottom-24 left-1/3 h-56 w-56 rounded-full bg-[#241275] opacity-45 blur-3xl" />
+      <span className="absolute -right-16 -bottom-20 h-48 w-48 rounded-full bg-[#1B1060] opacity-35 blur-3xl" />
+      {/* 左上から差す、斜めのつや */}
+      <span className="absolute inset-0 bg-gradient-to-br from-white/12 via-white/0 to-white/0" />
+      {/* 上のふちの光。ガラスの切り口に見せる */}
+      <span className="absolute inset-x-0 top-0 h-px bg-white/45" />
+    </span>
+  )
+}
 
 function Front({
   today,
