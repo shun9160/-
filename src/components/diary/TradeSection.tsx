@@ -10,7 +10,6 @@ import Icon from '../Icon'
 interface Props {
   trades: EnrichedTrade[]
   accounts?: Account[]
-  isToday: boolean
   readOnly?: boolean
   onChanged: () => void
   onAdd?: () => void
@@ -20,7 +19,6 @@ interface Props {
 export default function TradeSection({
   trades,
   accounts,
-  isToday,
   readOnly,
   onChanged,
   onAdd,
@@ -47,7 +45,7 @@ export default function TradeSection({
           <span className="flex h-6 w-6 items-center justify-center rounded-md bg-brand-soft text-brand">
             <Icon name="book" size={13} />
           </span>
-          {isToday ? '今日のトレード' : 'この日のトレード'}
+          トレードの履歴
         </h2>
         <span className="text-xs text-ink3">
           {rows.length}件
@@ -96,11 +94,12 @@ export default function TradeSection({
         order={order}
         onChanged={onChanged}
         readOnly={readOnly}
+        timeline
       />
 
       {!readOnly && onAdd && (
         <button
-          className="flex w-full items-center justify-center gap-1.5 rounded-xl border border-dashed border-line bg-surface py-3 text-sm font-semibold text-brand transition-colors hover:bg-sunken"
+          className="flex w-full items-center justify-center gap-1.5 rounded-xl border border-dashed border-brand/40 bg-brand-soft py-3 text-sm font-semibold text-brand transition-colors hover:bg-brand hover:text-white"
           onClick={onAdd}
         >
           <Icon name="plus" size={16} />

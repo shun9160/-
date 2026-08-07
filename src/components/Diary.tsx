@@ -1,10 +1,12 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import type { CSSProperties } from 'react'
 import type { Account, EnrichedTrade, TradeImage } from '../lib/types'
 import { fetchRecentTradeImages, fetchTradeImageCounts } from '../lib/repo'
 import { fetchLatest } from '../lib/diagnosisClient'
 import type { DiagnosisResult } from '../lib/diagnosis/types'
 import { jstDayKey } from '../lib/timezone'
 import DayHeadline from './diary/DayHeadline'
+import DayPhotos from './diary/DayPhotos'
 import DayInsights from './diary/DayInsights'
 import NoteCard from './diary/NoteCard'
 import TypeCard from './diary/TypeCard'
@@ -70,6 +72,44 @@ export default function Diary({
    * いきなりその日を開く。
    */
   const [openDay, setOpenDay] = useState(!!focusDay)
+
+  /**
+   * 開く・閉じるときの動き。
+   *
+   * 閉じる動きを見せるには、消したあとも 200ms のあいだ中身を残しておく
+   * 必要がある。だから「閉じた」と「閉じている最中」を別に持つ。
+   * 動きが終わったら null に戻す。class を外さないと transform が
+   * 残りっぱなしになり、中の position: fixed がこの箱を基準にしてしまう。
+   */
+  const [anim, setAnim] = useState<'day-in' | 'day-out' | 'list-in' | null>(null)
+  /** 押した場所（画面の上からの距離）。そこを軸に開く */
+  const [originY, setOriginY] = useState(0)
+  const timer = useRef<number | undefined>(undefined)
+
+  useEffect(() => () => window.clearTimeout(timer.current), [])
+
+  /** 動きが終わったら class を外す。念のため時間でも外す */
+  const endAnim = useCallback((next: 'list-in' | null) => {
+    window.clearTimeout(timer.current)
+    if (next === 'list-in') {
+      setOpenDay(false)
+      setOriginY(0)
+      setAnim('list-in')
+      timer.current = window.setTimeout(() => setAnim(null), 360)
+    } else {
+      setAnim(null)
+    }
+  }, [])
+
+  function startAnim(kind: 'day-in' | 'day-out', y: number) {
+    window.clearTimeout(timer.current)
+    setOriginY(y)
+    setAnim(kind)
+    timer.current = window.setTimeout(
+      () => endAnim(kind === 'day-out' ? 'list-in' : null),
+      kind === 'day-out' ? 260 : 360,
+    )
+  }
 
   useEffect(() => {
     if (focusDay) {
@@ -163,10 +203,23 @@ export default function Diary({
     />
   )
 
+  // 動きの軸。押した高さを CSS へ渡す
+  const revealStyle = { ['--reveal-y']: `${originY}px` } as CSSProperties
+
+  /** 動きの終わり。子の animation が上がってくることがあるので、自分のぶんだけ見る */
+  function onAnimEnd(e: React.AnimationEvent<HTMLDivElement>) {
+    if (e.target !== e.currentTarget) return
+    endAnim(anim === 'day-out' ? 'list-in' : null)
+  }
+
   // 入口の一覧
   if (!openDay) {
     return (
-      <div>
+      <div
+        className={anim === 'list-in' ? 'reveal-in' : undefined}
+        style={revealStyle}
+        onAnimationEnd={onAnimEnd}
+      >
         <div className="mb-2 flex items-baseline justify-between gap-3">
           <h2 className="text-base font-bold">日記</h2>
           <span className="text-xs text-ink3">日を選ぶと書けます</span>
@@ -176,9 +229,10 @@ export default function Diary({
           dayNotes={dayNotes}
           imageCounts={imageCounts}
           today={today}
-          onOpen={(d) => {
+          onOpen={(d, y) => {
             setSelected(d)
             setOpenDay(true)
+            startAnim('day-in', y)
             window.scrollTo({ top: 0 })
           }}
         />
@@ -189,14 +243,25 @@ export default function Diary({
   return (
     // 広い画面は「本文＋右側」の2列。
     // DOM の並びがそのままスマホでの並びになる。
-    <div className="flex flex-col gap-4 xl:grid xl:grid-cols-[minmax(0,1fr)_320px] xl:items-start">
+    <div
+      className={`flex flex-col gap-4 xl:grid xl:grid-cols-[minmax(0,1fr)_320px] xl:items-start ${
+        anim === 'day-in' ? 'reveal-in' : anim === 'day-out' ? 'reveal-out' : ''
+      }`}
+      style={revealStyle}
+      onAnimationEnd={onAnimEnd}
+    >
       <button
-        className="btn btn-ghost -ml-2 self-start xl:col-span-2"
-        onClick={() => setOpenDay(false)}
+        className="btn -ml-2 self-start text-brand hover:bg-brand-soft xl:col-span-2 xl:justify-self-start"
+        onClick={() => startAnim('day-out', 0)}
       >
         <Icon name="back" size={17} />
         日記の一覧へ
       </button>
+
+      {/* 写真をいちばん上に。文字より先に、その日のことを思い出せるように */}
+      <div className="xl:col-span-2">
+        <DayPhotos trades={dayTrades} onAdd={onAdd} />
+      </div>
 
       <div className="flex flex-col gap-4">
         <DayHeadline
@@ -235,7 +300,6 @@ export default function Diary({
         <TradeSection
           trades={dayTrades}
           accounts={accounts}
-          isToday={isToday}
           readOnly={readOnly}
           onChanged={onChanged}
           onAdd={onAdd}

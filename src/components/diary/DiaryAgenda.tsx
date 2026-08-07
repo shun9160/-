@@ -23,6 +23,9 @@ import Icon from '../Icon'
 
 const WEEKDAYS_JA = ['日', '月', '火', '水', '木', '金', '土']
 
+/** 縦書き。数字も横に倒さず、立てたまま重ねる */
+const VERTICAL = { writingMode: 'vertical-rl', textOrientation: 'upright' } as const
+
 /** 最初に出す日数と、「さらに前」で足す日数 */
 const FIRST = 30
 const MORE = 30
@@ -34,7 +37,8 @@ interface Props {
   imageCounts?: Record<string, number>
   /** いちばん新しい日（YYYY-MM-DD）。ふつうは今日 */
   today: string
-  onOpen: (day: string) => void
+  /** 日を開く。y は押した場所の高さで、そこを軸に開く動きに使う */
+  onOpen: (day: string, y: number) => void
 }
 
 interface Row {
@@ -91,16 +95,29 @@ export default function DiaryAgenda({ trades, dayNotes, imageCounts, today, onOp
       // 読める濃さにならないので、同じ色みのまま暗くしてある
       className="relative overflow-hidden rounded-2xl bg-gradient-to-b from-[#4A2ECC] to-[#2A44BF] text-white"
     >
-      {/* 左端の縦書き。いま見ている年と月 */}
+      {/* 日付の列の下地。行ごとではなく1枚で敷くので、
+          いちばん下まで途切れずに1本の柱に見える */}
       <span
         aria-hidden="true"
-        className="pointer-events-none absolute left-1.5 top-6 select-none text-[10px] font-semibold uppercase tracking-[0.25em] text-white/75"
-        style={{ writingMode: 'vertical-rl' }}
+        className="pointer-events-none absolute inset-y-0 left-0 w-[4.5rem] bg-[#150C3D]"
+      />
+
+      {/* 柱の中に、いま見ている年と月を縦書きで入れる */}
+      <span
+        aria-hidden="true"
+        className="pointer-events-none absolute left-1.5 top-6 z-10 flex select-none flex-col items-center gap-2.5 text-[10px] font-semibold text-white/70"
       >
-        {fmtJst(`${head}T00:00:00+09:00`, 'yyyy')} {fmtJst(`${head}T00:00:00+09:00`, 'M月')}
+        {/* 年と月は別の行にする。ひとつづきにすると、縦組みでは
+            数字と漢字の送り幅が違って重なることがある */}
+        <span className="tracking-[0.18em]" style={VERTICAL}>
+          {fmtJst(`${head}T00:00:00+09:00`, 'yyyy')}
+        </span>
+        <span className="tracking-[0.1em]" style={VERTICAL}>
+          {fmtJst(`${head}T00:00:00+09:00`, 'M')}月
+        </span>
       </span>
 
-      <div className="pl-7">
+      <div className="relative">
         {rows.map((r, i) => (
           <DayBand
             key={r.day}
@@ -112,7 +129,8 @@ export default function DiaryAgenda({ trades, dayNotes, imageCounts, today, onOp
           />
         ))}
 
-        <div className="px-3 py-5 text-center">
+        {/* 柱のぶんだけ空けて、文字が柱に重ならないようにする */}
+        <div className="py-5 pl-[4.5rem] pr-3 text-center">
           {canMore ? (
             <button
               className="rounded-xl border border-white/25 px-4 py-2 text-xs font-semibold text-white/85 transition-colors hover:bg-white/10"
@@ -121,7 +139,7 @@ export default function DiaryAgenda({ trades, dayNotes, imageCounts, today, onOp
               さらに前を見る
             </button>
           ) : (
-            <p className="text-[11px] text-white/70">ここが最初の記録です</p>
+            <p className="text-[11px] text-white/75">ここが最初の記録です</p>
           )}
         </div>
       </div>
@@ -139,7 +157,7 @@ function DayBand({
   row: Row
   isToday: boolean
   shaded: boolean
-  onOpen: (day: string) => void
+  onOpen: (day: string, y: number) => void
 }) {
   const iso = `${row.day}T00:00:00+09:00`
   const wd = WEEKDAYS_JA[new Date(`${row.day}T00:00:00Z`).getUTCDay()]
@@ -147,16 +165,15 @@ function DayBand({
 
   return (
     <button
-      onClick={() => onOpen(row.day)}
-      className={`flex w-full items-start gap-3 px-3 py-3 text-left transition-colors hover:bg-white/10 ${
-        shaded ? 'bg-white/[0.06]' : ''
-      }`}
+      onClick={(e) => onOpen(row.day, e.currentTarget.getBoundingClientRect().top)}
+      className="flex w-full items-stretch text-left"
     >
-      {/* 日付の列。幅を固定して、縦に一直線に並ぶようにする */}
-      <span className="w-10 shrink-0 text-center">
+      {/* 左の列。下地は section 側で1枚に敷いてあるので、ここは中身だけ。
+          日付を右に寄せて、縦に一直線に並ぶ「背骨」に見えるようにする */}
+      <span className="flex w-[4.5rem] shrink-0 justify-end py-3 pr-3">
         {isToday ? (
           // 今日だけ白い札にする。手帳アプリと同じ見せ方
-          <span className="mx-auto flex h-11 w-10 flex-col items-center justify-center rounded-lg bg-white leading-none text-brand">
+          <span className="flex h-11 w-10 flex-col items-center justify-center rounded-lg bg-white leading-none text-brand">
             <span className="text-[9px] font-bold uppercase tracking-wider">{wd}</span>
             <span className="mt-0.5 text-lg font-bold">{fmtJst(iso, 'd')}</span>
           </span>
@@ -164,7 +181,7 @@ function DayBand({
           <span className="flex h-11 flex-col items-center justify-center leading-none">
             <span
               className={`text-[9px] font-bold uppercase tracking-wider ${
-                wd === '日' ? 'text-[#FFB4A8]' : wd === '土' ? 'text-[#B8C4FF]' : 'text-white/70'
+                wd === '日' ? 'text-[#FFB4A8]' : wd === '土' ? 'text-[#B8C4FF]' : 'text-white/75'
               }`}
             >
               {wd}
@@ -174,10 +191,14 @@ function DayBand({
         )}
       </span>
 
-      {/* その日の出来事 */}
-      <span className="min-w-0 flex-1 pt-0.5">
+      {/* その日の出来事。ここだけ一日おきに濃さを変える */}
+      <span
+        // 濃くするのは黒側。白を混ぜて明るくすると、上に載る白い文字が
+        // 読める濃さを割ってしまう（測って確かめた）
+        className={`min-w-0 flex-1 py-3 pl-3 pr-3 ${shaded ? 'bg-black/10' : ''}`}
+      >
         {empty ? (
-          <span className="flex h-10 items-center text-xs text-white/70">
+          <span className="flex h-10 items-center text-xs text-white/75">
             {isToday ? '今日のことを書く' : '記録なし'}
           </span>
         ) : (
@@ -194,7 +215,7 @@ function DayBand({
             ))}
             {row.note && <Entry bar="#FFFFFF" title="振り返り" meta={row.note} />}
             {row.photos > 0 && (
-              <span className="flex items-center gap-1 pl-3 text-[11px] text-white/70">
+              <span className="flex items-center gap-1 pl-3 text-[11px] text-white/75">
                 <Icon name="camera" size={12} />
                 写真 {row.photos}枚
               </span>
@@ -213,7 +234,7 @@ function Entry({ bar, title, meta }: { bar: string; title: string; meta: string 
       <span className="w-1 shrink-0 rounded-full" style={{ background: bar }} />
       <span className="min-w-0 flex-1">
         <span className="block truncate text-sm font-semibold leading-tight">{title}</span>
-        <span className="mt-0.5 block truncate text-[11px] text-white/70">{meta}</span>
+        <span className="mt-0.5 block truncate text-[11px] text-white/75">{meta}</span>
       </span>
     </span>
   )

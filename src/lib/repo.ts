@@ -375,6 +375,54 @@ export async function fetchTradeImages(tradeId: string): Promise<TradeImage[]> {
 }
 
 /**
+ * 何件かの取引にまたがるチャート画像を、一度にまとめて取る。
+ * 日記でその日ぶんを横に並べるのに使う。1件ずつ問い合わせると
+ * 取引の数だけ往復してしまうため、まとめて引く。
+ */
+export async function fetchTradeImagesFor(tradeIds: string[]): Promise<TradeImage[]> {
+  if (!supabase || tradeIds.length === 0) return []
+  try {
+    const { data, error } = await supabase
+      .from('trade_images')
+      .select('id,trade_id,image_path,caption,created_at')
+      .in('trade_id', tradeIds)
+      .order('created_at', { ascending: true })
+    if (error) return []
+    return await resolveImages((data ?? []) as StoredImage[])
+  } catch {
+    return []
+  }
+}
+
+/**
+ * 取込元のスクショ。その日の取引ぶんをまとめて取る。
+ * チャートを1枚も貼っていない日でも、記録の写真は並べたいので使う。
+ */
+export async function fetchTradeScreenshots(
+  tradeIds: string[],
+): Promise<{ tradeId: string; url: string }[]> {
+  if (!supabase || tradeIds.length === 0) return []
+  try {
+    const { data, error } = await supabase
+      .from('trades')
+      .select('id,screenshot_path')
+      .in('id', tradeIds)
+    if (error) return []
+    const rows = (data ?? []) as { id: string; screenshot_path: string | null }[]
+    const paths = rows.map((r) => r.screenshot_path).filter((p): p is string => !!p)
+    if (paths.length === 0) return []
+    const urls = await signedUrls(paths)
+    return rows.flatMap((r) =>
+      r.screenshot_path && urls[r.screenshot_path]
+        ? [{ tradeId: r.id, url: urls[r.screenshot_path] }]
+        : [],
+    )
+  } catch {
+    return []
+  }
+}
+
+/**
  * 最近貼ったチャート画像。日記の「最近のスクリーンショット」に出す。
  * 表がまだ作られていないこともあるので、失敗しても空で返す。
  */
