@@ -81,6 +81,11 @@ export default function TodayCard({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [flipped])
 
+  // 角の丸み。ガラスの層にも同じものを渡す。
+  // このカードは裏返る作りのため、面の overflow-hidden だけでは
+  // 中の層が角からはみ出す（丸く切り抜かれない）ブラウザがある。
+  const radius = flush ? 'rounded-b-[28px] sm:rounded-2xl' : 'rounded-2xl'
+
   // すりガラスの面。色は変えず、少しだけ向こうが透ける濃さにしている。
   // 透かしただけでは平らな板に見えるので、ふち・つや・影で厚みを出す。
   const face =
@@ -89,7 +94,7 @@ export default function TodayCard({
     // ここは #6741FF/94 のような書き方をしないこと。Tailwind が
     // 「色を直接書いた場合の透明度」を落としてしまい、色が消える。
     'bg-gradient-to-br from-[rgba(103,65,255,0.93)] to-[rgba(59,91,255,0.90)] text-white ' +
-    (flush ? 'rounded-b-[28px] sm:rounded-2xl' : 'rounded-2xl')
+    radius
   const pad = flush ? 'px-5 pb-5 pt-6 sm:pt-5' : 'px-5 py-5'
 
   // 外の影で浮かせ、内側の細い線でガラスの厚みを出す。
@@ -133,7 +138,7 @@ export default function TodayCard({
               pointerEvents: flipped ? 'none' : 'auto',
             }}
           >
-            <Glass />
+            <Glass radius={radius} />
             {/* つやより手前に文字を置く。でないと左上の文字が白っぽくかすむ */}
             <div className="relative">
               <Front today={today} verdict={v} netTotal={netTotal} count={todayTrades.length} />
@@ -154,7 +159,7 @@ export default function TodayCard({
               pointerEvents: flipped ? 'auto' : 'none',
             }}
           >
-            <Glass />
+            <Glass radius={radius} />
             <div className="relative">
               <Back
                 trades={todayTrades}
@@ -183,21 +188,24 @@ export default function TodayCard({
  * このカードは裏返る作りで、iPhone の Safari では
  * backface-visibility と組み合わせるとぼかす場所がずれるため。
  */
-function Glass() {
+function Glass({ radius }: { radius: string }) {
   return (
-    <span aria-hidden="true" className="pointer-events-none absolute inset-0 overflow-hidden">
-      {/* 板の中でにじむ光。ここを明るくしすぎると色があせて、
-          白い文字も読みにくくなる。控えめに。 */}
-      <span className="absolute -left-16 -top-24 h-56 w-56 rounded-full bg-[#A78BFA] opacity-30 blur-3xl" />
-      <span className="absolute -right-12 top-1/4 h-52 w-52 rounded-full bg-[#3B82F6] opacity-28 blur-3xl" />
-      {/* 影。光だけでは平らに見える。暗い側があってはじめて厚みが出る */}
-      <span className="absolute -bottom-24 left-1/3 h-56 w-56 rounded-full bg-[#241275] opacity-45 blur-3xl" />
-      <span className="absolute -right-16 -bottom-20 h-48 w-48 rounded-full bg-[#1B1060] opacity-35 blur-3xl" />
-      {/* 左上から差す、斜めのつや */}
-      <span className="absolute inset-0 bg-gradient-to-br from-white/12 via-white/0 to-white/0" />
-      {/* 上のふちの光。ガラスの切り口に見せる */}
-      <span className="absolute inset-x-0 top-0 h-px bg-white/45" />
-    </span>
+    <span
+      aria-hidden="true"
+      className={`pointer-events-none absolute inset-0 ${radius}`}
+      style={{
+        backgroundImage: [
+          // 板の中でにじむ光。明るくしすぎると色があせ、白い文字も読みにくくなる
+          'radial-gradient(120% 95% at 6% -22%, rgba(167,139,250,0.42), rgba(167,139,250,0) 62%)',
+          'radial-gradient(95% 85% at 108% 28%, rgba(59,130,246,0.36), rgba(59,130,246,0) 64%)',
+          // 影。光だけでは平らに見える。暗い側があってはじめて厚みが出る
+          'radial-gradient(115% 95% at 36% 128%, rgba(36,18,117,0.55), rgba(36,18,117,0) 66%)',
+          'radial-gradient(85% 85% at 112% 120%, rgba(27,16,96,0.45), rgba(27,16,96,0) 64%)',
+          // 左上から差す、斜めのつや
+          'linear-gradient(135deg, rgba(255,255,255,0.14), rgba(255,255,255,0) 46%)',
+        ].join(','),
+      }}
+    />
   )
 }
 
