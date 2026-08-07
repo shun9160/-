@@ -36,10 +36,12 @@ interface Props {
   /** どの口座の取引かを出すために使う */
   accounts?: Account[]
   order?: TradeOrder
+  /** 1件も無いときの言葉。絞り込みの結果が0件のときに差し替える */
+  emptyText?: string
 }
 
 export default function TradesTable({
-  trades, onChanged, filterDay, readOnly, compact, accounts, order = 'new',
+  trades, onChanged, filterDay, readOnly, compact, accounts, order = 'new', emptyText,
 }: Props) {
   // 口座が2つ以上あるときだけ、どの口座の取引かを出す
   const accountOf = useMemo(() => {
@@ -125,7 +127,7 @@ export default function TradesTable({
 
   if (rows.length === 0) {
     return (
-      <div className="card px-6 py-10 text-center text-sm text-ink3">取引がありません</div>
+      <div className="card px-6 py-10 text-center text-sm text-ink3">{emptyText ?? '取引がありません'}</div>
     )
   }
 

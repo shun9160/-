@@ -1,4 +1,5 @@
-import { useState } from 'react'
+import { useMemo, useState } from 'react'
+import { accountLabel } from './lib/types'
 import { useTrades } from './hooks/useTrades'
 import SwipePager from './components/SwipePager'
 import { useAuth } from './hooks/useAuth'
@@ -10,7 +11,7 @@ import Avatar from './components/Avatar'
 import Onboarding from './components/Onboarding'
 import { BottomNav, NAV_ITEMS, type ScreenKey } from './components/Nav'
 import Sidebar from './components/Sidebar'
-import { PageHeader } from './components/ui'
+import { PageHeader, SearchBox } from './components/ui'
 import Icon from './components/Icon'
 import AuthScreen from './components/AuthScreen'
 import AccountPanel from './components/AccountPanel'
@@ -22,6 +23,7 @@ import StatsPanel, { type StatsTabKey } from './components/StatsPanel'
 import UploadPanel from './components/UploadPanel'
 import TradesTable from './components/TradesTable'
 import { TRADE_ORDERS } from './lib/tradeSort'
+import { searchTrades } from './lib/tradeSearch'
 import type { TradeOrder } from './lib/tradeSort'
 import Diary from './components/Diary'
 
@@ -47,8 +49,9 @@ export default function App() {
   const [flash, setFlash] = useState<string | null>(null)
   /** 分析のどのタブを開くか。日記から「タイプ詳細を見る」で使う */
   const [statsFocus, setStatsFocus] = useState<{ tab: StatsTabKey; n: number } | null>(null)
-  /** 「すべての取引」の並び順 */
+  /** 「すべての取引」の並び順と絞り込み */
   const [allOrder, setAllOrder] = useState<TradeOrder>('new')
+  const [allQuery, setAllQuery] = useState('')
 
   // 通貨や時差は口座ごとに違う。見ている口座の内容をアプリ全体に反映する。
   //
@@ -106,6 +109,12 @@ export default function App() {
   // スマホで左右に振って口座を切り替える。並びは切り替えの帯と同じ。
   const swipeOrder: (string | null)[] =
     accounts.length > 1 ? [null, ...accounts.map((a) => a.id)] : []
+
+  // 「すべての取引」で探した結果。件数の表示にも使うので、ここで出しておく
+  const shownTrades = useMemo(() => {
+    const name = new Map(accounts.map((a) => [a.id, accountLabel(a)]))
+    return searchTrades(trades, allQuery, (id) => (id ? (name.get(id) ?? null) : null))
+  }, [trades, accounts, allQuery])
 
   const item = NAV_ITEMS.find((i) => i.key === screen)!
   /** 下のタブに無い画面を開いているとき、その名前 */
@@ -276,31 +285,48 @@ export default function App() {
                 <Icon name="back" size={17} />
                 ホームに戻る
               </button>
-              <PageHeader title="すべての取引" sub={`${trades.length}件`} />
-              {/* 件数が多い画面なので、並び替えを添える */}
-              <div className="mb-3 flex items-center justify-end gap-1.5">
-                <label className="text-xs text-ink2" htmlFor="all-order">
-                  並び替え
-                </label>
-                <select
-                  id="all-order"
-                  className="input w-auto px-2 py-1 text-xs"
-                  value={allOrder}
-                  onChange={(e) => setAllOrder(e.target.value as TradeOrder)}
-                >
-                  {TRADE_ORDERS.map((o) => (
-                    <option key={o.value} value={o.value}>
-                      {o.label}
-                    </option>
-                  ))}
-                </select>
+              <PageHeader
+                title="すべての取引"
+                sub={
+                  allQuery
+                    ? `${shownTrades.length}件 / 全${trades.length}件`
+                    : `${trades.length}件`
+                }
+              />
+              {/* 件数が多い画面なので、探す・並べ替えるを添える */}
+              <div className="mb-3 flex flex-col gap-2 sm:flex-row sm:items-center">
+                <SearchBox
+                  value={allQuery}
+                  onChange={setAllQuery}
+                  placeholder="通貨ペア・メモ・口座・日付などで検索"
+                  label="取引を検索"
+                  className="sm:max-w-sm sm:flex-1"
+                />
+                <div className="flex items-center justify-end gap-1.5 sm:ml-auto">
+                  <label className="shrink-0 text-xs text-ink2" htmlFor="all-order">
+                    並び替え
+                  </label>
+                  <select
+                    id="all-order"
+                    className="input w-auto px-2 py-1 text-xs"
+                    value={allOrder}
+                    onChange={(e) => setAllOrder(e.target.value as TradeOrder)}
+                  >
+                    {TRADE_ORDERS.map((o) => (
+                      <option key={o.value} value={o.value}>
+                        {o.label}
+                      </option>
+                    ))}
+                  </select>
+                </div>
               </div>
               <TradesTable
-                trades={trades}
+                trades={shownTrades}
                 accounts={accounts}
                 order={allOrder}
                 onChanged={reload}
                 readOnly={demo}
+                emptyText={allQuery ? `「${allQuery}」に当てはまる取引はありません` : undefined}
               />
             </>
           ) : (

@@ -186,3 +186,48 @@ export function EmptyState({
     </div>
   )
 }
+
+/**
+ * ひとつの入力欄で探す検索窓。
+ * 中身が入っているときだけ、消すボタンを出す。
+ */
+export function SearchBox({
+  value,
+  onChange,
+  placeholder,
+  label = '検索',
+  className = '',
+}: {
+  value: string
+  onChange: (v: string) => void
+  placeholder?: string
+  label?: string
+  className?: string
+}) {
+  return (
+    <div className={`relative ${className}`}>
+      <span className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-ink3">
+        <Icon name="search" size={16} />
+      </span>
+      <input
+        type="search"
+        value={value}
+        onChange={(e) => onChange(e.target.value)}
+        placeholder={placeholder}
+        aria-label={label}
+        // 入力欄そのものの ✕ はブラウザごとに出たり出なかったりするので、自前で出す
+        className="input pl-9 pr-9 [&::-webkit-search-cancel-button]:appearance-none"
+      />
+      {value && (
+        <button
+          type="button"
+          onClick={() => onChange('')}
+          aria-label="検索をやめる"
+          className="absolute right-2 top-1/2 flex h-7 w-7 -translate-y-1/2 items-center justify-center rounded-lg text-ink3 hover:bg-sunken hover:text-ink"
+        >
+          <Icon name="close" size={15} />
+        </button>
+      )}
+    </div>
+  )
+}

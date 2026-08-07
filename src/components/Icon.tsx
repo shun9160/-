@@ -31,6 +31,7 @@ export type IconName =
   | 'info'
   | 'shield'
   | 'sparkle'
+  | 'search'
 
 const PATHS: Record<IconName, JSX.Element> = {
   home: (
@@ -142,6 +143,12 @@ const PATHS: Record<IconName, JSX.Element> = {
       <circle cx="12" cy="12" r="8.5" />
       <circle cx="12" cy="12" r="4" />
       <circle cx="12" cy="12" r="0.8" fill="currentColor" />
+    </>
+  ),
+  search: (
+    <>
+      <circle cx="11" cy="11" r="6.5" />
+      <path d="m20 20-4.2-4.2" />
     </>
   ),
   flame: <path d="M12 3s4.5 3.6 4.5 8a4.5 4.5 0 0 1-9 0c0-1.4.6-2.6 1.3-3.5.2 1.2.9 2 1.7 2 1 0 1.5-.9 1.5-2.3 0-1.6-.5-3-1-4.2z" />,
