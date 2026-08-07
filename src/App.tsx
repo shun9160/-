@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useState } from 'react'
 import { useTrades } from './hooks/useTrades'
 import SwipePager from './components/SwipePager'
 import { useAuth } from './hooks/useAuth'
@@ -116,22 +116,8 @@ export default function App() {
   // ホームは、上部バーからそのままブランドの色の面がつながる作りにする。
   // ただし口座の切り替えやお知らせが間に入るときは、つなげずに普通のカードで出す。
   const onHome = screen === 'home' && subScreen == null
-
-  // 日記だけ、画面全体の下地をロゴの色にする。
-  // 下地は body に付ける。main に付けると、指ではじいて画面の端を
-  // 越えたとき（iOSのバウンス）に白がのぞいてしまうため。
-  const onBrandBg = screen === 'diary' && subScreen == null
-  useEffect(() => {
-    if (onBrandBg) document.body.dataset.bg = 'brand'
-    else delete document.body.dataset.bg
-    return () => {
-      delete document.body.dataset.bg
-    }
-  }, [onBrandBg])
   const switcherShown = !showAccount && !showAccounts && !loading && accounts.length > 1
   const heroFlush = onHome && !switcherShown && !demo && flash == null
-  /** スマホで、上部バーの裏がロゴ色になっている状態 */
-  const darkHeader = heroFlush || onBrandBg
 
   // 認証状態の確認中
   if (!ready) {
@@ -178,7 +164,7 @@ export default function App() {
         {/* 上部バー */}
         <header
           className={`sticky top-0 z-20 border-b px-4 py-3 backdrop-blur ${
-            darkHeader
+            heroFlush
               ? 'border-transparent bg-[#6741FF] md:border-line md:bg-page/75'
               : 'border-line bg-page/75'
           }`}
@@ -190,7 +176,7 @@ export default function App() {
               {subScreen ? (
                 <span className="truncate text-base font-bold text-ink">{subScreen}</span>
               ) : (
-                <Wordmark size={24} onDark={darkHeader} />
+                <Wordmark size={24} onDark={heroFlush} />
               )}
             </span>
             <nav aria-label="現在地" className="hidden text-sm text-ink3 md:block">
@@ -204,7 +190,7 @@ export default function App() {
                 className={`flex items-center rounded-full p-0.5 transition-colors md:hidden ${
                   showAccount
                     ? 'ring-2 ring-brand'
-                    : darkHeader
+                    : heroFlush
                       ? 'ring-2 ring-white/40'
                       : 'hover:bg-sunken'
                 }`}
@@ -226,13 +212,8 @@ export default function App() {
                 value={accountId}
                 onChange={setAccountId}
                 onManage={demo ? undefined : openAccounts}
-                onBrand={onBrandBg}
               />
-              <p
-                className={`mt-1.5 text-[11px] md:hidden ${
-                  onBrandBg ? 'text-white' : 'text-ink3'
-                }`}
-              >
+              <p className="mt-1.5 text-[11px] text-ink3 md:hidden">
                 画面を左右にスワイプしても口座を切り替えられます
               </p>
             </div>
@@ -356,7 +337,7 @@ export default function App() {
             </SwipePager>
           )}
 
-          <p className={`mt-6 text-center text-xs ${onBrandBg ? 'text-white' : 'text-ink3'}`}>
+          <p className="mt-6 text-center text-xs text-ink3">
             MT5の時刻（UTC{getAppConfig().brokerUtcOffset >= 0 ? '+' : ''}
             {getAppConfig().brokerUtcOffset}）を日本時間に変換して記録しています
           </p>
@@ -402,7 +383,7 @@ function SavedNotice({
 
 function DemoNotice() {
   return (
-    <div className="mb-4 flex gap-3 rounded-2xl border border-line bg-brand-soft px-4 py-3">
+    <div className="mb-4 flex gap-3 rounded-2xl border border-line bg-brand-soft/60 px-4 py-3">
       <Icon name="info" size={18} className="mt-0.5 shrink-0 text-brand" />
       <div className="text-sm">
         <p className="font-semibold text-ink">サンプルデータを表示中</p>
