@@ -111,6 +111,8 @@ export type SessionKey = 'tokyo' | 'london' | 'ny' | 'other'
 export interface DayNote {
   day: string
   note: string | null
+  /** 記事の題名。移行SQLを流す前は無い */
+  title?: string | null
   updated_at?: string
 }
 

@@ -1,33 +1,22 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import type { Account, EnrichedTrade, TradeImage } from '../lib/types'
-import { fetchRecentTradeImages, fetchTradeImageCounts } from '../lib/repo'
-import { fetchLatest } from '../lib/diagnosisClient'
-import type { DiagnosisResult } from '../lib/diagnosis/types'
+import type { Account, EnrichedTrade } from '../lib/types'
+import { fetchTradeImageCounts } from '../lib/repo'
 import { jstDayKey } from '../lib/timezone'
-import DayHeadline from './diary/DayHeadline'
-import DayPhotos from './diary/DayPhotos'
 import DayScreen from './diary/DayScreen'
-import DayInsights from './diary/DayInsights'
-import NoteCard from './diary/NoteCard'
-import TypeCard from './diary/TypeCard'
-import PerformanceCard from './diary/PerformanceCard'
-import ScreenshotStrip from './diary/ScreenshotStrip'
-import TradeSection from './diary/TradeSection'
+import JournalPage from './diary/JournalPage'
 import DiaryAgenda from './diary/DiaryAgenda'
 
 interface Props {
   trades: EnrichedTrade[]
   accounts?: Account[]
   dayNotes: Record<string, string>
+  /** 日ごとの題名。一覧に出す */
+  dayTitles?: Record<string, string>
   onChanged: () => void
   focusDay?: string | null
   readOnly?: boolean
   /** 記録タブへ */
   onAdd?: () => void
-  /** 分析のタイプ診断へ */
-  onOpenType?: () => void
-  /** 分析へ */
-  onStats?: () => void
   /**
    * いま見ている日。横に振って日を移れるよう、外へ伝える。
    * 一覧を出しているあいだは null。日ではなく口座が動くようにする
@@ -38,20 +27,18 @@ interface Props {
 /**
  * 日記。
  *
- * 「その日の成績」「振り返り」「その日の取引」を1画面にまとめる。
- * 広い画面は3列、狭い画面は1列。並び順は同じになるよう、
- * 置き場所だけをグリッドで指定している（DOMの順＝スマホでの順）。
+ * 入口は日付が縦に流れる一覧。日を押すと、その日ぶんが
+ * 1本の記事として画面いっぱいに開く（JournalPage）。
  */
 export default function Diary({
   trades,
   accounts,
   dayNotes,
+  dayTitles,
   onChanged,
   focusDay,
   readOnly,
   onAdd,
-  onOpenType,
-  onStats,
   onDayChange,
 }: Props) {
   const today = useMemo(() => jstDayKey(new Date().toISOString()), [])
@@ -83,6 +70,8 @@ export default function Diary({
   const [anim, setAnim] = useState<'in' | 'out' | null>(null)
   /** 押した場所（画面の上からの距離）。そこを軸に開く */
   const [originY, setOriginY] = useState(0)
+  /** 日記が保存できているか。記事から上がってきて、画面の右上に出る */
+  const [saveState, setSaveState] = useState<'idle' | 'saving' | 'saved' | 'error'>('idle')
   const timer = useRef<number | undefined>(undefined)
 
   useEffect(() => () => window.clearTimeout(timer.current), [])
@@ -156,22 +145,6 @@ export default function Diary({
     setSelected(d.toISOString().slice(0, 10))
   }
 
-  // トレーダータイプ（診断していなければ null）
-  const [diag, setDiag] = useState<DiagnosisResult | null>(null)
-  const [diagLoading, setDiagLoading] = useState(true)
-  useEffect(() => {
-    let alive = true
-    fetchLatest()
-      .then((r) => alive && setDiag(r.diagnosis))
-      .catch(() => {
-        /* 診断の窓口が無くても日記は使える */
-      })
-      .finally(() => alive && setDiagLoading(false))
-    return () => {
-      alive = false
-    }
-  }, [])
-
   // 一覧に「写真あり」を出すための枚数。重い画像そのものは読まない
   const [imageCounts, setImageCounts] = useState<Record<string, number>>({})
   useEffect(() => {
@@ -181,34 +154,6 @@ export default function Diary({
         /* 数えられなくても一覧は出せる */
       })
   }, [trades.length])
-
-  // 最近貼ったチャート
-  const [images, setImages] = useState<TradeImage[]>([])
-  useEffect(() => {
-    let alive = true
-    fetchRecentTradeImages(6).then((r) => alive && setImages(r))
-    return () => {
-      alive = false
-    }
-  }, [trades.length])
-
-  const timeOf = useMemo(() => {
-    const m = new Map(trades.map((t) => [t.id, t.open_time]))
-    return (id: string) => m.get(id) ?? null
-  }, [trades])
-
-  function openTrade(tradeId: string) {
-    const t = trades.find((x) => x.id === tradeId)
-    if (t) setSelected(t.jstDay)
-  }
-
-  const typeCard = (
-    <TypeCard
-      result={diag}
-      loading={diagLoading}
-      onOpen={() => onOpenType?.()}
-    />
-  )
 
   /** 動きの終わり。子の animation が上がってくることがあるので、自分のぶんだけ見る */
   function onAnimEnd(e: React.AnimationEvent<HTMLDivElement>) {
@@ -232,6 +177,7 @@ export default function Diary({
       <DiaryAgenda
         trades={trades}
         dayNotes={dayNotes}
+        dayTitles={dayTitles}
         imageCounts={imageCounts}
         today={today}
         onOpen={open}
@@ -250,64 +196,18 @@ export default function Diary({
           onAdd={onAdd}
           swipeDays={swipeDays}
           onPickDay={setSelected}
+          saveState={saveState}
         >
-          {/* 広い画面は「本文＋右側」の2列。
-              DOM の並びがそのままスマホでの並びになる */}
-          <div className="flex flex-col gap-4 xl:grid xl:grid-cols-[minmax(0,1fr)_320px] xl:items-start">
-            {/* 写真をいちばん上に。文字より先に、その日のことを思い出せるように */}
-            <div className="xl:col-span-2">
-              <DayPhotos trades={dayTrades} onAdd={onAdd} />
-            </div>
-
-            <div className="flex flex-col gap-4">
-              <DayHeadline
-                day={selected}
-                trades={dayTrades}
-                isToday={isToday}
-                hideDate
-                aside={
-                  <TypeCard
-                    result={diag}
-                    loading={diagLoading}
-                    compact
-                    onOpen={() => onOpenType?.()}
-                  />
-                }
-              />
-
-              {dayTrades.length > 0 && (
-                <DayInsights
-                  trades={dayTrades}
-                  note={dayNotes[selected]}
-                  onDetail={() => onStats?.()}
-                />
-              )}
-
-              <NoteCard
-                key={selected}
-                day={selected}
-                initial={dayNotes[selected] ?? ''}
-                isToday={isToday}
-                readOnly={readOnly}
-                onChanged={onChanged}
-              />
-
-              <TradeSection
-                trades={dayTrades}
-                accounts={accounts}
-                readOnly={readOnly}
-                onChanged={onChanged}
-                onAdd={onAdd}
-              />
-            </div>
-
-            <div className="flex flex-col gap-4">
-              {/* 診断済みなら狭い画面では上のカードに出ているので、ここでは広い画面だけ */}
-              <div className={diag ? 'hidden xl:block' : ''}>{typeCard}</div>
-              <PerformanceCard trades={trades} day={selected} />
-              <ScreenshotStrip images={images} timeOf={timeOf} onOpenTrade={openTrade} />
-            </div>
-          </div>
+          <JournalPage
+            key={selected}
+            day={selected}
+            trades={dayTrades}
+            accounts={accounts}
+            readOnly={readOnly}
+            onChanged={onChanged}
+            onAdd={onAdd}
+            onSaveState={setSaveState}
+          />
         </DayScreen>
       )}
     </div>

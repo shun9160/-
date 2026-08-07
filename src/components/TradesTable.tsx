@@ -1,5 +1,4 @@
-import { Fragment, useEffect, useMemo, useState } from 'react'
-import type { ReactNode } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import type { Account, EnrichedTrade } from '../lib/types'
 import { accountLabel } from '../lib/types'
 import {
@@ -41,16 +40,10 @@ interface Props {
   order?: TradeOrder
   /** 1件も無いときの言葉。絞り込みの結果が0件のときに差し替える */
   emptyText?: string
-  /**
-   * 左に時刻の列と縦線を立てて、その日の出来事として並べる。
-   * 日記でだけ使う。一覧性より「一日の流れ」を優先する場面。
-   */
-  timeline?: boolean
 }
 
 export default function TradesTable({
   trades, onChanged, filterDay, readOnly, compact, accounts, order = 'new', emptyText,
-  timeline,
 }: Props) {
   // 口座が2つ以上あるときだけ、どの口座の取引かを出す
   const accountOf = useMemo(() => {
@@ -203,17 +196,17 @@ export default function TradesTable({
   }
 
   return (
-    <div className={`flex flex-col ${timeline ? '' : 'gap-2.5'}`}>
+    <div className="flex flex-col gap-2.5">
       {err && (
         <div className="mb-2.5 rounded-xl border border-down/25 bg-down-soft px-3 py-2 text-sm text-down">
           {err}
         </div>
       )}
 
-      {rows.map((t, i) => {
+      {rows.map((t) => {
         const isEditing = editingTrade === t.id
-        const card = (
-          <article className="card overflow-hidden">
+        return (
+          <article key={t.id} className="card overflow-hidden">
             {/* 見出し行 */}
             <div className="flex flex-wrap items-center gap-x-2.5 gap-y-1 px-4 pt-3.5">
               <span
@@ -420,14 +413,6 @@ export default function TradesTable({
             )}
           </article>
         )
-
-        return timeline ? (
-          <TimelineRow key={t.id} at={t.open_time} net={t.netProfit} last={i === rows.length - 1}>
-            {card}
-          </TimelineRow>
-        ) : (
-          <Fragment key={t.id}>{card}</Fragment>
-        )
       })}
 
       {viewer && (
@@ -437,46 +422,6 @@ export default function TradesTable({
           onClose={() => setViewer(null)}
         />
       )}
-    </div>
-  )
-}
-
-/**
- * 一日の流れの上に置いた1件。
- *
- * 左に時刻、その右に縦線と丸。丸の色は損益の向き。
- * 縦線は次の丸まで続くので、上から下へ時間が流れて見える。
- * 最後の1件だけは丸のところで止める（下に続きが無いため）。
- */
-function TimelineRow({
-  at,
-  net,
-  last,
-  children,
-}: {
-  at: string
-  net: number
-  last: boolean
-  children: ReactNode
-}) {
-  return (
-    <div className={`flex gap-2.5 ${last ? '' : 'pb-2.5'}`}>
-      <span className="w-10 shrink-0 pt-3.5 text-right text-[11px] font-bold tabular-nums text-ink3">
-        {fmtJst(at, 'HH:mm')}
-      </span>
-      <span aria-hidden="true" className="relative w-2.5 shrink-0">
-        <span
-          className={`absolute left-1/2 top-0 w-px -translate-x-1/2 bg-line ${
-            last ? 'h-[1.35rem]' : 'h-full'
-          }`}
-        />
-        <span
-          className={`absolute left-1/2 top-4 h-2.5 w-2.5 -translate-x-1/2 rounded-full bg-current ${colorOf(
-            net,
-          )}`}
-        />
-      </span>
-      <div className="min-w-0 flex-1">{children}</div>
     </div>
   )
 }

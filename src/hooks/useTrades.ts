@@ -23,6 +23,8 @@ interface State {
   /** 記録先にする口座（選択中、無ければ既定、無ければ先頭） */
   writeAccount: Account | null
   dayNotes: Record<string, string>
+  /** 日ごとの題名。一覧に「どんな日だったか」を出すのに使う */
+  dayTitles: Record<string, string>
   /** 利用者ごとの設定（初期設定を終えたかなど）。未作成なら null */
   settings: Settings | null
   loading: boolean
@@ -71,6 +73,7 @@ export function useTrades(authed: boolean): State {
   const [accounts, setAccounts] = useState<Account[]>([])
   const [accountId, setAccountId] = useState<AccountFilter>(null)
   const [dayNotes, setDayNotes] = useState<Record<string, string>>({})
+  const [dayTitles, setDayTitles] = useState<Record<string, string>>({})
   const [settings, setSettings] = useState<Settings | null>(null)
   const [busy, setBusy] = useState(true)
   const [error, setError] = useState<string | null>(null)
@@ -88,6 +91,7 @@ export function useTrades(authed: boolean): State {
       setRawTrades(enrichAll(demoTrades().map((t) => ({ ...t, account_id: DEMO_ACCOUNT.id }))))
       setAccounts([DEMO_ACCOUNT])
       setDayNotes({})
+      setDayTitles({})
       setSettings(DEMO_SETTINGS)
       setLoadedFor(false)
       setBusy(false)
@@ -99,10 +103,13 @@ export function useTrades(authed: boolean): State {
       const [trades, notes] = await Promise.all([fetchTrades(), fetchDayNotes()])
       setRawTrades(enrichAll(trades))
       const map: Record<string, string> = {}
+      const titles: Record<string, string> = {}
       ;(notes as DayNote[]).forEach((n) => {
         if (n.note) map[n.day] = n.note
+        if (n.title) titles[n.day] = n.title
       })
       setDayNotes(map)
+      setDayTitles(titles)
     } catch (e) {
       setError(friendlyError(e))
     }
@@ -171,6 +178,7 @@ export function useTrades(authed: boolean): State {
       account,
       writeAccount,
       dayNotes: stale ? NO_NOTES : dayNotes,
+      dayTitles: stale ? NO_NOTES : dayTitles,
       settings: stale ? null : settings,
       loading: busy || stale,
       error,
@@ -180,7 +188,7 @@ export function useTrades(authed: boolean): State {
     }),
     [
       trades, allTrades, visibleAccounts, accountId, account, writeAccount,
-      dayNotes, settings, busy, stale, error, live, reload,
+      dayNotes, dayTitles, settings, busy, stale, error, live, reload,
     ],
   )
 }

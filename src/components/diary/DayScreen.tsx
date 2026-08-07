@@ -12,15 +12,13 @@ import Icon from '../Icon'
  *  - 開く動きが、後ろに残っている一覧との差で見える。
  *    同じ場所で中身だけ入れ替えると、300ms の動きは気づかれない
  *
- * 色はロゴと同じ紫から青。ただし敷くのは上の見出しのぶんだけにして、
- * 下へ向かって消していく。本文は黒い文字なので、下まで色を敷くと
- * 読めなくなるため。色は見出しと、下に浮かせたボタンで出す。
+ * 下地はロゴの色そのものではなく、ごく薄く色を混ぜた白（#F6F4FF）。
+ * 長く文章を読み書きする場所なので、色が濃いと目が疲れる。
+ * ロゴの色は、ボタン・選んだもの・押せるところに使って出す。
  *
  * body の直下に出しているのは、親に transform が掛かっていると
  * position: fixed がその親を基準にしてしまい、画面いっぱいにならないため。
  */
-
-const WEEKDAYS_JA = ['日', '月', '火', '水', '木', '金', '土']
 
 interface Props {
   /** 開いている日（YYYY-MM-DD） */
@@ -47,6 +45,8 @@ interface Props {
   /** 横に振って移れる日。真ん中がいま開いている日 */
   swipeDays: string[]
   onPickDay: (day: string) => void
+  /** 書いたものが保存できているか。右上に小さく出す */
+  saveState?: 'idle' | 'saving' | 'saved' | 'error'
   children: ReactNode
 }
 
@@ -62,17 +62,25 @@ export default function DayScreen({
   onAdd,
   swipeDays,
   onPickDay,
+  saveState = 'idle',
   children,
 }: Props) {
   const iso = `${day}T00:00:00+09:00`
-  const wd = WEEKDAYS_JA[new Date(`${day}T00:00:00Z`).getUTCDay()]
+  const saveLabel =
+    saveState === 'saving'
+      ? '保存中…'
+      : saveState === 'saved'
+        ? '保存しました'
+        : saveState === 'error'
+          ? '保存できませんでした'
+          : ''
 
   return createPortal(
     <div
       role="dialog"
       aria-modal="true"
       aria-label={`${fmtJst(iso, 'yyyy年M月d日')}の日記`}
-      className={`fixed inset-0 z-50 overflow-y-auto bg-page ${
+      className={`fixed inset-0 z-50 overflow-y-auto bg-[#F6F4FF] ${
         phase === 'in' ? 'reveal-in' : phase === 'out' ? 'reveal-out' : ''
       }`}
       style={
@@ -85,38 +93,27 @@ export default function DayScreen({
       }
       onAnimationEnd={onAnimationEnd}
     >
-      {/* 上だけロゴの色にする。
-          下まで色を敷くと、その上に載る本文（黒い文字）が読めなくなる。
-          色は見出しと下のボタンで出し、本文はいつもの白い紙の上に置く */}
-      <div
-        aria-hidden="true"
-        className="pointer-events-none absolute inset-x-0 top-0 h-[21rem]"
-        style={{
-          background:
-            'linear-gradient(to bottom, #4A2ECC 0%, #3538C6 46%, rgba(47, 66, 191, 0.55) 76%, rgba(250, 250, 252, 0) 100%)',
-        }}
-      />
-
       <SwipePager items={swipeDays} current={day} onChange={onPickDay}>
         <div
-          className="relative mx-auto max-w-5xl px-4 pb-32"
+          className="relative px-4 pb-32"
           style={{ paddingTop: 'calc(env(safe-area-inset-top, 0px) + 1.25rem)' }}
         >
-          {/* 見出し。曜日を大きく、日付をその下に */}
-          <header className="mb-5 text-white">
-            {isToday && (
-              <span className="mb-1.5 inline-block rounded-md bg-white/20 px-2 py-0.5 text-[10px] font-bold tracking-wider">
-                TODAY
+          {/* 保存の様子。書くことの邪魔にならないよう、右上に小さく */}
+          <div className="mx-auto flex h-4 max-w-[42rem] items-center justify-end">
+            {isToday && !saveLabel && (
+              <span className="text-[10px] font-bold tracking-wider text-brand/70">TODAY</span>
+            )}
+            {saveLabel && (
+              <span
+                aria-live="polite"
+                className={`text-[11px] font-semibold ${
+                  saveState === 'error' ? 'text-down' : 'text-ink3'
+                }`}
+              >
+                {saveLabel}
               </span>
             )}
-            <h1 className="text-[2rem] font-bold leading-none tracking-tight">
-              {wd}曜日
-            </h1>
-            {/* 損益はすぐ下のカードに大きく出るので、ここでは出さない */}
-            <p className="mt-1.5 text-sm font-semibold text-white/80">
-              {fmtJst(iso, 'yyyy年M月d日')}
-            </p>
-          </header>
+          </div>
 
           {children}
         </div>
@@ -124,7 +121,7 @@ export default function DayScreen({
 
       {/* 下に浮かせた操作。親指の届くところに置く */}
       <div
-        className="pointer-events-none fixed inset-x-0 bottom-0 z-10 flex items-center justify-center gap-3 bg-gradient-to-t from-page via-page/85 to-transparent px-4 pt-8"
+        className="pointer-events-none fixed inset-x-0 bottom-0 z-10 flex items-center justify-center gap-3 bg-gradient-to-t from-[#F6F4FF] via-[#F6F4FF]/85 to-transparent px-4 pt-8"
         style={{ paddingBottom: 'calc(env(safe-area-inset-bottom, 0px) + 1rem)' }}
       >
         <button
@@ -170,7 +167,7 @@ export default function DayScreen({
             type="button"
             onClick={onAdd}
             aria-label="トレードを記録する"
-            className="pointer-events-auto flex h-12 w-12 shrink-0 items-center justify-center rounded-full bg-white text-brand shadow-raised transition-transform active:scale-95"
+            className="pointer-events-auto flex h-12 w-12 shrink-0 items-center justify-center rounded-full bg-brand text-white shadow-raised transition-transform active:scale-95"
           >
             <Icon name="plus" size={22} />
           </button>

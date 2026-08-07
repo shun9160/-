@@ -2,6 +2,8 @@ import { supabase } from './supabase'
 import { dataUrlToBlob } from './image'
 import { isDataUrl, removeImages, signedUrl, signedUrls, uploadImage } from './storage'
 import type { Account, DayNote, Settings, Trade, TradeImage, TradeInput } from './types'
+import type { DayEntry } from './journal'
+import { emptyEntry, parseEntry, plainText } from './journal'
 
 const NO_CLIENT = 'Supabase が未設定です (.env / Netlify の環境変数を確認してください)'
 const NO_USER = 'ログインが必要です'
@@ -279,9 +281,74 @@ export async function fetchDayNotes(): Promise<DayNote[]> {
 }
 
 export async function upsertDayNote(day: string, note: string): Promise<void> {
+  await writeDayRow(day, { note })
+}
+
+/**
+ * その日の日記をまるごと読む。
+ *
+ * 新しい列（題名・気持ち・学びなど）がまだ無い環境でも読めるように、
+ * 列が無いと言われたら今までの列だけで読み直す。
+ * 移行SQLを流す前でも、日記が開けなくなることは避ける。
+ */
+export async function fetchDayEntry(day: string): Promise<DayEntry> {
+  if (!supabase) return emptyEntry(day)
+  const userId = await requireUserId()
+  const FULL = 'day,note,title,body_blocks,emotions,emotion_why,good,improve,next_time,lesson'
+
+  const read = async (cols: string) =>
+    await supabase!
+      .from('day_notes')
+      .select(cols)
+      .eq('user_id', userId)
+      .eq('day', day)
+      .maybeSingle()
+
+  let { data, error } = await read(FULL)
+  if (error && isMissingColumn(error)) ({ data, error } = await read('day,note'))
+  if (error) throw error
+  return parseEntry(day, data as Parameters<typeof parseEntry>[1])
+}
+
+/** その日の日記を保存する。書き換えたところだけ渡す */
+export async function saveDayEntry(entry: DayEntry): Promise<void> {
+  await writeDayRow(entry.day, {
+    // これまでの列にも本文の文字を写す。一覧の下書きや診断がここを見ている
+    note: plainText(entry.blocks),
+    title: nullIfBlank(entry.title),
+    body_blocks: entry.blocks,
+    emotions: entry.emotions.length ? entry.emotions : null,
+    emotion_why: nullIfBlank(entry.emotionWhy),
+    good: nullIfBlank(entry.good),
+    improve: nullIfBlank(entry.improve),
+    next_time: nullIfBlank(entry.nextTime),
+    lesson: nullIfBlank(entry.lesson),
+  })
+}
+
+function nullIfBlank(s: string): string | null {
+  return s.trim() ? s : null
+}
+
+/**
+ * day_notes の1日ぶんを書く。
+ *
+ * 新しい列がまだ無い環境では、その列を落としてもう一度書く。
+ * 何も書けずに終わるより、書けるところだけでも残したい。
+ */
+async function writeDayRow(day: string, patch: Record<string, unknown>): Promise<void> {
+  try {
+    await upsertDayRow(day, patch)
+  } catch (e) {
+    if (!isMissingColumn(e)) throw e
+    await upsertDayRow(day, { note: patch.note ?? null })
+  }
+}
+
+async function upsertDayRow(day: string, patch: Record<string, unknown>): Promise<void> {
   if (!supabase) throw new Error(NO_CLIENT)
   const userId = await requireUserId()
-  const row = { user_id: userId, day, note, updated_at: new Date().toISOString() }
+  const row = { user_id: userId, day, ...patch, updated_at: new Date().toISOString() }
 
   const { data, error } = await supabase
     .from('day_notes')
@@ -306,7 +373,7 @@ export async function upsertDayNote(day: string, note: string): Promise<void> {
   if (existing) {
     const { data: updated, error: upErr } = await supabase
       .from('day_notes')
-      .update({ note, updated_at: row.updated_at })
+      .update({ ...patch, updated_at: row.updated_at })
       .eq('user_id', userId)
       .eq('day', day)
       .select('day')

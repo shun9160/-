@@ -35,7 +35,7 @@ export default function App() {
 
   const {
     trades, allTrades, accounts, accountId, setAccountId, account, writeAccount,
-    dayNotes, settings, loading, error, configured, demo, reload,
+    dayNotes, dayTitles, settings, loading, error, configured, demo, reload,
   } = useTrades(authed)
   const [screen, setScreen] = useState<ScreenKey>('home')
   const [focusDay, setFocusDay] = useState<string | null>(null)
@@ -403,18 +403,11 @@ export default function App() {
                   trades={trades}
                   accounts={accounts}
                   dayNotes={dayNotes}
+                  dayTitles={dayTitles}
                   onChanged={reload}
                   focusDay={focusDay}
                   readOnly={demo}
                   onAdd={() => go('add')}
-                  onStats={() => {
-                    setStatsFocus(null)
-                    go('stats')
-                  }}
-                  onOpenType={() => {
-                    setStatsFocus((f) => ({ tab: 'type', n: (f?.n ?? 0) + 1 }))
-                    go('stats')
-                  }}
                   onDayChange={setDiaryDay}
                 />
               )}

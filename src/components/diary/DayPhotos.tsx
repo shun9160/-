@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import type { EnrichedTrade } from '../../lib/types'
 import { fetchTradeImagesFor, fetchTradeScreenshots } from '../../lib/repo'
 import { fmtJst } from '../../lib/timezone'
@@ -34,6 +34,9 @@ export default function DayPhotos({ trades, onAdd }: Props) {
   const [shots, setShots] = useState<Shot[]>([])
   const [loading, setLoading] = useState(true)
   const [open, setOpen] = useState<Shot | null>(null)
+  /** いま見えている枚目。下の点をひとつだけ濃くするのに使う */
+  const [at, setAt] = useState(0)
+  const boxRef = useRef<HTMLDivElement>(null)
 
   // 取引の並びは日ごとに変わるので、id をつないだものを合図にする
   const ids = trades.map((t) => t.id).join(',')
@@ -113,9 +116,17 @@ export default function DayPhotos({ trades, onAdd }: Props) {
   return (
     <div>
       <div
+        ref={boxRef}
         // 端まで写真を見せたいので、狭い画面では外側の余白ぶんだけ外へ出す
         className="-mx-4 flex snap-x snap-mandatory gap-3 overflow-x-auto px-4 pb-2 sm:mx-0 sm:px-0"
         style={{ scrollbarWidth: 'none', overscrollBehaviorX: 'contain' }}
+        onScroll={(e) => {
+          // 1枚ぶんの幅で割って、いま何枚目かを出す
+          const el = e.currentTarget
+          const card = el.firstElementChild as HTMLElement | null
+          const step = card ? card.offsetWidth + 12 : el.clientWidth
+          setAt(Math.max(0, Math.min(shots.length - 1, Math.round(el.scrollLeft / step))))
+        }}
       >
         {shots.map((s) => (
           <button
@@ -150,9 +161,20 @@ export default function DayPhotos({ trades, onAdd }: Props) {
         ))}
       </div>
 
-      <p className="mt-0.5 text-[11px] text-ink3">
-        {shots.length}枚 ・ 横に送って見られます
-      </p>
+      {/* 何枚あって、いま何枚目か。数字より点のほうが目に入る */}
+      {shots.length > 1 && (
+        <div className="mt-1 flex items-center justify-center gap-1.5" aria-hidden="true">
+          {shots.map((s, i) => (
+            <span
+              key={s.key}
+              className={`h-1.5 rounded-full transition-all ${
+                i === at ? 'w-4 bg-brand' : 'w-1.5 bg-brand/25'
+              }`}
+            />
+          ))}
+        </div>
+      )}
+      <p className="sr-only">チャート {shots.length}枚。横に送って見られます</p>
 
       {open && (
         <ImageViewer

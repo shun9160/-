@@ -33,6 +33,8 @@ const MORE = 30
 interface Props {
   trades: EnrichedTrade[]
   dayNotes: Record<string, string>
+  /** 日ごとの題名。あればメモより先に出す */
+  dayTitles?: Record<string, string>
   /** 取引ごとのチャート枚数。写真があることを一覧で示すのに使う */
   imageCounts?: Record<string, number>
   /** いちばん新しい日（YYYY-MM-DD）。ふつうは今日 */
@@ -46,10 +48,19 @@ interface Row {
   trades: EnrichedTrade[]
   net: number
   note: string
+  /** その日の記事の題名。書いてあれば、メモの代わりにこれを出す */
+  title: string
   photos: number
 }
 
-export default function DiaryAgenda({ trades, dayNotes, imageCounts, today, onOpen }: Props) {
+export default function DiaryAgenda({
+  trades,
+  dayNotes,
+  dayTitles,
+  imageCounts,
+  today,
+  onOpen,
+}: Props) {
   const [span, setSpan] = useState(FIRST)
 
   const byDay = useMemo(() => {
@@ -64,26 +75,27 @@ export default function DiaryAgenda({ trades, dayNotes, imageCounts, today, onOp
 
   /** いちばん古い記録。そこまでは「さらに前」で辿れる */
   const oldest = useMemo(() => {
-    const days = [...byDay.keys(), ...Object.keys(dayNotes)].sort()
+    const days = [...byDay.keys(), ...Object.keys(dayNotes), ...Object.keys(dayTitles ?? {})].sort()
     return days[0] ?? today
-  }, [byDay, dayNotes, today])
+  }, [byDay, dayNotes, dayTitles, today])
 
   const rows = useMemo<Row[]>(() => {
     const out: Row[] = []
     for (let i = 0; i < span; i++) {
       const day = shift(today, -i)
-      if (day < oldest && out.some((r) => r.trades.length || r.note)) break
+      if (day < oldest && out.some((r) => r.trades.length || r.note || r.title)) break
       const list = byDay.get(day) ?? []
       out.push({
         day,
         trades: [...list].sort((a, b) => a.openJst.getTime() - b.openJst.getTime()),
         net: list.reduce((s, t) => s + t.netProfit, 0),
         note: dayNotes[day] ?? '',
+        title: dayTitles?.[day] ?? '',
         photos: list.reduce((s, t) => s + (imageCounts?.[t.id] ?? 0), 0),
       })
     }
     return out
-  }, [span, today, oldest, byDay, dayNotes, imageCounts])
+  }, [span, today, oldest, byDay, dayNotes, dayTitles, imageCounts])
 
   const canMore = shift(today, -span) >= oldest
   /** 縦書きで出す年月。いちばん上に見えている日のもの */
@@ -161,7 +173,7 @@ function DayBand({
 }) {
   const iso = `${row.day}T00:00:00+09:00`
   const wd = WEEKDAYS_JA[new Date(`${row.day}T00:00:00Z`).getUTCDay()]
-  const empty = row.trades.length === 0 && !row.note
+  const empty = row.trades.length === 0 && !row.note && !row.title
 
   return (
     <button
@@ -213,7 +225,9 @@ function DayBand({
                 }`}
               />
             ))}
-            {row.note && <Entry bar="#FFFFFF" title="振り返り" meta={row.note} />}
+            {(row.title || row.note) && (
+              <Entry bar="#FFFFFF" title={row.title || '振り返り'} meta={row.note} />
+            )}
             {row.photos > 0 && (
               <span className="flex items-center gap-1 pl-3 text-[11px] text-white/75">
                 <Icon name="camera" size={12} />
