@@ -13,6 +13,18 @@ export type Block =
   | { id: string; kind: 'text'; text: string }
   | { id: string; kind: 'image'; path: string; caption?: string }
 
+/**
+ * 記事のいちばん上に並べるチャート。
+ *
+ * 取引に貼った画像とは別に持つ。取引の添付は「その1件の証拠」だが、
+ * ここは「その日を思い出すための絵」で、役割が違うため。
+ */
+export interface Photo {
+  id: string
+  path: string
+  caption?: string
+}
+
 /** そのとき何を感じていたか。並び順はそのまま画面に出る順 */
 export const EMOTIONS = [
   { key: 'calm', emoji: '😌', label: '落ち着いていた' },
@@ -34,6 +46,8 @@ export function emotionOf(key: string) {
 export interface DayEntry {
   day: string
   title: string
+  /** いちばん上に並べるチャート */
+  photos: Photo[]
   blocks: Block[]
   emotions: string[]
   emotionWhy: string
@@ -47,6 +61,7 @@ export function emptyEntry(day: string): DayEntry {
   return {
     day,
     title: '',
+    photos: [],
     blocks: [newText()],
     emotions: [],
     emotionWhy: '',
@@ -72,6 +87,10 @@ export function newImage(path: string, caption = ''): Block {
   return { id: blockId(), kind: 'image', path, caption }
 }
 
+export function newPhoto(path: string, caption = ''): Photo {
+  return { id: blockId(), path, caption }
+}
+
 /**
  * 本文の文字だけを取り出す。
  *
@@ -89,6 +108,7 @@ export function plainText(blocks: Block[]): string {
 export function isEmpty(e: DayEntry): boolean {
   return (
     !e.title.trim() &&
+    !e.photos.length &&
     !e.emotions.length &&
     !e.emotionWhy.trim() &&
     !e.good.trim() &&
@@ -109,6 +129,7 @@ export function parseEntry(
   day: string,
   row: {
     title?: string | null
+    photos?: unknown
     body_blocks?: unknown
     note?: string | null
     emotions?: string[] | null
@@ -125,6 +146,7 @@ export function parseEntry(
   return {
     day,
     title: row.title ?? '',
+    photos: parsePhotos(row.photos),
     blocks: blocks ?? (row.note ? [newText(row.note)] : [newText()]),
     emotions: row.emotions ?? [],
     emotionWhy: row.emotion_why ?? '',
@@ -150,6 +172,23 @@ function parseBlocks(raw: unknown): Block[] | null {
     }
   }
   return out.length ? out : null
+}
+
+/** 上に並べるチャート。壊れた形は捨てる */
+function parsePhotos(raw: unknown): Photo[] {
+  if (!Array.isArray(raw)) return []
+  const out: Photo[] = []
+  for (const p of raw) {
+    if (!p || typeof p !== 'object') continue
+    const o = p as Record<string, unknown>
+    if (typeof o.path !== 'string') continue
+    out.push({
+      id: typeof o.id === 'string' ? o.id : blockId(),
+      path: o.path,
+      caption: str(o.caption),
+    })
+  }
+  return out
 }
 
 function str(v: unknown): string {

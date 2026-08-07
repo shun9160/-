@@ -1,5 +1,13 @@
 import { describe, expect, it } from 'vitest'
-import { emptyEntry, isEmpty, newImage, newText, parseEntry, plainText } from '../journal'
+import {
+  emptyEntry,
+  isEmpty,
+  newImage,
+  newPhoto,
+  newText,
+  parseEntry,
+  plainText,
+} from '../journal'
 
 describe('parseEntry', () => {
   it('行が無い日はまっさらな日記になる', () => {
@@ -50,6 +58,25 @@ describe('parseEntry', () => {
     const e = parseEntry('2026-08-07', { body_blocks: [] })
     expect(e.blocks).toHaveLength(1)
     expect(e.blocks[0].kind).toBe('text')
+  })
+
+  it('上に並べるチャートを読む。壊れた行は捨てる', () => {
+    const e = parseEntry('2026-08-07', {
+      photos: [
+        { id: 'p1', path: 'u/day/a.webp', caption: '入った場所' },
+        { path: 'u/day/b.webp' },
+        { caption: 'path が無いので捨てる' },
+        'ごみ',
+      ],
+    } as never)
+    expect(e.photos).toHaveLength(2)
+    expect(e.photos[0]).toMatchObject({ path: 'u/day/a.webp', caption: '入った場所' })
+    expect(e.photos[1].path).toBe('u/day/b.webp')
+    expect(e.photos[1].id).toBeTruthy()
+  })
+
+  it('チャートが無ければ空の配列になる', () => {
+    expect(parseEntry('2026-08-07', { note: 'あ' }).photos).toEqual([])
   })
 
   it('題名・気持ち・振り返り・学びをそのまま読む', () => {
@@ -110,6 +137,12 @@ describe('isEmpty', () => {
 
   it('画像を1枚貼っただけでも、からっぽではない', () => {
     expect(isEmpty({ ...emptyEntry('2026-08-07'), blocks: [newImage('u/a.webp')] })).toBe(false)
+  })
+
+  it('チャートを1枚貼っただけでも、からっぽではない', () => {
+    expect(
+      isEmpty({ ...emptyEntry('2026-08-07'), photos: [newPhoto('u/day/a.webp')] }),
+    ).toBe(false)
   })
 
   it('空白だけの文章は、書いたことにならない', () => {

@@ -21,6 +21,8 @@
 alter table public.day_notes
   -- 記事の題名。「焦ってエントリーしてしまった日」など
   add column if not exists title text,
+  -- いちばん上に並べるチャート。取引の添付とは別に、自分で貼る
+  add column if not exists photos jsonb,
   -- 本文。文章と画像が順番に並んだもの（下に形を書いてある）
   add column if not exists body_blocks jsonb,
   -- そのとき何を感じていたか。複数選べる
@@ -36,6 +38,9 @@ alter table public.day_notes
 
 comment on column public.day_notes.body_blocks is
   '本文。[{"id":"...","kind":"text","text":"..."},{"id":"...","kind":"image","path":"<Storageの置き場所>","caption":"..."}] の並び';
+
+comment on column public.day_notes.photos is
+  'その日のチャート。[{"id":"...","path":"<Storageの置き場所>","caption":"..."}] の並び';
 
 comment on column public.day_notes.lesson is
   '今日の学び。ここだけ独立して持ち、あとから集めて読み返せるようにする';

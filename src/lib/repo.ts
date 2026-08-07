@@ -294,7 +294,8 @@ export async function upsertDayNote(day: string, note: string): Promise<void> {
 export async function fetchDayEntry(day: string): Promise<DayEntry> {
   if (!supabase) return emptyEntry(day)
   const userId = await requireUserId()
-  const FULL = 'day,note,title,body_blocks,emotions,emotion_why,good,improve,next_time,lesson'
+  const FULL =
+    'day,note,title,photos,body_blocks,emotions,emotion_why,good,improve,next_time,lesson'
 
   const read = async (cols: string) =>
     await supabase!
@@ -304,10 +305,18 @@ export async function fetchDayEntry(day: string): Promise<DayEntry> {
       .eq('day', day)
       .maybeSingle()
 
-  let { data, error } = await read(FULL)
-  if (error && isMissingColumn(error)) ({ data, error } = await read('day,note'))
-  if (error) throw error
-  return parseEntry(day, data as Parameters<typeof parseEntry>[1])
+  // 無いと言われた列だけを落として、もう一度読む。
+  // ぜんぶ諦めて note だけにすると、移行SQLを途中まで流した人が
+  // 題名や気持ちを読めなくなるため
+  let cols = FULL.split(',')
+  for (let i = 0; i < cols.length; i++) {
+    const { data, error } = await read(cols.join(','))
+    if (!error) return parseEntry(day, data as Parameters<typeof parseEntry>[1])
+    const bad = missingColumnName(error)
+    if (!bad || !cols.includes(bad)) throw error
+    cols = cols.filter((c) => c !== bad)
+  }
+  return emptyEntry(day)
 }
 
 /** その日の日記を保存する。書き換えたところだけ渡す */
@@ -316,6 +325,7 @@ export async function saveDayEntry(entry: DayEntry): Promise<void> {
     // これまでの列にも本文の文字を写す。一覧の下書きや診断がここを見ている
     note: plainText(entry.blocks),
     title: nullIfBlank(entry.title),
+    photos: entry.photos,
     body_blocks: entry.blocks,
     emotions: entry.emotions.length ? entry.emotions : null,
     emotion_why: nullIfBlank(entry.emotionWhy),
@@ -337,12 +347,37 @@ function nullIfBlank(s: string): string | null {
  * 何も書けずに終わるより、書けるところだけでも残したい。
  */
 async function writeDayRow(day: string, patch: Record<string, unknown>): Promise<void> {
-  try {
-    await upsertDayRow(day, patch)
-  } catch (e) {
-    if (!isMissingColumn(e)) throw e
-    await upsertDayRow(day, { note: patch.note ?? null })
+  let row = { ...patch }
+  // 無いと言われた列だけを落として、もう一度書く。
+  // ぜんぶ諦めるより、書けるところだけでも残したい
+  for (let i = 0; i <= Object.keys(patch).length; i++) {
+    try {
+      await upsertDayRow(day, row)
+      return
+    } catch (e) {
+      const bad = missingColumnName(e)
+      if (!bad || !(bad in row)) throw e
+      delete row[bad]
+      if (Object.keys(row).length === 0) return
+    }
   }
+}
+
+/**
+ * 「その列がない」と言われたときの、列の名前。
+ *
+ * PostgREST は書き込みで
+ *   Could not find the 'photos' column of 'day_notes' in the schema cache
+ * と返し、読み込みでは
+ *   column day_notes.photos does not exist
+ * と返す。どちらからも名前を取り出す。
+ */
+export function missingColumnName(e: unknown): string | null {
+  const msg = (e as { message?: string })?.message ?? ''
+  const quoted = msg.match(/Could not find the '([^']+)' column/i)
+  if (quoted) return quoted[1]
+  const bare = msg.match(/column (?:[\w.]+\.)?"?([\w]+)"? does not exist/i)
+  return bare ? bare[1] : null
 }
 
 async function upsertDayRow(day: string, patch: Record<string, unknown>): Promise<void> {
@@ -439,73 +474,6 @@ export async function fetchTradeImages(tradeId: string): Promise<TradeImage[]> {
     .order('created_at', { ascending: true })
   if (error) throw error
   return resolveImages((data ?? []) as StoredImage[])
-}
-
-/**
- * 何件かの取引にまたがるチャート画像を、一度にまとめて取る。
- * 日記でその日ぶんを横に並べるのに使う。1件ずつ問い合わせると
- * 取引の数だけ往復してしまうため、まとめて引く。
- */
-export async function fetchTradeImagesFor(tradeIds: string[]): Promise<TradeImage[]> {
-  if (!supabase || tradeIds.length === 0) return []
-  try {
-    const { data, error } = await supabase
-      .from('trade_images')
-      .select('id,trade_id,image_path,caption,created_at')
-      .in('trade_id', tradeIds)
-      .order('created_at', { ascending: true })
-    if (error) return []
-    return await resolveImages((data ?? []) as StoredImage[])
-  } catch {
-    return []
-  }
-}
-
-/**
- * 取込元のスクショ。その日の取引ぶんをまとめて取る。
- * チャートを1枚も貼っていない日でも、記録の写真は並べたいので使う。
- */
-export async function fetchTradeScreenshots(
-  tradeIds: string[],
-): Promise<{ tradeId: string; url: string }[]> {
-  if (!supabase || tradeIds.length === 0) return []
-  try {
-    const { data, error } = await supabase
-      .from('trades')
-      .select('id,screenshot_path')
-      .in('id', tradeIds)
-    if (error) return []
-    const rows = (data ?? []) as { id: string; screenshot_path: string | null }[]
-    const paths = rows.map((r) => r.screenshot_path).filter((p): p is string => !!p)
-    if (paths.length === 0) return []
-    const urls = await signedUrls(paths)
-    return rows.flatMap((r) =>
-      r.screenshot_path && urls[r.screenshot_path]
-        ? [{ tradeId: r.id, url: urls[r.screenshot_path] }]
-        : [],
-    )
-  } catch {
-    return []
-  }
-}
-
-/**
- * 最近貼ったチャート画像。日記の「最近のスクリーンショット」に出す。
- * 表がまだ作られていないこともあるので、失敗しても空で返す。
- */
-export async function fetchRecentTradeImages(limit = 6): Promise<TradeImage[]> {
-  if (!supabase) return []
-  try {
-    const { data, error } = await supabase
-      .from('trade_images')
-      .select('id,trade_id,image_path,caption,created_at')
-      .order('created_at', { ascending: false })
-      .limit(limit)
-    if (error) return []
-    return await resolveImages((data ?? []) as StoredImage[])
-  } catch {
-    return []
-  }
 }
 
 /**

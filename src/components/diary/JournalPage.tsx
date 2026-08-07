@@ -7,7 +7,7 @@ import { useAutoSave } from '../../hooks/useAutoSave'
 import { fmtJst } from '../../lib/timezone'
 import AutoTextarea from '../AutoTextarea'
 import Icon from '../Icon'
-import DayPhotos from './DayPhotos'
+import DayCharts from './DayCharts'
 import JournalBody from './JournalBody'
 import EmotionPicker from './EmotionPicker'
 import DayInsights from './DayInsights'
@@ -89,9 +89,14 @@ export default function JournalPage({
         <p className="mt-0.5 text-[12px] text-ink3">{fmtJst(iso, 'EEEE')}</p>
       </header>
 
-      {/* その日のチャート。文字より先に、見た絵から思い出せるように */}
+      {/* その日のチャート。文字より先に、見た絵から思い出せるように。
+          取引に添付した画像は持ってこない。ここは自分で選んで貼る場所 */}
       <div className="mt-4">
-        <DayPhotos trades={trades} onAdd={onAdd} />
+        <DayCharts
+          photos={entry.photos}
+          onChange={(p) => set('photos', p)}
+          readOnly={readOnly}
+        />
       </div>
 
       {/* 題名。枠は付けない。書き出しの1行目という顔にする */}
