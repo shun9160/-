@@ -14,6 +14,15 @@ type Mode = 'daily' | 'monthly'
 const WEEKDAYS = ['月', '火', '水', '木', '金', '土', '日']
 const MONTHS = ['1月', '2月', '3月', '4月', '5月', '6月', '7月', '8月', '9月', '10月', '11月', '12月']
 
+/** 月別のときの並び順 */
+type MonthOrder = 'month' | 'profit' | 'loss'
+
+const MONTH_ORDERS: { value: MonthOrder; label: string }[] = [
+  { value: 'month', label: '月の順' },
+  { value: 'profit', label: '損益が大きい順' },
+  { value: 'loss', label: '損益が小さい順' },
+]
+
 export default function PnlCalendar({ trades, onSelectDay }: Props) {
   const byDay = useMemo(() => groupNetByDay(trades), [trades])
 
@@ -27,6 +36,18 @@ export default function PnlCalendar({ trades, onSelectDay }: Props) {
   const [mode, setMode] = useState<Mode>('daily')
   const [year, setYear] = useState(initial.getFullYear())
   const [month, setMonth] = useState(initial.getMonth())
+  /** 月別のときの並び順 */
+  const [monthOrder, setMonthOrder] = useState<MonthOrder>('month')
+
+  // 選べる年。取引のある年に、今年と、いま見ている年を足す。
+  // 矢印を何十回も押さないと去年に行けない、という状態をなくすため。
+  const years = useMemo(() => {
+    const set = new Set<number>()
+    for (const day of Object.keys(byDay)) set.add(Number(day.slice(0, 4)))
+    set.add(new Date().getFullYear())
+    set.add(year)
+    return [...set].sort((a, b) => b - a)
+  }, [byDay, year])
 
   const byMonth = useMemo(() => {
     const out: Record<string, number> = {}
@@ -84,10 +105,24 @@ export default function PnlCalendar({ trades, onSelectDay }: Props) {
             <Icon name="left" size={18} />
           </button>
           <div className="min-w-[9rem] text-center">
-            <p className="text-base font-bold">
-              {mode === 'daily' ? `${year}年 ${MONTHS[month]}` : `${year}年`}
-            </p>
-            <p className={`text-sm font-semibold tabular-nums ${colorOf(total)}`}>
+            {/* 年と月は選んで飛べる。矢印だけだと、去年を見るのに何十回も押すことになる */}
+            <div className="flex items-center justify-center gap-1">
+              <Picker
+                value={year}
+                onChange={setYear}
+                options={years.map((y) => ({ value: y, label: `${y}年` }))}
+                label="年"
+              />
+              {mode === 'daily' && (
+                <Picker
+                  value={month}
+                  onChange={setMonth}
+                  options={MONTHS.map((m, i) => ({ value: i, label: m }))}
+                  label="月"
+                />
+              )}
+            </div>
+            <p className={`mt-0.5 text-sm font-semibold tabular-nums ${colorOf(total)}`}>
               {fmtMoney(total, { sign: true })} 円
             </p>
           </div>
@@ -105,14 +140,73 @@ export default function PnlCalendar({ trades, onSelectDay }: Props) {
         <Modes mode={mode} setMode={setMode} />
       </div>
 
+      {/* 月別のときだけ、12か月を「良かった順」に並べ替えられる。
+          どの月が調子よかったかを知るのに、目で追わなくて済む */}
+      {mode === 'monthly' && (
+        <div className="mt-3 flex items-center justify-end gap-1.5">
+          <label className="text-xs text-ink2" htmlFor="month-order">
+            並び替え
+          </label>
+          <select
+            id="month-order"
+            className="input w-auto px-2 py-1 text-xs"
+            value={monthOrder}
+            onChange={(e) => setMonthOrder(e.target.value as MonthOrder)}
+          >
+            {MONTH_ORDERS.map((o) => (
+              <option key={o.value} value={o.value}>
+                {o.label}
+              </option>
+            ))}
+          </select>
+        </div>
+      )}
+
       <div className="mt-3 sm:mt-4">
         {mode === 'daily' ? (
           <DailyGrid year={year} month={month} byDay={byDay} onSelectDay={onSelectDay} />
         ) : (
-          <MonthlyGrid year={year} byMonth={byMonth} />
+          <MonthlyGrid year={year} byMonth={byMonth} order={monthOrder} />
         )}
       </div>
     </div>
+  )
+}
+
+/**
+ * 年・月を選ぶプルダウン。
+ * 見出しの文字そのものを押せるようにして、行を増やさない。
+ */
+function Picker({
+  value,
+  onChange,
+  options,
+  label,
+}: {
+  value: number
+  onChange: (v: number) => void
+  options: { value: number; label: string }[]
+  label: string
+}) {
+  return (
+    <span className="relative inline-flex items-center">
+      <select
+        aria-label={label}
+        value={value}
+        onChange={(e) => onChange(Number(e.target.value))}
+        // 見出しに見せるので枠は出さない。押せることは右の印で伝える
+        className="cursor-pointer appearance-none rounded-lg bg-transparent py-0.5 pl-1.5 pr-5 text-base font-bold text-ink hover:bg-sunken focus:bg-sunken"
+      >
+        {options.map((o) => (
+          <option key={o.value} value={o.value}>
+            {o.label}
+          </option>
+        ))}
+      </select>
+      <span className="pointer-events-none absolute right-1 text-ink3">
+        <Icon name="down" size={13} />
+      </span>
+    </span>
   )
 }
 
@@ -217,29 +311,50 @@ function DailyGrid({
   )
 }
 
-function MonthlyGrid({ year, byMonth }: { year: number; byMonth: Record<string, number> }) {
+function MonthlyGrid({
+  year,
+  byMonth,
+  order,
+}: {
+  year: number
+  byMonth: Record<string, number>
+  order: MonthOrder
+}) {
+  const cells = useMemo(() => {
+    const list = MONTHS.map((label, m) => {
+      const key = `${year}-${String(m + 1).padStart(2, '0')}`
+      return { key, label, month: m, net: byMonth[key] ?? null }
+    })
+    if (order === 'month') return list
+    // 取引のない月は、並べ替えても必ず最後にまとめる
+    const withNet = list.filter((c) => c.net != null)
+    const empty = list.filter((c) => c.net == null)
+    withNet.sort((a, b) => (order === 'profit' ? b.net! - a.net! : a.net! - b.net!))
+    return [...withNet, ...empty]
+  }, [year, byMonth, order])
+
   return (
     <div className="grid grid-cols-3 gap-2 sm:grid-cols-4">
-      {MONTHS.map((label, m) => {
-        const key = `${year}-${String(m + 1).padStart(2, '0')}`
-        const net = byMonth[key]
-        const has = net != null
+      {cells.map((c) => {
+        const has = c.net != null
         return (
           <div
-            key={key}
+            key={c.key}
             className={`flex flex-col items-center rounded-xl border py-5 ${
               has
-                ? net > 0
+                ? c.net! > 0
                   ? 'border-up/20 bg-up-soft'
                   : 'border-down/20 bg-down-soft'
                 : 'border-line'
             }`}
           >
-            <span className="text-xs text-ink2">{label}</span>
+            <span className="text-xs text-ink2">{c.label}</span>
             <span
-              className={`mt-0.5 text-sm font-bold tabular-nums ${has ? colorOf(net) : 'text-ink3'}`}
+              className={`mt-0.5 text-sm font-bold tabular-nums ${
+                has ? colorOf(c.net!) : 'text-ink3'
+              }`}
             >
-              {has ? fmtMoney(net, { sign: true }) : '—'}
+              {has ? fmtMoney(c.net!, { sign: true }) : '—'}
             </span>
           </div>
         )

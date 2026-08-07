@@ -1,8 +1,9 @@
 import { useMemo, useState } from 'react'
 import type { Account, EnrichedTrade } from '../../lib/types'
 import { accountLabel } from '../../lib/types'
-import TradesTable, { TRADE_ORDERS } from '../TradesTable'
-import type { TradeOrder } from '../TradesTable'
+import TradesTable from '../TradesTable'
+import { TRADE_ORDERS } from '../../lib/tradeSort'
+import type { TradeOrder } from '../../lib/tradeSort'
 import { colorOf, fmtMoney } from '../../lib/format'
 import Icon from '../Icon'
 

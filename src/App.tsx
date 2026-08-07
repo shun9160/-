@@ -21,6 +21,8 @@ import CalendarScreen from './components/CalendarScreen'
 import StatsPanel, { type StatsTabKey } from './components/StatsPanel'
 import UploadPanel from './components/UploadPanel'
 import TradesTable from './components/TradesTable'
+import { TRADE_ORDERS } from './lib/tradeSort'
+import type { TradeOrder } from './lib/tradeSort'
 import Diary from './components/Diary'
 
 export default function App() {
@@ -45,6 +47,8 @@ export default function App() {
   const [flash, setFlash] = useState<string | null>(null)
   /** 分析のどのタブを開くか。日記から「タイプ詳細を見る」で使う */
   const [statsFocus, setStatsFocus] = useState<{ tab: StatsTabKey; n: number } | null>(null)
+  /** 「すべての取引」の並び順 */
+  const [allOrder, setAllOrder] = useState<TradeOrder>('new')
 
   // 通貨や時差は口座ごとに違う。見ている口座の内容をアプリ全体に反映する。
   //
@@ -273,9 +277,28 @@ export default function App() {
                 ホームに戻る
               </button>
               <PageHeader title="すべての取引" sub={`${trades.length}件`} />
+              {/* 件数が多い画面なので、並び替えを添える */}
+              <div className="mb-3 flex items-center justify-end gap-1.5">
+                <label className="text-xs text-ink2" htmlFor="all-order">
+                  並び替え
+                </label>
+                <select
+                  id="all-order"
+                  className="input w-auto px-2 py-1 text-xs"
+                  value={allOrder}
+                  onChange={(e) => setAllOrder(e.target.value as TradeOrder)}
+                >
+                  {TRADE_ORDERS.map((o) => (
+                    <option key={o.value} value={o.value}>
+                      {o.label}
+                    </option>
+                  ))}
+                </select>
+              </div>
               <TradesTable
                 trades={trades}
                 accounts={accounts}
+                order={allOrder}
                 onChanged={reload}
                 readOnly={demo}
               />
