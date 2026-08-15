@@ -416,6 +416,7 @@ export default function App() {
                   onChanged={reload}
                   focusDay={focusDay}
                   readOnly={demo}
+                  demo={demo}
                   onAdd={() => go('add')}
                   onOpenCalendar={() => go('calendar')}
                   onDayChange={setDiaryDay}

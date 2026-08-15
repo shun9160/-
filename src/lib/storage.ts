@@ -1,4 +1,5 @@
 import { supabase } from './supabase'
+import { demoChartFromPath } from './demoChart'
 
 /**
  * 画像の置き場（Supabase Storage）。
@@ -71,7 +72,23 @@ export async function uploadImage(blob: Blob, folder = 'misc'): Promise<string> 
  */
 export async function signedUrls(paths: string[]): Promise<Record<string, string>> {
   const out: Record<string, string> = {}
-  const list = [...new Set(paths.filter(Boolean))]
+  const list: string[] = []
+
+  for (const p of [...new Set(paths.filter(Boolean))]) {
+    // サンプルのチャート。置き場所には無いので、その場で組み立てる
+    const demo = demoChartFromPath(p)
+    if (demo) {
+      out[p] = demo
+      continue
+    }
+    // 移行前に残っている、そのまま出せる形。問い合わせても意味がない
+    if (isDataUrl(p) || p.startsWith('http')) {
+      out[p] = p
+      continue
+    }
+    list.push(p)
+  }
+
   if (!supabase || list.length === 0) return out
 
   const { data, error } = await supabase.storage.from(BUCKET).createSignedUrls(list, SIGNED_TTL)

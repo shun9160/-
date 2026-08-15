@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import type { Account, DayNote, EnrichedTrade, Settings } from '../lib/types'
 import { enrichAll } from '../lib/analytics'
-import { demoTrades } from '../lib/demo'
+import { DEMO_ACCOUNTS, DEMO_SETTINGS, demoDayText, demoTrades } from '../lib/demo'
 import { friendlyError } from '../lib/errors'
 import { fetchAccounts, fetchDayNotes, fetchSettings, fetchTrades } from '../lib/repo'
 import { isSupabaseConfigured } from '../lib/supabase'
@@ -35,31 +35,6 @@ interface State {
   reload: () => Promise<void>
 }
 
-/** デモ表示用の口座 */
-const DEMO_ACCOUNT: Account = {
-  id: 'demo-account',
-  broker: 'サンプル証券',
-  login: '12345678',
-  nickname: null,
-  currency: 'JPY',
-  lot_size: 100000,
-  broker_utc_offset: 4,
-  initial_capital: 100000,
-  capital_note: 'サンプルの原資',
-  is_default: true,
-}
-
-const DEMO_SETTINGS: Settings = {
-  user_id: 'demo',
-  initial_capital: 100000,
-  capital_note: 'サンプルの原資',
-  account_currency: 'JPY',
-  lot_size: 100000,
-  broker_utc_offset: 4,
-  main_symbol: 'XAUUSD',
-  onboarded_at: '2026-08-01T00:00:00Z',
-}
-
 // 「まだ読めていない」ときに返す中身。毎回同じ実体を返して再描画を増やさない。
 const NO_TRADES: EnrichedTrade[] = []
 const NO_NOTES: Record<string, string> = {}
@@ -87,11 +62,13 @@ export function useTrades(authed: boolean): State {
 
   const reload = useCallback(async () => {
     if (!live) {
-      // デモモード: 仮データで UI を表示
-      setRawTrades(enrichAll(demoTrades().map((t) => ({ ...t, account_id: DEMO_ACCOUNT.id }))))
-      setAccounts([DEMO_ACCOUNT])
-      setDayNotes({})
-      setDayTitles({})
+      // サンプル表示。
+      // 日記まで中身を入れる。ここが空だと、履歴を並べるだけのアプリに見える
+      const { notes, titles } = demoDayText()
+      setRawTrades(enrichAll(demoTrades()))
+      setAccounts(DEMO_ACCOUNTS)
+      setDayNotes(notes)
+      setDayTitles(titles)
       setSettings(DEMO_SETTINGS)
       setLoadedFor(false)
       setBusy(false)

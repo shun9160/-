@@ -18,6 +18,8 @@ interface Props {
   onChanged: () => void
   focusDay?: string | null
   readOnly?: boolean
+  /** サンプル表示中か。日記の中身を、同梱の見本から読むかどうか */
+  demo?: boolean
   /** 記録タブへ */
   onAdd?: () => void
   /**
@@ -44,6 +46,7 @@ export default function Diary({
   onOpenCalendar,
   focusDay,
   readOnly,
+  demo,
   onAdd,
   onDayChange,
 }: Props) {
@@ -209,6 +212,7 @@ export default function Diary({
             trades={dayTrades}
             accounts={accounts}
             readOnly={readOnly}
+            demo={demo}
             onChanged={onChanged}
             onAdd={onAdd}
             onSaveState={setSave}

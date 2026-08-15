@@ -4,6 +4,7 @@ import { isDataUrl, removeImages, signedUrl, signedUrls, uploadImage } from './s
 import type { Account, DayNote, Settings, Trade, TradeImage, TradeInput } from './types'
 import type { DayEntry } from './journal'
 import { emptyEntry, parseEntry, plainText } from './journal'
+import { demoTradeImages, isDemoId } from './demo'
 
 const NO_CLIENT = 'Supabase が未設定です (.env / Netlify の環境変数を確認してください)'
 const NO_USER = 'ログインが必要です'
@@ -466,6 +467,8 @@ async function toStored(dataUrl: string, folder: string): Promise<string | null>
 
 /** その取引に貼ってあるチャート画像を、貼った順に取得する */
 export async function fetchTradeImages(tradeId: string): Promise<TradeImage[]> {
+  // サンプル表示中。IDの形で見分けられるので、呼ぶ側に印を配らなくて済む
+  if (isDemoId(tradeId)) return demoTradeImages(tradeId)
   if (!supabase) throw new Error(NO_CLIENT)
   const { data, error } = await supabase
     .from('trade_images')

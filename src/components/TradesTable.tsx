@@ -13,6 +13,7 @@ import { currencyLabel } from '../lib/appConfig'
 import { colorOf, fmtMoney, fmtNum, fmtPct, fmtRR } from '../lib/format'
 import { sortTrades } from '../lib/tradeSort'
 import { knownSetups } from '../lib/setups'
+import { demoTradeImageCounts } from '../lib/demo'
 import type { TradeOrder } from '../lib/tradeSort'
 import { friendlyError } from '../lib/errors'
 import TradeForm from './TradeForm'
@@ -65,7 +66,11 @@ export default function TradesTable({
 
   // 何枚貼ってあるかだけ先に読む（画像そのものは開いたときに読む）
   useEffect(() => {
-    if (readOnly) return
+    if (readOnly) {
+      // サンプル表示中。ここを空にすると、画像が貼れること自体が伝わらない
+      setChartCounts(demoTradeImageCounts(trades.map((t) => t.id)))
+      return
+    }
     let alive = true
     fetchTradeImageCounts()
       .then((c) => alive && setChartCounts(c))
@@ -75,7 +80,7 @@ export default function TradesTable({
     return () => {
       alive = false
     }
-  }, [readOnly])
+  }, [readOnly, trades])
 
   // 一度使った型は、次から押すだけで付けられるようにする
   const setups = useMemo(() => knownSetups(trades), [trades])
@@ -304,7 +309,26 @@ export default function TradesTable({
                   </dl>
                 )}
 
-                {/* 操作 */}
+                {/*
+                  操作。
+                  「見るだけ」のときも、貼ってあるチャートは開けるようにする。
+                  ここを丸ごと隠すと、サンプルを見ている人には
+                  取引にチャートを貼れること自体が伝わらない
+                */}
+                {readOnly && chartCounts[t.id] > 0 && (
+                  <div className="mt-3 flex items-center border-t border-line px-3 py-2.5">
+                    <button className="btn btn-quiet" onClick={() => toggleChart(t.id)}>
+                      <Icon name="chart" size={16} />
+                      {chartOf[t.id] ? 'チャートを閉じる' : 'チャート'}
+                      {!chartOf[t.id] && (
+                        <span className="rounded-full bg-brand-soft px-1.5 text-[11px] font-bold text-brand">
+                          {chartCounts[t.id]}
+                        </span>
+                      )}
+                    </button>
+                  </div>
+                )}
+
                 {!readOnly && (
                   <div className="mt-3 flex flex-wrap items-center gap-1.5 border-t border-line px-3 py-2.5">
                     <button className="btn btn-quiet" onClick={() => setEditingTrade(t.id)}>

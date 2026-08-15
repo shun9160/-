@@ -3,6 +3,7 @@ import type { Account, EnrichedTrade } from '../../lib/types'
 import type { DayEntry } from '../../lib/journal'
 import { emptyEntry, isEmpty, plainText } from '../../lib/journal'
 import { fetchDayEntry, saveDayEntry } from '../../lib/repo'
+import { demoDayEntries } from '../../lib/demo'
 import { useAutoSave } from '../../hooks/useAutoSave'
 import type { SaveStatus } from '../../hooks/useAutoSave'
 import { fmtJst } from '../../lib/timezone'
@@ -33,6 +34,14 @@ interface Props {
   trades: EnrichedTrade[]
   accounts?: Account[]
   readOnly?: boolean
+  /**
+   * サンプル表示中か。
+   *
+   * 読み書きできないこと（readOnly）とは別に持つ。こちらは
+   * 「どこから中身を読むか」の話で、サンプルのときは
+   * データベースではなく、同梱の見本から読む
+   */
+  demo?: boolean
   onChanged: () => void
   onAdd?: () => void
   /** 保存の様子を上に出すため、外へ伝える */
@@ -44,6 +53,7 @@ export default function JournalPage({
   trades,
   accounts,
   readOnly,
+  demo,
   onChanged,
   onAdd,
   onSaveState,
@@ -54,6 +64,13 @@ export default function JournalPage({
   useEffect(() => {
     let alive = true
     setLoading(true)
+
+    if (demo) {
+      setEntry(demoDayEntries()[day] ?? emptyEntry(day))
+      setLoading(false)
+      return
+    }
+
     fetchDayEntry(day)
       .then((e) => alive && setEntry(e))
       .catch(() => alive && setEntry(emptyEntry(day)))
@@ -61,7 +78,7 @@ export default function JournalPage({
     return () => {
       alive = false
     }
-  }, [day])
+  }, [day, demo])
 
   const status = useAutoSave(entry, saveDayEntry, {
     paused: loading || !!readOnly,
