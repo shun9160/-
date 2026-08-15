@@ -137,7 +137,8 @@ export default function App() {
    * スマホで左右に振ったとき、何が動くか。
    *
    * 画面によって「隣」の意味が違う。分析なら隣のタブ、日記なら前後の日、
-   * それ以外なら隣の口座。同じ指の動きに、その画面で一番ほしい移動を割り当てる。
+   * カレンダーなら前後の月（暦のほうで受け取る）、それ以外なら隣の口座。
+   * 同じ指の動きに、その画面で一番ほしい移動を割り当てる。
    */
   const swipe: { items: (string | null)[]; current: string | null; go: (v: string | null) => void } =
     screen === 'stats' && subScreen == null
@@ -156,11 +157,15 @@ export default function App() {
             current: diaryDay,
             go: (v) => v && setFocusDay(v),
           }
-        : {
-            items: accounts.length > 1 ? [null, ...accounts.map((a) => a.id)] : [],
-            current: accountId,
-            go: setAccountId,
-          }
+        : screen === 'calendar' && subScreen == null
+          ? // 暦は自分で前後の月へ送る。ここで口座に割り当てると、
+            // 暦を見ている人が隣の月へ行けなくなる
+            { items: [], current: null, go: () => {} }
+          : {
+              items: accounts.length > 1 ? [null, ...accounts.map((a) => a.id)] : [],
+              current: accountId,
+              go: setAccountId,
+            }
   const switcherShown = !showAccount && !showAccounts && !loading && accounts.length > 1
   const heroFlush = onHome && !switcherShown && !demo && flash == null
 

@@ -3,6 +3,7 @@ import type { EnrichedTrade } from '../lib/types'
 import { groupNetByDay } from '../lib/analytics'
 import { colorOf, fmtMoney } from '../lib/format'
 import Icon from './Icon'
+import SwipePager from './SwipePager'
 
 interface Props {
   trades: EnrichedTrade[]
@@ -96,95 +97,120 @@ export default function PnlCalendar({ trades, writtenDays, onSelectDay }: Props)
 
   const total = mode === 'daily' ? monthTotal : yearTotal
 
+  /*
+    横に振ったら、隣の月へ。
+    暦を見ている人にとっての「隣」は前後の日付で、別の口座ではない。
+    ここで受け取らないと、外側の口座切り替えに持っていかれる。
+
+    行き先は前・いま・次の3つだけを渡す。暦はどこまでも続くので、
+    ぜんぶ並べる意味がない。振るたびに、いまを真ん中にして作り直す。
+  */
+  const here = mode === 'daily' ? `${year}-${month}` : `${year}`
+  const prev = mode === 'daily' ? monthKey(year, month - 1) : `${year - 1}`
+  const next = mode === 'daily' ? monthKey(year, month + 1) : `${year + 1}`
+
   return (
-    <div className="py-1">
-      {/*
-        見出し。日記の上に出す週の並びと同じ組み方にする。
-        年を小さく上に、月を大きく下に。矢印は右上へ小さく。
-        画面ごとに暦の見出しの形が違うと、同じアプリに見えない
-      */}
-      <div className="flex justify-end gap-0.5">
-        <button
-          className="flex h-7 w-7 items-center justify-center rounded-lg text-ink3 transition-colors hover:bg-sunken hover:text-ink"
-          onClick={() => shift(-1)}
-          aria-label="前へ"
-        >
-          <Icon name="left" size={16} />
-        </button>
-        <button
-          className="flex h-7 w-7 items-center justify-center rounded-lg text-ink3 transition-colors hover:bg-sunken hover:text-ink"
-          onClick={() => shift(1)}
-          aria-label="次へ"
-        >
-          <Icon name="right" size={16} />
-        </button>
-      </div>
-
-      <div className="flex items-start justify-between gap-3">
-        <div className="min-w-0">
-          {/* 年と月は選んで飛べる。矢印だけだと、去年を見るのに何十回も押すことになる */}
-          <Picker
-            value={year}
-            onChange={setYear}
-            options={years.map((y) => ({ value: y, label: `${y}年` }))}
-            label="年"
-            small
-          />
-          {mode === 'daily' && (
-            <div className="-mt-0.5">
-              <Picker
-                value={month}
-                onChange={setMonth}
-                options={MONTHS.map((m, i) => ({ value: i, label: m }))}
-                label="月"
-              />
-            </div>
-          )}
-          <p className={`mt-1 text-sm font-bold tabular-nums ${colorOf(total)}`}>
-            {fmtMoney(total, { sign: true })} 円
-          </p>
-        </div>
-
-        <Modes mode={mode} setMode={setMode} />
-      </div>
-
-      {/* 月別のときだけ、12か月を「良かった順」に並べ替えられる。
-          どの月が調子よかったかを知るのに、目で追わなくて済む */}
-      {mode === 'monthly' && (
-        <div className="mt-3 flex items-center justify-end gap-1.5">
-          <label className="text-xs text-ink2" htmlFor="month-order">
-            並び替え
-          </label>
-          <select
-            id="month-order"
-            className="input w-auto px-2 py-1 text-xs"
-            value={monthOrder}
-            onChange={(e) => setMonthOrder(e.target.value as MonthOrder)}
+    <SwipePager
+      items={[prev, here, next]}
+      current={here}
+      onChange={(k) => shift(k === prev ? -1 : 1)}
+    >
+      <div className="py-1">
+        {/*
+          見出し。日記の上に出す週の並びと同じ組み方にする。
+          年を小さく上に、月を大きく下に。矢印は右上へ小さく。
+          画面ごとに暦の見出しの形が違うと、同じアプリに見えない
+        */}
+        <div className="flex justify-end gap-0.5">
+          <button
+            className="flex h-7 w-7 items-center justify-center rounded-lg text-ink3 transition-colors hover:bg-sunken hover:text-ink"
+            onClick={() => shift(-1)}
+            aria-label="前へ"
           >
-            {MONTH_ORDERS.map((o) => (
-              <option key={o.value} value={o.value}>
-                {o.label}
-              </option>
-            ))}
-          </select>
+            <Icon name="left" size={16} />
+          </button>
+          <button
+            className="flex h-7 w-7 items-center justify-center rounded-lg text-ink3 transition-colors hover:bg-sunken hover:text-ink"
+            onClick={() => shift(1)}
+            aria-label="次へ"
+          >
+            <Icon name="right" size={16} />
+          </button>
         </div>
-      )}
 
-      <div className="mt-3 sm:mt-4">
-        {mode === 'daily' ? (
-          <DailyGrid
-            year={year}
-            month={month}
-            byDay={byDay}
-            writtenDays={writtenDays}
-            onSelectDay={onSelectDay}
-          />
-        ) : (
-          <MonthlyGrid year={year} byMonth={byMonth} order={monthOrder} />
+        <div className="flex items-start justify-between gap-3">
+          <div className="min-w-0">
+            {/* 年と月は選んで飛べる。矢印だけだと、去年を見るのに何十回も押すことになる */}
+            <Picker
+              value={year}
+              onChange={setYear}
+              options={years.map((y) => ({ value: y, label: `${y}年` }))}
+              label="年"
+              small
+            />
+            {mode === 'daily' && (
+              <div className="-mt-0.5">
+                <Picker
+                  value={month}
+                  onChange={setMonth}
+                  options={MONTHS.map((m, i) => ({ value: i, label: m }))}
+                  label="月"
+                />
+              </div>
+            )}
+            <p className={`mt-1 text-sm font-bold tabular-nums ${colorOf(total)}`}>
+              {fmtMoney(total, { sign: true })} 円
+            </p>
+          </div>
+
+          <Modes mode={mode} setMode={setMode} />
+        </div>
+
+        {/* 月別のときだけ、12か月を「良かった順」に並べ替えられる。
+            どの月が調子よかったかを知るのに、目で追わなくて済む */}
+        {mode === 'monthly' && (
+          <div className="mt-3 flex items-center justify-end gap-1.5">
+            <label className="text-xs text-ink2" htmlFor="month-order">
+              並び替え
+            </label>
+            <select
+              id="month-order"
+              className="input w-auto px-2 py-1 text-xs"
+              value={monthOrder}
+              onChange={(e) => setMonthOrder(e.target.value as MonthOrder)}
+            >
+              {MONTH_ORDERS.map((o) => (
+                <option key={o.value} value={o.value}>
+                  {o.label}
+                </option>
+              ))}
+            </select>
+          </div>
         )}
+
+        <div className="mt-3 sm:mt-4">
+          {mode === 'daily' ? (
+            <DailyGrid
+              year={year}
+              month={month}
+              byDay={byDay}
+              writtenDays={writtenDays}
+              onSelectDay={onSelectDay}
+            />
+          ) : (
+            <MonthlyGrid year={year} byMonth={byMonth} order={monthOrder} />
+          )}
+        </div>
       </div>
-    </div>
+    </SwipePager>
   )
+}
+
+/** 年をまたいでも正しい、月の合い言葉。12月の次は翌年の1月 */
+function monthKey(year: number, month: number): string {
+  const y = year + Math.floor(month / 12)
+  const m = ((month % 12) + 12) % 12
+  return `${y}-${m}`
 }
 
 /**
