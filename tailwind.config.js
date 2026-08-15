@@ -1,6 +1,11 @@
 /** @type {import('tailwindcss').Config} */
 export default {
   content: ['./index.html', './src/**/*.{ts,tsx}'],
+  future: {
+    // 指で押したあと hover の色が残らないようにする。
+    // これが無いと、タップした升目だけ灰色に塗られたままになる
+    hoverOnlyWhenSupported: true,
+  },
   theme: {
     extend: {
       colors: {

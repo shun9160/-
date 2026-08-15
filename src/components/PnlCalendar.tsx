@@ -97,7 +97,7 @@ export default function PnlCalendar({ trades, writtenDays, onSelectDay }: Props)
   const total = mode === 'daily' ? monthTotal : yearTotal
 
   return (
-    <div className="panel py-4 sm:py-5">
+    <div className="py-1">
       {/*
         見出し。日記の上に出す週の並びと同じ組み方にする。
         年を小さく上に、月を大きく下に。矢印は右上へ小さく。

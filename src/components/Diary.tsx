@@ -150,13 +150,11 @@ export default function Diary({
       {/* 入口の一覧。開いている間も残しておく。
           後ろに残っているから、上にかぶさってくる動きが見える */}
       {/*
-        上から下まで1枚の面。
-        日を選ぶ → その日の日記 → その日のトレード、まで途切れさせない。
-        以前はここで面が終わり、下地に戻ってからトレードを置いていたので、
-        画面がふたつに割れて見えた。区切りは線と余白だけで作る。
-        狭い画面では端まで広げ、下だけ丸めて、面がここで終わるように見せる
+        面を敷かない。下地1色の上に、そのまま置いていく。
+        白い面を敷くと、その縁でかならず画面が切れる。
+        区切りは細い線と余白だけで作れば、上から下まで続いて見える。
       */}
-      <div className="-mx-4 rounded-b-3xl bg-surface px-4 pb-6 pt-1 sm:mx-0 sm:rounded-2xl sm:px-5 sm:pt-3">
+      <div className="pt-1">
         <WeekStrip value={selected} onChange={setSelected} activeDays={activeDays} max={today} />
 
         <div className="mt-4">
