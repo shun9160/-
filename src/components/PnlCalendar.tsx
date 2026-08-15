@@ -98,47 +98,53 @@ export default function PnlCalendar({ trades, writtenDays, onSelectDay }: Props)
 
   return (
     <div className="panel py-4 sm:py-5">
-      {/* 期間の移動。広い画面では 日別/月別 も同じ行に置いて縦を詰める。
-          狭い画面では左右の枠が消えるので、真ん中に寄せ直す。 */}
-      <div className="flex items-center justify-center gap-3 sm:justify-between">
-        <div className="hidden sm:block sm:w-32" />
-        <div className="flex items-center gap-1">
-          <button className="btn btn-ghost px-2" onClick={() => shift(-1)} aria-label="前へ">
-            <Icon name="left" size={18} />
-          </button>
-          <div className="min-w-[9rem] text-center">
-            {/* 年と月は選んで飛べる。矢印だけだと、去年を見るのに何十回も押すことになる */}
-            <div className="flex items-center justify-center gap-1">
-              <Picker
-                value={year}
-                onChange={setYear}
-                options={years.map((y) => ({ value: y, label: `${y}年` }))}
-                label="年"
-              />
-              {mode === 'daily' && (
-                <Picker
-                  value={month}
-                  onChange={setMonth}
-                  options={MONTHS.map((m, i) => ({ value: i, label: m }))}
-                  label="月"
-                />
-              )}
-            </div>
-            <p className={`mt-0.5 text-sm font-semibold tabular-nums ${colorOf(total)}`}>
-              {fmtMoney(total, { sign: true })} 円
-            </p>
-          </div>
-          <button className="btn btn-ghost px-2" onClick={() => shift(1)} aria-label="次へ">
-            <Icon name="right" size={18} />
-          </button>
-        </div>
-        <div className="hidden sm:flex sm:w-32 sm:justify-end">
-          <Modes mode={mode} setMode={setMode} />
-        </div>
+      {/*
+        見出し。日記の上に出す週の並びと同じ組み方にする。
+        年を小さく上に、月を大きく下に。矢印は右上へ小さく。
+        画面ごとに暦の見出しの形が違うと、同じアプリに見えない
+      */}
+      <div className="flex justify-end gap-0.5">
+        <button
+          className="flex h-7 w-7 items-center justify-center rounded-lg text-ink3 transition-colors hover:bg-sunken hover:text-ink"
+          onClick={() => shift(-1)}
+          aria-label="前へ"
+        >
+          <Icon name="left" size={16} />
+        </button>
+        <button
+          className="flex h-7 w-7 items-center justify-center rounded-lg text-ink3 transition-colors hover:bg-sunken hover:text-ink"
+          onClick={() => shift(1)}
+          aria-label="次へ"
+        >
+          <Icon name="right" size={16} />
+        </button>
       </div>
 
-      {/* 狭い画面では下に置く */}
-      <div className="mx-auto mt-3 flex w-fit sm:hidden">
+      <div className="flex items-start justify-between gap-3">
+        <div className="min-w-0">
+          {/* 年と月は選んで飛べる。矢印だけだと、去年を見るのに何十回も押すことになる */}
+          <Picker
+            value={year}
+            onChange={setYear}
+            options={years.map((y) => ({ value: y, label: `${y}年` }))}
+            label="年"
+            small
+          />
+          {mode === 'daily' && (
+            <div className="-mt-0.5">
+              <Picker
+                value={month}
+                onChange={setMonth}
+                options={MONTHS.map((m, i) => ({ value: i, label: m }))}
+                label="月"
+              />
+            </div>
+          )}
+          <p className={`mt-1 text-sm font-bold tabular-nums ${colorOf(total)}`}>
+            {fmtMoney(total, { sign: true })} 円
+          </p>
+        </div>
+
         <Modes mode={mode} setMode={setMode} />
       </div>
 
@@ -190,11 +196,14 @@ function Picker({
   onChange,
   options,
   label,
+  small,
 }: {
   value: number
   onChange: (v: number) => void
   options: { value: number; label: string }[]
   label: string
+  /** 年のほう。月より一段小さく、目立たせない */
+  small?: boolean
 }) {
   return (
     <span className="relative inline-flex items-center">
@@ -203,7 +212,9 @@ function Picker({
         value={value}
         onChange={(e) => onChange(Number(e.target.value))}
         // 見出しに見せるので枠は出さない。押せることは右の印で伝える
-        className="cursor-pointer appearance-none rounded-lg bg-transparent py-0.5 pl-1.5 pr-5 text-base font-bold text-ink hover:bg-sunken focus:bg-sunken"
+        className={`-ml-1.5 cursor-pointer appearance-none rounded-lg bg-transparent py-0.5 pl-1.5 pr-5 font-bold hover:bg-sunken focus:bg-sunken ${
+          small ? 'text-[11px] text-ink3' : 'text-[18px] leading-none text-ink'
+        }`}
       >
         {options.map((o) => (
           <option key={o.value} value={o.value}>
@@ -212,7 +223,7 @@ function Picker({
         ))}
       </select>
       <span className="pointer-events-none absolute right-1 text-ink3">
-        <Icon name="down" size={13} />
+        <Icon name="down" size={small ? 11 : 13} />
       </span>
     </span>
   )

@@ -204,8 +204,8 @@ export default function App() {
         accountActive={showAccount}
       />
 
-      {/* 下のタブバー(92px)とiPhoneのホームバーのぶんだけ、中身の下に余白をとる */}
-      <div className="flex min-w-0 flex-1 flex-col pb-[calc(env(safe-area-inset-bottom,0px)+104px)] md:pb-0">
+      {/* 下のタブバーとiPhoneのホームバーのぶんだけ、中身の下に余白をとる */}
+      <div className="flex min-w-0 flex-1 flex-col pb-[calc(env(safe-area-inset-bottom,0px)+80px)] md:pb-0">
         {/*
           上部バー。
           帯として独立させず、下地(page)と同じ色にして境目の線も引かない。

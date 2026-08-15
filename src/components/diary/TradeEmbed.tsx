@@ -100,19 +100,23 @@ export default function TradeEmbed({
         </span>
       </div>
 
-      {/* まとめ。ここも書かせない。ぜんぶ取り込んだ履歴から出している */}
-      <dl className="mt-3 flex flex-wrap gap-x-6 gap-y-2 rounded-2xl bg-brand-soft/70 px-4 py-3">
+      {/*
+        まとめ。ここも書かせない。ぜんぶ取り込んだ履歴から出している。
+        囲わない。囲うと「別の部品」になって、すぐ下のリストと切れて見える。
+        細い線を上下に1本ずつ引くだけで、帯として読める
+      */}
+      <dl className="mt-3 flex flex-wrap gap-x-6 gap-y-2 border-y border-line py-2.5">
         <Stat label="勝ち" value={`${sum.wins}`} />
         <Stat label="負け" value={`${sum.losses}`} />
         <Stat label="勝率" value={`${Math.round(sum.winRate * 100)}%`} />
         <Stat label="平均RR" value={sum.avgRR != null ? fmtNum(sum.avgRR, 2) : '—'} />
       </dl>
 
-      <ul className="mt-2">
+      <ul>
         {rows.map((t) => {
           const isOpen = open === t.id
           return (
-            <li key={t.id} className="border-b border-line/80 last:border-0">
+            <li key={t.id} className="border-b border-line last:border-0">
               <button
                 type="button"
                 onClick={() => {

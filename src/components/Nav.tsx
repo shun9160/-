@@ -24,6 +24,10 @@ export const NAV_ITEMS: Item[] = [
  * 濃色の面（night）ひとつ。以前はロゴの紫→青を敷いていたが、
  * 画面の中でいちばん彩度が高くなり、本文よりバーが目立っていた。
  *
+ * 画面の下端に接地させている。浮かせた島にすると、そこだけ別の層に
+ * 見えて、画面がひとつながりに感じられなくなる。上の角だけ丸めて、
+ * 「下から続いてきた面」として収める。
+ *
  * 色は3つだけに絞る:
  *   面 = night / 選んでいないもの = 白の55% / 選んだもの = 白
  * ブランドの紫は「記録」の丸ひとつだけに使う。使う場所を1つに絞ると、
@@ -38,11 +42,11 @@ export function BottomNav({
 }) {
   return (
     <nav
-      className="pb-safe fixed inset-x-0 bottom-0 z-30 bg-gradient-to-t from-page via-page/90 to-transparent md:hidden"
+      className="pb-safe fixed inset-x-0 bottom-0 z-30 rounded-t-3xl bg-night md:hidden"
       aria-label="メインメニュー"
     >
-      <div className="px-4 pb-3 pt-6">
-        <ul className="mx-auto flex max-w-lg items-center justify-between gap-1 rounded-2xl bg-night p-1.5 shadow-raised">
+      <div className="px-4 pb-2 pt-2">
+        <ul className="mx-auto flex max-w-lg items-center justify-between gap-1">
           {NAV_ITEMS.map((it) => {
             const active = current === it.key
             const isAdd = it.key === 'add'

@@ -150,11 +150,13 @@ export default function Diary({
       {/* 入口の一覧。開いている間も残しておく。
           後ろに残っているから、上にかぶさってくる動きが見える */}
       {/*
-        上のひとかたまり。日を選ぶところと、その日の日記を
-        1枚の白い面に収める。「選ぶ→見る」でひと続きだから。
+        上から下まで1枚の面。
+        日を選ぶ → その日の日記 → その日のトレード、まで途切れさせない。
+        以前はここで面が終わり、下地に戻ってからトレードを置いていたので、
+        画面がふたつに割れて見えた。区切りは線と余白だけで作る。
         狭い画面では端まで広げ、下だけ丸めて、面がここで終わるように見せる
       */}
-      <div className="-mx-4 rounded-b-3xl bg-surface px-4 pb-5 pt-1 sm:mx-0 sm:rounded-2xl sm:px-5 sm:pt-4">
+      <div className="-mx-4 rounded-b-3xl bg-surface px-4 pb-6 pt-1 sm:mx-0 sm:rounded-2xl sm:px-5 sm:pt-3">
         <WeekStrip value={selected} onChange={setSelected} activeDays={activeDays} max={today} />
 
         <div className="mt-4">
@@ -166,18 +168,17 @@ export default function Diary({
             onOpen={open}
           />
         </div>
-      </div>
 
-      {/* その下はその日のトレード。日記の中と同じ形で出す */}
-      <TradeEmbed
-        trades={dayTrades}
-        accounts={accounts}
-        readOnly={readOnly}
-        onChanged={onChanged}
-        onAdd={onAdd}
-        title={isToday ? '今日のトレード' : 'この日のトレード'}
-        bare
-      />
+        <TradeEmbed
+          trades={dayTrades}
+          accounts={accounts}
+          readOnly={readOnly}
+          onChanged={onChanged}
+          onAdd={onAdd}
+          title={isToday ? '今日のトレード' : 'この日のトレード'}
+          bare
+        />
+      </div>
 
       <button
         type="button"

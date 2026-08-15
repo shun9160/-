@@ -120,7 +120,7 @@ export default function DayScreen({
 
       {/* 下に浮かせた操作。親指の届くところに置く */}
       <div
-        className="pointer-events-none fixed inset-x-0 bottom-0 z-10 flex items-center justify-center gap-3 bg-gradient-to-t from-page via-page/90 to-transparent px-4 pt-8"
+        className="pointer-events-none fixed inset-x-0 bottom-0 z-10 flex items-center justify-center gap-3 bg-gradient-to-t from-page via-page/95 to-transparent px-4 pt-10"
         style={{ paddingBottom: 'calc(env(safe-area-inset-bottom, 0px) + 1rem)' }}
       >
         <button
