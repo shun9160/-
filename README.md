@@ -83,6 +83,10 @@ Supabase の **Authentication → Providers → Email** が有効であること
 | [`supabase/setup_2026-08-06.sql`](./supabase/setup_2026-08-06.sql) | 複数口座 / チャート画像の表 / 画像の重複防止 |
 | [`supabase/setup_2026-08-07.sql`](./supabase/setup_2026-08-07.sql) | トレードの「型」 / 日記の記事化（題名・気持ち・振り返り・学び） |
 
+**日記が保存できないとき**は [`supabase/fix_diary.sql`](./supabase/fix_diary.sql) を1枚流してください。
+日記の表そのものが無い場合も含めて、表の作成・権限・列の追加までまとめて入ります。
+最後に「入ったか」の一覧が出るので、11行すべてが `○ ある` になっていれば完了です。
+
 画像の置き場所（Storage）まわりだけは、バケットの作成と権限の設定が要るので
 まとめには入れていません。[`2026-08-07_storage_images.sql`](./supabase/migrations/2026-08-07_storage_images.sql)
 と [`2026-08-07_image_nullable.sql`](./supabase/migrations/2026-08-07_image_nullable.sql) を個別に実行してください。
