@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
+import type { Ref } from 'react'
 import type { Block } from '../../lib/journal'
 import { newImage, newText } from '../../lib/journal'
 import { fileToDownscaledBlob } from '../../lib/image'
@@ -26,9 +27,19 @@ interface Props {
   blocks: Block[]
   onChange: (next: Block[]) => void
   readOnly?: boolean
+  /** 本文の1行目。題名から Enter で降りてくるときの行き先 */
+  firstRef?: Ref<HTMLTextAreaElement>
+  /** 本文の先頭でさらに消したとき。題名へ戻る */
+  onLeaveTop?: () => void
 }
 
-export default function JournalBody({ blocks, onChange, readOnly }: Props) {
+export default function JournalBody({
+  blocks,
+  onChange,
+  readOnly,
+  firstRef,
+  onLeaveTop,
+}: Props) {
   /** 置き場所 → 見るための時限URL */
   const [urls, setUrls] = useState<Record<string, string>>({})
   const [busy, setBusy] = useState(false)
@@ -113,11 +124,25 @@ export default function JournalBody({ blocks, onChange, readOnly }: Props) {
               <p className="whitespace-pre-wrap text-[16px] leading-[1.95] text-ink">{b.text}</p>
             ) : (
               <AutoTextarea
+                ref={i === 0 ? firstRef : undefined}
                 value={b.text}
                 onChange={(e) => setText(b.id, e.target.value)}
+                onKeyDown={(e) => {
+                  // 本文の先頭で、選んでいない状態で消したら題名へ戻る。
+                  // 1つの長いページを上下に動いている感じにするため
+                  if (
+                    i === 0 &&
+                    e.key === 'Backspace' &&
+                    e.currentTarget.selectionStart === 0 &&
+                    e.currentTarget.selectionEnd === 0
+                  ) {
+                    e.preventDefault()
+                    onLeaveTop?.()
+                  }
+                }}
                 placeholder={i === 0 ? '今日のトレードについて書いてみよう。' : ''}
                 className="text-[16px] leading-[1.95] text-ink"
-                minHeight={i === 0 ? 128 : 34}
+                minHeight={i === 0 ? 132 : 34}
               />
             )}
 
@@ -128,7 +153,9 @@ export default function JournalBody({ blocks, onChange, readOnly }: Props) {
               hover だけにすると、指で使う端末では一生出てこない。
               focus-within を併せて、書いている塊の下にだけ出るようにする。
             */}
-            {!readOnly && (
+            {/* いちばん下の塊では出さない。すぐ下に同じ役目のものがあり、
+                2つ並ぶと迷う */}
+            {!readOnly && i < shown.length - 1 && (
               <button
                 type="button"
                 // 指を離す前に消えると押せないので、押し下げの時点で開く
@@ -194,14 +221,18 @@ export default function JournalBody({ blocks, onChange, readOnly }: Props) {
               if (f) void addImage(f)
             }}
           />
+          {/*
+            記事の続きに置く、いちばん下の追加口。
+            枠で囲わない。囲うと、そこで記事が切れて「別の欄」に見える
+          */}
           <button
             type="button"
             onClick={() => openPicker(null)}
             disabled={busy}
-            className="mt-2 flex items-center gap-1.5 rounded-xl border border-dashed border-brand/35 px-3 py-2 text-[13px] font-semibold text-brand transition-colors hover:bg-brand-soft disabled:opacity-50"
+            className="-ml-1 mt-1 flex items-center gap-1.5 rounded-lg px-1 py-1.5 text-[13px] font-semibold text-ink3 transition-colors hover:text-brand disabled:opacity-50"
           >
             <Icon name="camera" size={15} />
-            {busy ? '取り込んでいます…' : 'チャートを追加'}
+            {busy ? '取り込んでいます…' : 'チャートを入れる'}
           </button>
         </>
       )}

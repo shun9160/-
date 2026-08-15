@@ -8,7 +8,7 @@ import { fmtJst } from '../../lib/timezone'
 import AutoTextarea from '../AutoTextarea'
 import Icon from '../Icon'
 import DayCharts from './DayCharts'
-import JournalBody from './JournalBody'
+import JournalWriter from './JournalWriter'
 import EmotionPicker from './EmotionPicker'
 import DayInsights from './DayInsights'
 import TradeEmbed, { Rule } from './TradeEmbed'
@@ -79,6 +79,7 @@ export default function JournalPage({
   const iso = `${day}T00:00:00+09:00`
   const hasReflection = !!(entry.good || entry.improve || entry.nextTime)
 
+
   return (
     <article className="mx-auto max-w-[42rem]">
       {/* 日付。記事の日付なので、小さく置くだけ */}
@@ -99,28 +100,13 @@ export default function JournalPage({
         />
       </div>
 
-      {/* 題名。枠は付けない。書き出しの1行目という顔にする */}
-      <div className="mt-7">
-        {readOnly ? (
-          entry.title && (
-            <h1 className="text-[27px] font-bold leading-snug tracking-tight">{entry.title}</h1>
-          )
-        ) : (
-          <AutoTextarea
-            value={entry.title}
-            onChange={(e) => set('title', e.target.value.replace(/\n/g, ''))}
-            placeholder="今日のトレードにタイトルをつける"
-            className="text-[27px] font-bold leading-snug tracking-tight"
-            aria-label="日記のタイトル"
-          />
-        )}
-      </div>
-
-      {/* 本文。文章と画像が続く */}
-      <div className="mt-4">
-        <JournalBody
+      {/* 題名と本文。中で1枚の紙としてつながっている */}
+      <div className="mt-6">
+        <JournalWriter
+          title={entry.title}
+          onTitleChange={(v) => set('title', v)}
           blocks={entry.blocks}
-          onChange={(b) => set('blocks', b)}
+          onBlocksChange={(b) => set('blocks', b)}
           readOnly={readOnly}
         />
       </div>

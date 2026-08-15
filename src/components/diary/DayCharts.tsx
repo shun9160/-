@@ -109,16 +109,21 @@ export default function DayCharts({ photos, onChange, readOnly }: Props) {
           type="button"
           onClick={() => fileRef.current?.click()}
           disabled={busy}
-          className="flex w-full flex-col items-center justify-center gap-2 rounded-2xl border border-dashed border-brand/40 bg-white/70 px-4 py-10 text-center transition-colors hover:bg-brand-soft disabled:opacity-60"
+          // 破線で囲わない。破線は「入力欄」の顔になり、
+          // 記事の中にフォームが混ざったように見える。
+          // 面の色を1段変えるだけで、置き場所だと分かる
+          className="flex w-full items-center gap-3 rounded-xl bg-surface px-4 py-4 text-left transition-colors hover:bg-brand-soft disabled:opacity-60"
         >
-          <span className="flex h-11 w-11 items-center justify-center rounded-2xl bg-brand-soft text-brand">
-            <Icon name="camera" size={20} />
+          <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-brand-soft text-brand">
+            <Icon name="camera" size={19} />
           </span>
-          <span className="text-[15px] font-bold text-brand">
-            {busy ? '取り込んでいます…' : 'チャートを追加'}
-          </span>
-          <span className="text-[12px] leading-relaxed text-ink3">
-            その日のチャートを貼ると、ここに並びます
+          <span className="min-w-0">
+            <span className="block text-[14px] font-bold text-brand">
+              {busy ? '取り込んでいます…' : 'チャートを追加'}
+            </span>
+            <span className="mt-0.5 block text-[12px] leading-snug text-ink3">
+              その日のチャートを貼ると、ここに並びます
+            </span>
           </span>
         </button>
         {err && <p className="mt-2 text-[12px] text-down">{err}</p>}
@@ -208,7 +213,7 @@ export default function DayCharts({ photos, onChange, readOnly }: Props) {
             type="button"
             onClick={() => fileRef.current?.click()}
             disabled={busy}
-            className="flex aspect-[4/3] w-[38%] max-w-[210px] shrink-0 snap-start flex-col items-center justify-center gap-1.5 rounded-2xl border border-dashed border-brand/40 bg-white/70 text-brand transition-colors hover:bg-brand-soft disabled:opacity-60 sm:w-[9rem]"
+            className="flex aspect-[4/3] w-[38%] max-w-[210px] shrink-0 snap-start flex-col items-center justify-center gap-1.5 rounded-xl bg-surface text-brand transition-colors hover:bg-brand-soft disabled:opacity-60 sm:w-[9rem]"
           >
             <Icon name="plus" size={20} />
             <span className="px-2 text-center text-[12px] font-bold leading-tight">
