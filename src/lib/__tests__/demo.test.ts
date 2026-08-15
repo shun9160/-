@@ -86,6 +86,20 @@ describe('サンプルの日記', () => {
     }
   })
 
+  it('日数がある。数日ぶんしか無いと、どの日を押しても空になる', () => {
+    const days = demoEntryDays(SAT)
+    expect(days.length).toBeGreaterThanOrEqual(25)
+    expect(new Set(days).size).toBe(days.length)
+  })
+
+  it('取引のある日は、ほとんど書いてある', () => {
+    // 押した日がたいてい空だと、日記が使われていないアプリに見える
+    const written = new Set(demoEntryDays(SAT))
+    const tradeDays = [...new Set(demoTrades(SAT).map((t) => jstDayKey(t.open_time)))]
+    const covered = tradeDays.filter((d) => written.has(d)).length
+    expect(covered / tradeDays.length).toBeGreaterThanOrEqual(0.7)
+  })
+
   it('題名・本文・気持ち・学びまで書いてある日がある', () => {
     const all = Object.values(demoDayEntries(SAT))
     expect(all.length).toBeGreaterThanOrEqual(8)
@@ -211,5 +225,49 @@ describe('取引に貼ってあるサンプルのチャート', () => {
   it('枚数を数えるだけのときは、絵を組み立てない', () => {
     const counts = demoTradeImageCounts(['demo-0', 'demo-1', 'demo-5', 'not-demo'])
     expect(counts).toEqual({ 'demo-0': 2, 'demo-5': 2 })
+  })
+})
+
+describe('今日と昨日は、日記に書いてある通りにする', () => {
+  // ホームのいちばん上の数字と、日記の中身が食い違うと作り物だと分かる
+  const trades = demoTrades(SAT)
+  const YESTERDAY = '2026-08-14'
+  const net = (day: string) =>
+    trades
+      .filter((t) => jstDayKey(t.open_time) === day)
+      .reduce((s, t) => s + t.profit + t.commission + t.swap, 0)
+
+  it('今日は、待てた日。数字もプラスで終わる', () => {
+    expect(trades.filter((t) => jstDayKey(t.open_time) === SAT).length).toBe(3)
+    expect(net(SAT)).toBeGreaterThan(0)
+  })
+
+  it('今日は、切られた1本と、決めた場所まで持てた本が混ざっている', () => {
+    const today = trades.filter((t) => jstDayKey(t.open_time) === SAT)
+    expect(today.some((t) => t.profit < 0)).toBe(true)
+    expect(today.filter((t) => t.profit > 0).length).toBeGreaterThanOrEqual(2)
+    // 「型」も付いている。日記の本文と揃える
+    expect(today.some((t) => t.setup === '押し目買い')).toBe(true)
+  })
+
+  it('昨日は、取り返そうとしてやられた日。数字もマイナスで終わる', () => {
+    expect(net(YESTERDAY)).toBeLessThan(0)
+  })
+
+  it('昨日の二度目は、損切りを置かずにロットを倍にしている', () => {
+    const yest = trades
+      .filter((t) => jstDayKey(t.open_time) === YESTERDAY)
+      .sort((a, b) => a.open_time.localeCompare(b.open_time))
+    expect(yest[0].sl).not.toBeNull()
+    expect(yest[1].sl).toBeNull()
+    expect(yest[1].volume).toBe(yest[0].volume * 2)
+    // その日のマイナスの大半がこの1本、と日記に書いてある
+    expect(yest[1].profit).toBeLessThan(yest[0].profit)
+  })
+
+  it('昨日の損益は、割合を出せるだけの大きさがある', () => {
+    // 行って来いに近いと「昨日比」の % が出せず、ホームの一行が寂しくなる
+    expect(Math.abs(net(YESTERDAY))).toBeGreaterThan(1000)
+    expect(Math.abs(net(SAT) - net(YESTERDAY)) / Math.abs(net(YESTERDAY))).toBeLessThan(10)
   })
 })

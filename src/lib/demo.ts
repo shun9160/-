@@ -91,6 +91,110 @@ const SYMBOLS = [
 /** その日の何時に入ったか。相場が動く時間に寄せる */
 const HOURS = [9, 10, 16, 17, 21, 22, 23]
 
+/**
+ * 日記に書いてある通りに動かす日。
+ *
+ * 鍵は「今日から何営業日前か」。中身は1件ぶんの取引。
+ * 0 = 今日「待つと決めた場所まで、はじめて待てた」
+ * 1 = 昨日「取り返そうとして、二度目で大きくやられた」
+ */
+interface Scripted {
+  hour: number
+  minute: number
+  symbol: string
+  side: Side
+  volume: number
+  entry: number
+  /** 損切りの幅（価格）。null なら置き忘れ */
+  risk: number | null
+  /**
+   * 結果を測るものさし（価格の幅）。ふつうは損切り幅と同じ。
+   * 損切りを置き忘れた本は risk が null になるが、
+   * 「どれだけやられたか」は測れないと困るので別に持つ
+   */
+  width?: number
+  /** 狙っていた損益比 */
+  rr: number
+  /** 取れた・やられた幅を、ものさしの何倍で表すか。マイナスは負け */
+  result: number
+  setup: string | null
+  note: string | null
+  /** 2つ目の口座のぶん */
+  sub?: boolean
+  holdMin: number
+}
+
+const SCRIPTED: Record<number, Scripted[]> = {
+  // 今日。伸びたところで飛び乗らず、戻りを待って入った日。
+  // 最初の1本は待ちきれずに入って小さく切られている
+  0: [
+    {
+      hour: 16, minute: 12, symbol: 'XAUUSD.raw', side: 'buy', volume: 0.05,
+      entry: 4038.4, risk: 4.2, rr: 2, result: -1, holdMin: 22,
+      setup: 'ブレイク狙い', note: '伸びたところで入ってしまった。決めた場所で切れたのだけが救い。',
+    },
+    {
+      hour: 17, minute: 41, symbol: 'XAUUSD.raw', side: 'buy', volume: 0.1,
+      entry: 4031.8, risk: 3.8, rr: 2.4, result: 1.9, holdMin: 96,
+      setup: '押し目買い', note: '朝の安値を割らずに止まったところ。決めた場所まで待てた。',
+    },
+    {
+      hour: 21, minute: 26, symbol: 'USDJPY', side: 'buy', volume: 0.1,
+      entry: 152.44, risk: 0.22, rr: 2, result: 1.2, holdMin: 64,
+      setup: '押し目買い', note: null,
+    },
+  ],
+  // 昨日。一度目は決めた通りに切れて、二度目でロットを倍にしてやられた
+  1: [
+    {
+      hour: 16, minute: 34, symbol: 'USDJPY', side: 'sell', volume: 0.05,
+      entry: 152.91, risk: 0.24, rr: 2, result: -1, holdMin: 31,
+      setup: '戻り売り', note: '決めた場所に置いて、決めた場所で切れた。ここまでは問題なかった。',
+    },
+    {
+      hour: 17, minute: 9, symbol: 'USDJPY', side: 'sell', volume: 0.1,
+      entry: 152.86, risk: null, width: 0.24, rr: 2, result: -3.4, holdMin: 118,
+      setup: null, note: '損切りを置かないまま、ロットを倍にして入り直した。今日のマイナスの8割がこれ。',
+    },
+    {
+      hour: 22, minute: 3, symbol: 'XAUUSD.raw', side: 'buy', volume: 0.02,
+      entry: 4012.6, risk: 3.4, rr: 1.8, result: 0.8, holdMin: 45,
+      setup: '押し目買い', note: null, sub: true,
+    },
+  ],
+}
+
+function makeScripted(id: string, day: string, s: Scripted): Trade {
+  const sym = SYMBOLS.find((x) => x.name === s.symbol) ?? SYMBOLS[0]
+  const dir = s.side === 'buy' ? 1 : -1
+  // 損切りを置き忘れた本は、置いていたら置いたであろう幅で結果を測る
+  const width = s.width ?? s.risk ?? sym.span / 100
+  const close = s.entry + dir * width * s.result
+  const openAt = jstMoment(day, s.hour, s.minute)
+
+  return {
+    id,
+    account_id: DEMO_ACCOUNTS[s.sub ? 1 : 0].id,
+    ticket: `DEMO-${id.slice(PREFIX.length).padStart(4, '0')}`,
+    symbol: s.symbol,
+    side: s.side,
+    volume: s.volume,
+    open_price: round2(s.entry),
+    close_price: round2(close),
+    sl: s.risk == null ? null : round2(s.entry - dir * s.risk),
+    tp: round2(s.entry + dir * width * s.rr),
+    open_time: openAt.toISOString(),
+    close_time: new Date(openAt.getTime() + s.holdMin * 60_000).toISOString(),
+    commission: -Math.round(s.volume * 400),
+    swap: 0,
+    profit: Math.round((close - s.entry) * dir * s.volume * sym.yenPerPoint),
+    currency: 'JPY',
+    note: s.note,
+    setup: s.setup,
+    source: 'demo',
+  }
+}
+
 /** JST の日付と時刻から、保存する形（UTC の瞬間）を作る */
 function jstMoment(day: string, hour: number, minute: number): Date {
   return new Date(`${day}T${pad(hour)}:${pad(minute)}:00+09:00`)
@@ -119,6 +223,17 @@ export function demoTrades(today = jstDayKey(new Date().toISOString())): Trade[]
     const weekend = wd === 0 || wd === 6
     const mustHave = withEntry.has(day)
     if (weekend && !mustHave) continue
+
+    // 今日と昨日は、さいころ任せにしない。
+    // ホームのいちばん上に出る数字と、日記に書いてあることが
+    // 食い違うと、作り物だと分かってしまう。
+    // 昨日は「取り返そうとして二度目で大きくやられた」日、
+    // 今日は「待てた」日。数字もその通りにしておく
+    const scripted = SCRIPTED[back]
+    if (scripted) {
+      for (const s of scripted) out.push(makeScripted(`${PREFIX}${i++}`, day, s))
+      continue
+    }
 
     // 記録が続いている感じを出す。毎日きっちり同じ件数だと作り物に見える
     let count = mustHave ? 1 + Math.floor(rng() * 3) : Math.floor(rng() * 3.4)

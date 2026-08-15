@@ -361,10 +361,20 @@ export interface TodayCompare {
   todayNet: number
   yesterdayNet: number
   diff: number
-  /** 昨日に対する増減の割合。昨日が0なら null */
+  /** 昨日に対する増減の割合。くらべても意味が出ないときは null */
   ratio: number | null
   todayCount: number
 }
+
+/**
+ * 「何%」を出していい上限。
+ *
+ * 昨日がほぼ行って来いだった日は、割り算の分母が小さすぎて
+ * 「+4749%」のような数が出る。数としては正しいが、読む人には
+ * 何も伝わらないし、壊れているようにしか見えない。
+ * 何倍もの差になった時点で、%より円の差のほうが分かりやすい。
+ */
+const RATIO_LIMIT = 10
 
 export function compareWithYesterday(
   trades: EnrichedTrade[],
@@ -375,11 +385,12 @@ export function compareWithYesterday(
   const yest = trades.filter((t) => t.jstDay === yesterdayKey)
   const todayNet = netOf(today)
   const yesterdayNet = netOf(yest)
+  const ratio = yesterdayNet === 0 ? null : (todayNet - yesterdayNet) / Math.abs(yesterdayNet)
   return {
     todayNet,
     yesterdayNet,
     diff: todayNet - yesterdayNet,
-    ratio: yesterdayNet === 0 ? null : (todayNet - yesterdayNet) / Math.abs(yesterdayNet),
+    ratio: ratio == null || Math.abs(ratio) >= RATIO_LIMIT ? null : ratio,
     todayCount: today.length,
   }
 }
