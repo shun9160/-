@@ -75,6 +75,22 @@ Supabase の **Authentication → Providers → Email** が有効であること
 最後の `2026-08-05_multi_user.sql` は**アプリでアカウント登録を済ませてから**実行すると、
 これまでのデータがそのアカウントに引き継がれます。
 
+日付ごとにまとめたものもあります。1回貼るだけで済みます。
+何度実行しても壊れません（すでに済んでいる部分は飛ばされます）。
+
+| まとめ | 中身 |
+| --- | --- |
+| [`supabase/setup_2026-08-06.sql`](./supabase/setup_2026-08-06.sql) | 複数口座 / チャート画像の表 / 画像の重複防止 |
+| [`supabase/setup_2026-08-07.sql`](./supabase/setup_2026-08-07.sql) | トレードの「型」 / 日記の記事化（題名・気持ち・振り返り・学び） |
+
+画像の置き場所（Storage）まわりだけは、バケットの作成と権限の設定が要るので
+まとめには入れていません。[`2026-08-07_storage_images.sql`](./supabase/migrations/2026-08-07_storage_images.sql)
+と [`2026-08-07_image_nullable.sql`](./supabase/migrations/2026-08-07_image_nullable.sql) を個別に実行してください。
+
+[`2026-08-07_drop_image_columns.sql`](./supabase/migrations/2026-08-07_drop_image_columns.sql) は
+「古い画像の列を消す」ものです。消すと元に戻せないので、
+まだ移せていない画像が残っているうちは実行しないでください。
+
 ### 2. ローカル開発
 
 ```bash
