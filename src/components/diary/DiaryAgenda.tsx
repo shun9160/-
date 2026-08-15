@@ -19,6 +19,10 @@ import Icon from '../Icon'
  *  - さらに左端に、年と月を縦書きで置く
  *  - 一日ぶんを「帯」として、一日おきに濃さを変える
  *  - 出来事の頭に色の棒を立てる（ここでは損益の向きを表す）
+ *
+ * 面の色は下のタブと同じ night。以前はロゴの紫→青を敷いていたが、
+ * この画面だけ彩度が高く、ほかの画面と別のアプリに見えていた。
+ * 「濃い面はタブと日記だけ」と決めて、全画面で色を3つに絞っている。
  */
 
 const WEEKDAYS_JA = ['日', '月', '火', '水', '木', '金', '土']
@@ -103,15 +107,16 @@ export default function DiaryAgenda({
 
   return (
     <section
-      // ロゴと同じ紫から青。ただし明るいままだと、上に載る白い小さな文字が
-      // 読める濃さにならないので、同じ色みのまま暗くしてある
-      className="relative overflow-hidden rounded-2xl bg-gradient-to-b from-[#4A2ECC] to-[#2A44BF] text-white"
+      // 濃色の面ひとつ。下のタブと同じ色にして、同じ「暗い面」だと分かるようにする。
+      // 狭い画面では左右の余白ぶんだけ外へ出し、画面の端まで面を届かせる
+      className="relative -mx-4 overflow-hidden bg-night text-white sm:mx-0 sm:rounded-xl"
     >
       {/* 日付の列の下地。行ごとではなく1枚で敷くので、
-          いちばん下まで途切れずに1本の柱に見える */}
+          いちばん下まで途切れずに1本の柱に見える。
+          面の中をさらに割るので、色は night より一段だけ暗くする */}
       <span
         aria-hidden="true"
-        className="pointer-events-none absolute inset-y-0 left-0 w-[4.5rem] bg-[#150C3D]"
+        className="pointer-events-none absolute inset-y-0 left-0 w-[4.5rem] bg-[#0D0C14]"
       />
 
       {/* 柱の中に、いま見ている年と月を縦書きで入れる */}
@@ -145,7 +150,7 @@ export default function DiaryAgenda({
         <div className="py-5 pl-[4.5rem] pr-3 text-center">
           {canMore ? (
             <button
-              className="rounded-xl border border-white/25 px-4 py-2 text-xs font-semibold text-white/85 transition-colors hover:bg-white/10"
+              className="rounded-lg bg-white/10 px-4 py-2 text-xs font-semibold text-white/85 transition-colors hover:bg-white/[0.16]"
               onClick={() => setSpan((s) => s + MORE)}
             >
               さらに前を見る
@@ -184,8 +189,9 @@ function DayBand({
           日付を右に寄せて、縦に一直線に並ぶ「背骨」に見えるようにする */}
       <span className="flex w-[4.5rem] shrink-0 justify-end py-3 pr-3">
         {isToday ? (
-          // 今日だけ白い札にする。手帳アプリと同じ見せ方
-          <span className="flex h-11 w-10 flex-col items-center justify-center rounded-lg bg-white leading-none text-brand">
+          // 今日だけ札にする。手帳アプリと同じ見せ方。
+          // 暗い面の中でブランドの色を使うのはここだけ
+          <span className="flex h-11 w-10 flex-col items-center justify-center rounded-lg bg-brand leading-none text-white">
             <span className="text-[9px] font-bold uppercase tracking-wider">{wd}</span>
             <span className="mt-0.5 text-lg font-bold">{fmtJst(iso, 'd')}</span>
           </span>
@@ -205,9 +211,9 @@ function DayBand({
 
       {/* その日の出来事。ここだけ一日おきに濃さを変える */}
       <span
-        // 濃くするのは黒側。白を混ぜて明るくすると、上に載る白い文字が
-        // 読める濃さを割ってしまう（測って確かめた）
-        className={`min-w-0 flex-1 py-3 pl-3 pr-3 ${shaded ? 'bg-black/10' : ''}`}
+        // 面がじゅうぶん暗いので、ここは白をごく薄く混ぜて一段持ち上げる。
+        // それでも白い文字とのコントラストは 12:1 以上ある（測って確かめた）
+        className={`min-w-0 flex-1 py-3 pl-3 pr-3 ${shaded ? 'bg-white/[0.045]' : ''}`}
       >
         {empty ? (
           <span className="flex h-10 items-center text-xs text-white/75">

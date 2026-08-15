@@ -15,12 +15,12 @@ interface Props {
 const NO_BROKER = 'その他'
 
 /**
- * 背景をうっすら透かす見た目。
- * 真っ白のカードだと、いちばん上に置いたときに主役より目立ってしまうため。
- * 文字はそのまま黒なので、読みやすさは落ちない。
+ * 押せる小さな札。ヘッダーの中に並ぶので、面としては主張させない。
+ * 以前は画面いっぱいの白いカードだったが、それだと
+ * 「口座を選ぶ」という脇役の操作が、いちばん大きな面になってしまう。
  */
-const GLASS =
-  'border border-white/60 bg-white/45 backdrop-blur-sm hover:bg-white/65'
+const CHIP =
+  'border border-line bg-surface hover:bg-sunken'
 
 /** 口座を会社ごとにまとめる。並びは登録した順のまま。 */
 function groupByBroker(accounts: Account[]) {
@@ -90,37 +90,27 @@ export default function AccountSwitcher({ accounts, value, onChange, onManage }:
 
   return (
     <div className="flex items-center">
-      <div ref={boxRef} className="relative min-w-0 flex-1 sm:max-w-xs">
+      <div ref={boxRef} className="relative min-w-0">
         <button
           type="button"
           onClick={() => setOpen((v) => !v)}
           aria-haspopup="listbox"
           aria-expanded={open}
-          className={`flex w-full items-center gap-2.5 rounded-xl px-3 py-2 text-left transition-colors ${GLASS}`}
+          className={`flex h-9 max-w-[15rem] items-center gap-2 rounded-full px-2.5 pr-2 text-left transition-colors ${CHIP}`}
         >
           {selected ? (
-            <BrokerMark broker={selected.broker} size={30} />
+            <BrokerMark broker={selected.broker} size={22} />
           ) : (
-            <span className="flex h-[30px] w-[30px] shrink-0 items-center justify-center rounded-lg bg-brand-soft text-brand">
-              <Icon name="wallet" size={16} />
+            <span className="flex h-[22px] w-[22px] shrink-0 items-center justify-center rounded-md bg-brand-soft text-brand">
+              <Icon name="wallet" size={13} />
             </span>
           )}
-          <span className="min-w-0 flex-1">
-            <span className="block truncate text-sm font-bold leading-tight text-ink">
-              {selected ? (selected.broker ?? NO_BROKER) : 'すべての口座'}
-            </span>
-            {/* 背景を透かしたぶん薄い灰色だと読みにくくなるので、1段濃い色にする */}
-            <span className="block truncate text-[11px] leading-tight text-ink2">
-              {selected ? (
-                <span className="tabular-nums">{accountTitle(selected)}</span>
-              ) : (
-                `${accounts.length}口座をまとめて表示`
-              )}
-            </span>
+          <span className="min-w-0 truncate text-[13px] font-bold leading-none text-ink">
+            {selected ? accountTitle(selected) : 'すべての口座'}
           </span>
           <Icon
             name="down"
-            size={16}
+            size={15}
             className={`shrink-0 text-ink3 ${open ? 'rotate-180' : ''}`}
           />
         </button>
@@ -128,7 +118,7 @@ export default function AccountSwitcher({ accounts, value, onChange, onManage }:
         {open && (
           <div
             role="listbox"
-            className="absolute left-0 right-0 z-40 mt-1.5 max-h-[70vh] overflow-y-auto rounded-2xl border border-line bg-surface p-1.5 shadow-card"
+            className="absolute right-0 z-40 mt-1.5 max-h-[70vh] w-[17rem] overflow-y-auto rounded-xl border border-line bg-surface p-1.5 shadow-raised"
           >
             <Row
               selected={value === null}

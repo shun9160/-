@@ -21,9 +21,13 @@ export const NAV_ITEMS: Item[] = [
 /**
  * モバイル: 画面下部のタブバー。
  *
- * 画面の端から浮かせた、ロゴの色（紫→青）の細長い島。
- * いま見ているところだけが白い丸に変わって名前が出る。
- * 5つぶんの名前を常に並べると窮屈なので、名前は選んだところだけに絞る。
+ * 濃色の面（night）ひとつ。以前はロゴの紫→青を敷いていたが、
+ * 画面の中でいちばん彩度が高くなり、本文よりバーが目立っていた。
+ *
+ * 色は3つだけに絞る:
+ *   面 = night / 選んでいないもの = 白の55% / 選んだもの = 白
+ * ブランドの紫は「記録」の丸ひとつだけに使う。使う場所を1つに絞ると、
+ * そこが押してほしいところだと分かる。
  */
 export function BottomNav({
   current,
@@ -34,13 +38,14 @@ export function BottomNav({
 }) {
   return (
     <nav
-      className="pb-safe fixed inset-x-0 bottom-0 z-30 bg-gradient-to-t from-page via-page/85 to-transparent md:hidden"
+      className="pb-safe fixed inset-x-0 bottom-0 z-30 bg-gradient-to-t from-page via-page/90 to-transparent md:hidden"
       aria-label="メインメニュー"
     >
       <div className="px-4 pb-3 pt-6">
-        <ul className="mx-auto flex max-w-lg items-center justify-between gap-1 rounded-full bg-gradient-to-r from-[#6741FF] to-[#3B5BFF] p-1.5 shadow-raised">
+        <ul className="mx-auto flex max-w-lg items-center justify-between gap-1 rounded-2xl bg-night p-1.5 shadow-raised">
           {NAV_ITEMS.map((it) => {
             const active = current === it.key
+            const isAdd = it.key === 'add'
             return (
               <li key={it.key} className="min-w-0">
                 <button
@@ -49,21 +54,25 @@ export function BottomNav({
                   // 名前を出さないときも、読み上げと長押しでは何のボタンか分かるようにする
                   aria-label={it.label}
                   title={it.label}
-                  className={`flex h-11 items-center justify-center gap-1.5 rounded-full transition-colors ${
-                    active ? 'bg-surface px-3.5 text-brand' : 'w-11 text-white'
+                  className={`flex h-11 items-center justify-center gap-1.5 rounded-xl transition-colors ${
+                    active && !isAdd
+                      ? 'bg-white/10 px-3.5 text-white'
+                      : 'w-11 text-white/55 hover:text-white'
                   }`}
                 >
-                  {/* 記録はいちばん押してほしいので、選んでいなくても丸で少し目立たせる */}
+                  {/* 記録はいちばん押してほしい。ブランドの色はここだけに使う */}
                   <span
                     className={
-                      !active && it.key === 'add'
-                        ? 'flex h-8 w-8 items-center justify-center rounded-full bg-white/25'
+                      isAdd
+                        ? 'flex h-9 w-9 items-center justify-center rounded-xl bg-brand text-white'
                         : 'flex items-center justify-center'
                     }
                   >
                     <Icon name={it.icon} size={20} strokeWidth={active ? 2.1 : 1.9} />
                   </span>
-                  {active && <span className="truncate text-xs font-bold">{it.label}</span>}
+                  {active && !isAdd && (
+                    <span className="truncate text-xs font-bold">{it.label}</span>
+                  )}
                 </button>
               </li>
             )

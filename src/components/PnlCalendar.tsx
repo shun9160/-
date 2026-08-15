@@ -95,7 +95,7 @@ export default function PnlCalendar({ trades, onSelectDay }: Props) {
   const total = mode === 'daily' ? monthTotal : yearTotal
 
   return (
-    <div className="card p-4 sm:p-5">
+    <div className="panel py-4 sm:py-5">
       {/* 期間の移動。広い画面では 日別/月別 も同じ行に置いて縦を詰める。
           狭い画面では左右の枠が消えるので、真ん中に寄せ直す。 */}
       <div className="flex items-center justify-center gap-3 sm:justify-between">
@@ -218,7 +218,7 @@ function Modes({
   setMode: (m: 'daily' | 'monthly') => void
 }) {
   return (
-    <div className="flex rounded-xl bg-sunken p-1">
+    <div className="flex rounded-xl bg-sunken p-0.5">
       {(
         [
           ['daily', '日別'],
@@ -283,14 +283,15 @@ function DailyGrid({
                 // スマホは正方形が収まりよい。
                 // 画面が広いと正方形のままでは背が高くなりすぎ、
                 // ノートパソコンで1か月が画面に入らないので高さを決め打つ。
-                'flex aspect-square flex-col items-center justify-center gap-0.5 rounded-xl border px-0.5 transition-colors sm:aspect-auto sm:h-[clamp(2.4rem,calc((100vh-17rem)/6),7rem)]',
+                'flex aspect-square flex-col items-center justify-center gap-0.5 rounded-lg px-0.5 transition-colors sm:aspect-auto sm:h-[clamp(2.4rem,calc((100vh-17rem)/6),7rem)]',
+                // 枠線ではなく塗りで出す。線が増えるほど画面が細かく割れて見える
                 has
                   ? pos
-                    ? 'border-up/20 bg-up-soft hover:border-up/50'
+                    ? 'bg-up-soft hover:bg-up/15'
                     : neg
-                      ? 'border-down/20 bg-down-soft hover:border-down/50'
-                      : 'border-line bg-sunken'
-                  : 'border-transparent',
+                      ? 'bg-down-soft hover:bg-down/12'
+                      : 'bg-sunken'
+                  : '',
               ].join(' ')}
             >
               <span className={`text-xs font-semibold ${has ? 'text-ink' : 'text-ink3'}`}>{d}</span>
@@ -340,12 +341,12 @@ function MonthlyGrid({
         return (
           <div
             key={c.key}
-            className={`flex flex-col items-center rounded-xl border py-5 ${
+            className={`flex flex-col items-center rounded-lg py-5 ${
               has
                 ? c.net! > 0
-                  ? 'border-up/20 bg-up-soft'
-                  : 'border-down/20 bg-down-soft'
-                : 'border-line'
+                  ? 'bg-up-soft'
+                  : 'bg-down-soft'
+                : 'bg-sunken'
             }`}
           >
             <span className="text-xs text-ink2">{c.label}</span>

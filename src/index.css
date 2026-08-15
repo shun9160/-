@@ -22,14 +22,10 @@ body {
   -webkit-font-smoothing: antialiased;
   text-rendering: optimizeLegibility;
 
-  /* 下地は白に近い灰色。その上に、ロゴと同じ紫と青をごく薄くのせる。
-     画面の上のほうだけほんのり色づき、下にいくにつれて消える。
-     白いカードが浮いて見えるのが目的なので、濃くしすぎないこと。 */
-  background-color: #fafafc;
-  background-image:
-    radial-gradient(1250px 900px at -5% -22%, rgba(109, 74, 255, 0.24), rgba(109, 74, 255, 0) 62%),
-    radial-gradient(1050px 760px at 105% -16%, rgba(47, 107, 255, 0.2), rgba(47, 107, 255, 0) 62%);
-  background-repeat: no-repeat;
+  /* 下地は一色。以前は上のほうに紫と青をぼかして敷いていたが、
+     その上に白いカードを並べると、カードだけが浮いて見えた。
+     画面全体をひとつの面として扱い、階層は面の色と線で出す。 */
+  background-color: #f1f0f6;
 }
 
 /* iOS のセーフエリアぶんだけ下タブを持ち上げる */
@@ -51,8 +47,22 @@ body {
 }
 
 @layer components {
+  /*
+   * 白い面。影は付けない。
+   * 影を付けると「紙が浮いている」ように見え、区画ごとにバラバラになる。
+   * 境目は下地(page)との色の差と、細い線だけで出す。
+   */
   .card {
-    @apply rounded-2xl border border-line bg-surface shadow-card;
+    @apply rounded-xl border border-line bg-surface;
+  }
+
+  /*
+   * 画面の端まで広がる面。狭い画面ではカードにせず、
+   * 左右の余白ぶんだけ外へ出して、上下の線だけで区切る。
+   * カードが並ぶより、面が切り替わって見えるほうが一体感が出る。
+   */
+  .panel {
+    @apply -mx-4 border-y border-line bg-surface px-4 sm:mx-0 sm:rounded-xl sm:border sm:px-5;
   }
 
   /* ボタン */
@@ -80,7 +90,7 @@ body {
     @apply rounded-lg px-3 py-1.5 text-sm font-semibold transition-colors;
   }
   .seg-on {
-    @apply bg-surface text-ink shadow-card;
+    @apply bg-night text-white;
   }
   .seg-off {
     @apply text-ink2 hover:text-ink;

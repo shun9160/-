@@ -12,9 +12,8 @@ import Icon from '../Icon'
  *  - 開く動きが、後ろに残っている一覧との差で見える。
  *    同じ場所で中身だけ入れ替えると、300ms の動きは気づかれない
  *
- * 下地はロゴの色そのものではなく、ごく薄く色を混ぜた白（#F6F4FF）。
- * 長く文章を読み書きする場所なので、色が濃いと目が疲れる。
- * ロゴの色は、ボタン・選んだもの・押せるところに使って出す。
+ * 下地はほかの画面と同じ page。長く文章を読み書きする場所なので、
+ * 色は濃くしない。ロゴの色は、ボタン・選んだもの・押せるところで出す。
  *
  * body の直下に出しているのは、親に transform が掛かっていると
  * position: fixed がその親を基準にしてしまい、画面いっぱいにならないため。
@@ -80,7 +79,7 @@ export default function DayScreen({
       role="dialog"
       aria-modal="true"
       aria-label={`${fmtJst(iso, 'yyyy年M月d日')}の日記`}
-      className={`fixed inset-0 z-50 overflow-y-auto bg-[#F6F4FF] ${
+      className={`fixed inset-0 z-50 overflow-y-auto bg-page ${
         phase === 'in' ? 'reveal-in' : phase === 'out' ? 'reveal-out' : ''
       }`}
       style={
@@ -121,7 +120,7 @@ export default function DayScreen({
 
       {/* 下に浮かせた操作。親指の届くところに置く */}
       <div
-        className="pointer-events-none fixed inset-x-0 bottom-0 z-10 flex items-center justify-center gap-3 bg-gradient-to-t from-[#F6F4FF] via-[#F6F4FF]/85 to-transparent px-4 pt-8"
+        className="pointer-events-none fixed inset-x-0 bottom-0 z-10 flex items-center justify-center gap-3 bg-gradient-to-t from-page via-page/90 to-transparent px-4 pt-8"
         style={{ paddingBottom: 'calc(env(safe-area-inset-bottom, 0px) + 1rem)' }}
       >
         <button

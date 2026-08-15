@@ -4,11 +4,17 @@ export default {
   theme: {
     extend: {
       colors: {
-        // 面 — 白いカードが浮くよう、下地はわずかに灰色
-        page: '#F4F4F7',
+        // 面 — 「浮いたカード」ではなく「面の切り替え」で階層を作る。
+        // 下地(page) → 白い面(surface) → 一段沈んだ面(sunken) の3段だけ。
+        // 影ではなく、色の差と細い線で境目を出す。
+        page: '#F1F0F6',
         surface: '#FFFFFF',
-        sunken: '#F4F4F8',
-        line: '#E9E9F0',
+        sunken: '#F4F3F9',
+        line: '#E5E4EE',
+
+        // 濃色の面。下のタブと日記で使う。ここだけが「暗い面」
+        night: '#16151F',
+        night2: '#242231',
 
         // 文字
         ink: '#18171F',
@@ -54,9 +60,11 @@ export default {
         hero: ['2.75rem', { lineHeight: '1.05', letterSpacing: '-0.03em' }],
       },
       boxShadow: {
-        card: '0 1px 2px rgba(24, 23, 31, 0.04)',
-        raised: '0 4px 16px rgba(24, 23, 31, 0.08)',
-        nav: '0 -1px 0 #E9E9F0',
+        // 影はほぼ使わない。境目は線と面の色で出す。
+        // ここに残しているのは、画面の上に浮かせるものだけ
+        card: 'none',
+        raised: '0 6px 24px rgba(16, 21, 31, 0.14)',
+        nav: '0 -1px 0 #E5E4EE',
       },
       borderRadius: {
         xl2: '1rem',

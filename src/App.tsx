@@ -206,33 +206,49 @@ export default function App() {
 
       {/* 下のタブバー(92px)とiPhoneのホームバーのぶんだけ、中身の下に余白をとる */}
       <div className="flex min-w-0 flex-1 flex-col pb-[calc(env(safe-area-inset-bottom,0px)+104px)] md:pb-0">
-        {/* 上部バー */}
+        {/*
+          上部バー。
+          帯として独立させず、下地(page)と同じ色にして境目の線も引かない。
+          線で区切ると、そこで画面が分断されて「上と下は別のもの」に見える。
+          ロゴ・口座・自分、の3つだけをこの1行にまとめる。
+        */}
         <header
-          className={`sticky top-0 z-20 border-b px-4 py-3 backdrop-blur ${
-            heroFlush
-              ? 'border-transparent bg-[#6741FF] md:border-line md:bg-page/75'
-              : 'border-line bg-page/75'
+          className={`sticky top-0 z-20 px-4 pb-2 pt-3 ${
+            heroFlush ? 'bg-[#6741FF] md:bg-page' : 'bg-page'
           }`}
         >
-          <div className="mx-auto flex max-w-6xl items-center gap-3">
+          <div className="mx-auto flex max-w-6xl items-center gap-2">
             {/* スマホ。タブの画面は下のバーで場所が分かるので、上には名前を出す。
                 下のバーに無い画面（アカウントなど）のときだけ、そこの名前に差し替える。 */}
             <span className="min-w-0 md:hidden">
               {subScreen ? (
                 <span className="truncate text-base font-bold text-ink">{subScreen}</span>
               ) : (
-                <Wordmark size={24} onDark={heroFlush} />
+                <Wordmark size={21} onDark={heroFlush} />
               )}
             </span>
             <nav aria-label="現在地" className="hidden text-sm text-ink3 md:block">
               {BRAND.name} <span className="mx-1">/</span>
               <span className="font-semibold text-ink">{subScreen ?? item.label}</span>
             </nav>
-            <div className="ml-auto flex items-center gap-2">
+
+            <div className="ml-auto flex min-w-0 items-center gap-2">
+              {/* 見ている口座。ここに置くと、面をひとつ減らせる */}
+              {!showAccount && !showAccounts && !loading && accounts.length > 1 && (
+                <span className={heroFlush ? 'hidden md:block' : ''}>
+                  <AccountSwitcher
+                    accounts={accounts}
+                    value={accountId}
+                    onChange={setAccountId}
+                    onManage={demo ? undefined : openAccounts}
+                  />
+                </span>
+              )}
+
               {/* 自分のところ。押すと基本情報と連携の設定を開く */}
               <button
                 onClick={openAccount}
-                className={`flex items-center rounded-full p-0.5 transition-colors md:hidden ${
+                className={`flex shrink-0 items-center rounded-full p-0.5 transition-colors md:hidden ${
                   showAccount
                     ? 'ring-2 ring-brand'
                     : heroFlush
@@ -242,27 +258,13 @@ export default function App() {
                 title="アカウントと連携"
                 aria-label="アカウントと連携"
               >
-                <Avatar email={userEmail} size={30} />
+                <Avatar email={userEmail} size={28} />
               </button>
             </div>
           </div>
         </header>
 
-        <main className="mx-auto w-full max-w-6xl flex-1 px-4 py-5">
-          {/* 見ている口座 */}
-          {!showAccount && !showAccounts && !loading && accounts.length > 1 && (
-            <div className="mb-4">
-              <AccountSwitcher
-                accounts={accounts}
-                value={accountId}
-                onChange={setAccountId}
-                onManage={demo ? undefined : openAccounts}
-              />
-              <p className="mt-1.5 text-[11px] text-ink3 md:hidden">
-                画面を左右にスワイプしても口座を切り替えられます
-              </p>
-            </div>
-          )}
+        <main className="mx-auto w-full max-w-6xl flex-1 px-4 pb-5 pt-1">
 
           {demo && <DemoNotice />}
 
@@ -460,14 +462,16 @@ function SavedNotice({
 
 function DemoNotice() {
   return (
-    <div className="mb-4 flex gap-3 rounded-2xl border border-line bg-brand-soft/60 px-4 py-3">
-      <Icon name="info" size={18} className="mt-0.5 shrink-0 text-brand" />
-      <div className="text-sm">
-        <p className="font-semibold text-ink">サンプルデータを表示中</p>
-        <p className="mt-0.5 text-ink2">
+    // お知らせは面として立てない。カードにすると、いちばん上の
+    // いちばん大きな面が「お知らせ」になってしまう。線1本で区切るだけにする
+    <div className="mb-3 flex items-start gap-2 border-b border-line pb-3 text-[13px]">
+      <Icon name="info" size={16} className="mt-0.5 shrink-0 text-brand" />
+      <p className="text-ink2">
+        <span className="font-bold text-ink">サンプルデータを表示中</span>
+        <span className="ml-1.5">
           ログインしていないため、動きを確認するための仮データです（保存はできません）。
-        </p>
-      </div>
+        </span>
+      </p>
     </div>
   )
 }

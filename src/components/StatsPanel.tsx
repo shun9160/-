@@ -143,10 +143,10 @@ function TabRow({ tab, onChange }: { tab: TabKey; onChange: (k: TabKey) => void 
             key={t.key}
             onClick={() => onChange(t.key)}
             aria-pressed={on}
-            className={`flex shrink-0 items-center gap-1.5 rounded-full border px-3 py-1.5 text-sm font-semibold transition-colors ${
-              on
-                ? 'border-brand bg-brand-soft text-brand'
-                : 'border-line bg-surface text-ink2 hover:bg-sunken'
+            // 選んだものは濃色。カレンダーの日別/月別、下のタブと同じ決まりにして、
+            // 「いま選ばれているもの＝濃い面」を全画面で共通にする
+            className={`flex shrink-0 items-center gap-1.5 rounded-lg px-3 py-1.5 text-sm font-semibold transition-colors ${
+              on ? 'bg-night text-white' : 'text-ink2 hover:bg-sunken hover:text-ink'
             }`}
           >
             <Icon name={t.icon} size={15} />
