@@ -308,23 +308,23 @@ function DailyGrid({
                 // 画面が広いと正方形のままでは背が高くなりすぎ、
                 // ノートパソコンで1か月が画面に入らないので高さを決め打つ。
                 'flex aspect-square flex-col items-center justify-center gap-0.5 rounded-lg px-0.5 transition-colors sm:aspect-auto sm:h-[clamp(2.4rem,calc((100vh-17rem)/6),7rem)]',
-                // 枠線ではなく塗りで出す。線が増えるほど画面が細かく割れて見える
-                has
-                  ? pos
-                    ? 'bg-up-soft hover:bg-up/15'
-                    : neg
-                      ? 'bg-down-soft hover:bg-down/12'
-                      : 'bg-sunken'
-                  : wrote
-                    ? 'bg-brand-soft hover:bg-brand/15'
-                    : '',
+                // 升目はぜんぶ塗る。塗らない日があると、下地と地続きになって
+                // 「暦の形」そのものが見えなくなる。下地は升目のあいだの
+                // 隙間として残り、それが罫線の代わりになる
+                pos
+                  ? 'bg-up-fill hover:bg-up/20'
+                  : neg
+                    ? 'bg-down-fill hover:bg-down/15'
+                    : 'bg-surface hover:bg-sunken',
               ].join(' ')}
             >
-              <span className={`text-xs font-semibold ${open ? 'text-ink' : 'text-ink3'}`}>{d}</span>
+              {/* 取引の無い日も、日付は読めること。暦なので
+                  「21日はどこか」を探すのに使う。薄すぎると探せない */}
+              <span className={`text-[13px] font-bold ${open ? 'text-ink' : 'text-ink2'}`}>{d}</span>
               {has && (
                 <span
-                  className={`text-[10px] font-bold leading-none tabular-nums ${
-                    pos ? 'text-up' : neg ? 'text-down' : 'text-ink3'
+                  className={`text-[11px] font-bold leading-none tabular-nums ${
+                    pos ? 'text-up-deep' : neg ? 'text-down' : 'text-ink3'
                   }`}
                 >
                   {shorten(net)}
@@ -373,17 +373,14 @@ function MonthlyGrid({
           <div
             key={c.key}
             className={`flex flex-col items-center rounded-lg py-5 ${
-              has
-                ? c.net! > 0
-                  ? 'bg-up-soft'
-                  : 'bg-down-soft'
-                : 'bg-sunken'
+              has ? (c.net! > 0 ? 'bg-up-fill' : 'bg-down-fill') : 'bg-surface'
             }`}
           >
             <span className="text-xs text-ink2">{c.label}</span>
             <span
               className={`mt-0.5 text-sm font-bold tabular-nums ${
-                has ? colorOf(c.net!) : 'text-ink3'
+                // 塗りの上に載るので、緑は暗いほうを使う（薄い緑だと読めない）
+                has ? (c.net! > 0 ? 'text-up-deep' : 'text-down') : 'text-ink3'
               }`}
             >
               {has ? fmtMoney(c.net!, { sign: true }) : '—'}
