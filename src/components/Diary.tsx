@@ -170,10 +170,8 @@ export default function Diary({
     <div>
       {/* 入口の一覧。開いている間も残しておく。
           後ろに残っているから、上にかぶさってくる動きが見える */}
-      <div className="mb-2 flex items-baseline justify-between gap-3">
-        <h2 className="text-base font-bold">日記</h2>
-        <span className="text-xs text-ink3">日を選ぶと書けます</span>
-      </div>
+      {/* 見出しは軽く。数と使い方は、すぐ下の帯が受け持つ */}
+      <h2 className="mb-2.5 text-base font-bold">日記</h2>
       <DiaryAgenda
         trades={trades}
         dayNotes={dayNotes}

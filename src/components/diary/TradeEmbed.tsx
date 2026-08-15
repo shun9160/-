@@ -28,6 +28,11 @@ interface Props {
   onAdd?: () => void
   /** 見出し。日記では「今日のトレード」、カレンダーでは「この日のトレード」 */
   title?: string
+  /**
+   * 上の区切り線を引かない。
+   * すぐ上の面の縁が、すでに境目になっている場所で使う
+   */
+  bare?: boolean
 }
 
 export default function TradeEmbed({
@@ -37,6 +42,7 @@ export default function TradeEmbed({
   onChanged,
   onAdd,
   title = '今日のトレード',
+  bare,
 }: Props) {
   const [open, setOpen] = useState<string | null>(null)
   const [editing, setEditing] = useState<string | null>(null)
@@ -63,9 +69,9 @@ export default function TradeEmbed({
 
   if (rows.length === 0) {
     return (
-      <section className="mt-10">
-        <Rule />
-        <h2 className="mt-6 text-lg font-bold">{title}</h2>
+      <section className={bare ? 'mt-6' : 'mt-10'}>
+        {!bare && <Rule />}
+        <h2 className={`text-lg font-bold ${bare ? '' : 'mt-6'}`}>{title}</h2>
         <p className="mt-2 text-[15px] leading-[1.9] text-ink3">
           この日の取引はまだ入っていません。
           <br />
@@ -82,10 +88,10 @@ export default function TradeEmbed({
   }
 
   return (
-    <section className="mt-10">
-      <Rule />
+    <section className={bare ? 'mt-6' : 'mt-10'}>
+      {!bare && <Rule />}
 
-      <div className="mt-6 flex flex-wrap items-baseline gap-x-3 gap-y-1">
+      <div className={`flex flex-wrap items-baseline gap-x-3 gap-y-1 ${bare ? '' : 'mt-6'}`}>
         <h2 className="text-lg font-bold">{title}</h2>
         <span className="text-[13px] text-ink3">{rows.length} trades</span>
         <span className={`ml-auto text-xl font-bold tabular-nums ${colorOf(sum.net)}`}>

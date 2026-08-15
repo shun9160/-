@@ -65,31 +65,16 @@ export default function CalendarScreen({
 
   return (
     <div className="mx-auto max-w-[42rem]">
-      {/* 日で見るか、ひと月を俯瞰するか。
-          選んだほうが濃い面になるのは、ほかの画面と同じ決まり */}
-      <div className="mb-3 flex justify-end">
-        <div className="flex rounded-xl bg-sunken p-0.5">
-          {(
-            [
-              ['day', '日で見る'],
-              ['month', 'ひと月'],
-            ] as const
-          ).map(([k, label]) => (
-            <button
-              key={k}
-              type="button"
-              onClick={() => setMode(k)}
-              aria-pressed={mode === k}
-              className={`seg ${mode === k ? 'seg-on' : 'seg-off'}`}
-            >
-              {label}
-            </button>
-          ))}
-        </div>
-      </div>
-
       {mode === 'month' ? (
         <>
+          <button
+            type="button"
+            onClick={() => setMode('day')}
+            className="btn -ml-2 mb-2 text-brand hover:bg-brand-soft"
+          >
+            <Icon name="back" size={17} />
+            日で見る
+          </button>
           <PnlCalendar
             trades={trades}
             onSelectDay={(d) => {
@@ -104,21 +89,30 @@ export default function CalendarScreen({
         </>
       ) : (
         <>
-          <WeekStrip
-            value={selected}
-            onChange={setSelected}
-            activeDays={activeDays}
-            max={today}
-          />
-
-          <div className="mt-4">
-            <DayPreviewCard
-              day={selected}
-              title={dayTitles?.[selected] ?? ''}
-              note={dayNotes[selected] ?? ''}
-              isToday={selected === today}
-              onOpen={onSelectDay}
+          {/*
+            上のひとかたまり。日付を選ぶところと、その日の日記を
+            1枚の白い面に収める。別々に置くと「操作」と「中身」が
+            バラバラに見えるが、ここは「選ぶ→見る」でひと続き。
+            狭い画面では左右の余白ぶんだけ外へ出し、下だけ丸める。
+            画面の上から続いてきた面が、ここで終わるように見せる
+          */}
+          <div className="-mx-4 rounded-b-3xl bg-surface px-4 pb-5 pt-1 sm:mx-0 sm:rounded-2xl sm:px-5 sm:pt-4">
+            <WeekStrip
+              value={selected}
+              onChange={setSelected}
+              activeDays={activeDays}
+              max={today}
             />
+
+            <div className="mt-4">
+              <DayPreviewCard
+                day={selected}
+                title={dayTitles?.[selected] ?? ''}
+                note={dayNotes[selected] ?? ''}
+                isToday={selected === today}
+                onOpen={onSelectDay}
+              />
+            </div>
           </div>
 
           {/* 日記の中と同じ見せ方。画面が変わっても、
@@ -130,6 +124,7 @@ export default function CalendarScreen({
             onChanged={onChanged}
             onAdd={onAdd}
             title={selected === today ? '今日のトレード' : 'この日のトレード'}
+            bare
           />
 
           <button
