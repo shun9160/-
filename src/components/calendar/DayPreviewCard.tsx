@@ -26,7 +26,8 @@ interface Props {
   /** 本文の文字。冒頭だけ見せる */
   note: string
   isToday: boolean
-  onOpen: (day: string) => void
+  /** y は押した場所の高さ。そこを軸に開く動きに使う */
+  onOpen: (day: string, y: number) => void
 }
 
 export default function DayPreviewCard({ day, title, note, isToday, onOpen }: Props) {
@@ -37,7 +38,7 @@ export default function DayPreviewCard({ day, title, note, isToday, onOpen }: Pr
   return (
     <button
       type="button"
-      onClick={() => onOpen(day)}
+      onClick={(e) => onOpen(day, e.currentTarget.getBoundingClientRect().top)}
       // ロゴの紫そのままだと、上に載る小さな白文字が読める濃さに届かない
       // （白100%でも 5.15 しか出ない）。同じ色みのまま一段だけ暗くしてある
       className="relative w-full overflow-hidden rounded-2xl bg-gradient-to-br from-[#5433E0] to-[#3A2FC0] px-5 py-5 text-left text-white transition-transform active:scale-[0.995]"

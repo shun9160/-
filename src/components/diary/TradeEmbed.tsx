@@ -73,7 +73,7 @@ export default function TradeEmbed({
         {!bare && <Rule />}
         <h2 className={`text-lg font-bold ${bare ? '' : 'mt-6'}`}>{title}</h2>
         <p className="mt-2 text-[15px] leading-[1.9] text-ink3">
-          この日の取引はまだ入っていません。
+          まだ取引が入っていません。
           <br />
           履歴を取り込むと、ここに自動で並びます。
         </p>

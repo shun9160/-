@@ -3,6 +3,8 @@ import type { Account, EnrichedTrade } from '../lib/types'
 import { fetchTradeImageCounts } from '../lib/repo'
 import { jstDayKey } from '../lib/timezone'
 import DayScreen from './diary/DayScreen'
+import DayPreviewCard from './calendar/DayPreviewCard'
+import TradeEmbed from './diary/TradeEmbed'
 import JournalPage from './diary/JournalPage'
 import DiaryAgenda from './diary/DiaryAgenda'
 
@@ -136,6 +138,7 @@ export default function Diary({
     () => trades.filter((t) => t.jstDay === selected),
     [trades, selected],
   )
+  const todayTrades = useMemo(() => trades.filter((t) => t.jstDay === today), [trades, today])
   const isToday = selected === today
 
   /** 日をずらす。カレンダーは「カレンダー」タブにあるので、ここでは前後の移動だけ */
@@ -170,16 +173,45 @@ export default function Diary({
     <div>
       {/* 入口の一覧。開いている間も残しておく。
           後ろに残っているから、上にかぶさってくる動きが見える */}
-      {/* 見出しは軽く。数と使い方は、すぐ下の帯が受け持つ */}
+      {/* 見出しは軽く。数と使い方は、下の帯が受け持つ */}
       <h2 className="mb-2.5 text-base font-bold">日記</h2>
-      <DiaryAgenda
-        trades={trades}
-        dayNotes={dayNotes}
-        dayTitles={dayTitles}
-        imageCounts={imageCounts}
-        today={today}
+
+      {/*
+        いちばん上は今日の1枚。書いてあれば冒頭を見せ、
+        書いていなければ書き始める入口になる。
+        押すとその日が開く。
+      */}
+      <DayPreviewCard
+        day={today}
+        title={dayTitles?.[today] ?? ''}
+        note={dayNotes[today] ?? ''}
+        isToday
         onOpen={open}
       />
+
+      {/* その下は今日のトレード。日記の中と同じ形で出す */}
+      <TradeEmbed
+        trades={todayTrades}
+        accounts={accounts}
+        readOnly={readOnly}
+        onChanged={onChanged}
+        onAdd={onAdd}
+        title="今日のトレード"
+        bare
+      />
+
+      {/* ここから下は積み上がってきたもの。今日は上で出したので昨日から */}
+      <div className="mt-9">
+        <DiaryAgenda
+          trades={trades}
+          dayNotes={dayNotes}
+          dayTitles={dayTitles}
+          imageCounts={imageCounts}
+          today={today}
+          startFrom={shiftDayKey(today, -1)}
+          onOpen={open}
+        />
+      </div>
 
       {openDay && (
         <DayScreen

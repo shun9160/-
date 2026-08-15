@@ -110,7 +110,7 @@ export default function CalendarScreen({
                 title={dayTitles?.[selected] ?? ''}
                 note={dayNotes[selected] ?? ''}
                 isToday={selected === today}
-                onOpen={onSelectDay}
+                onOpen={(d) => onSelectDay(d)}
               />
             </div>
           </div>

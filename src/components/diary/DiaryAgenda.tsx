@@ -36,8 +36,13 @@ interface Props {
   dayTitles?: Record<string, string>
   /** 取引ごとのチャート枚数。写真があることを一覧で示すのに使う */
   imageCounts?: Record<string, number>
-  /** いちばん新しい日（YYYY-MM-DD）。ふつうは今日 */
+  /** 今日（YYYY-MM-DD）。今日だけ見た目を変えるのに使う */
   today: string
+  /**
+   * 一覧の始まり。ここから過去へさかのぼる。
+   * 今日ぶんを上の紫のカードが受け持つときは、昨日を渡す
+   */
+  startFrom?: string
   /** 日を開く。y は押した場所の高さで、そこを軸に開く動きに使う */
   onOpen: (day: string, y: number) => void
 }
@@ -58,8 +63,10 @@ export default function DiaryAgenda({
   dayTitles,
   imageCounts,
   today,
+  startFrom,
   onOpen,
 }: Props) {
+  const head = startFrom ?? today
   const [span, setSpan] = useState(FIRST)
 
   const byDay = useMemo(() => {
@@ -75,13 +82,13 @@ export default function DiaryAgenda({
   /** いちばん古い記録。そこまでは「さらに前」で辿れる */
   const oldest = useMemo(() => {
     const days = [...byDay.keys(), ...Object.keys(dayNotes), ...Object.keys(dayTitles ?? {})].sort()
-    return days[0] ?? today
-  }, [byDay, dayNotes, dayTitles, today])
+    return days[0] ?? head
+  }, [byDay, dayNotes, dayTitles, head])
 
   const rows = useMemo<Row[]>(() => {
     const out: Row[] = []
     for (let i = 0; i < span; i++) {
-      const day = shift(today, -i)
+      const day = shift(head, -i)
       if (day < oldest && out.some((r) => r.trades.length || r.note || r.title)) break
       const list = byDay.get(day) ?? []
       out.push({
@@ -94,9 +101,9 @@ export default function DiaryAgenda({
       })
     }
     return out
-  }, [span, today, oldest, byDay, dayNotes, dayTitles, imageCounts])
+  }, [span, head, oldest, byDay, dayNotes, dayTitles, imageCounts])
 
-  const canMore = shift(today, -span) >= oldest
+  const canMore = shift(head, -span) >= oldest
   /** 書いた日の数。続いていることが目に見えるように出す */
   const written = rows.filter((r) => r.title || r.note).length
 
@@ -106,7 +113,7 @@ export default function DiaryAgenda({
           下のタブと同じ色にして、「濃い面」の使いどころをそろえる */}
       <div className="-mx-4 flex items-center gap-3 bg-night px-4 py-2.5 text-white sm:mx-0 sm:rounded-xl">
         <span className="text-[10px] font-bold uppercase tracking-[0.18em] text-white/60">
-          記録
+          これまで
         </span>
         <span className="text-[13px] font-bold tabular-nums">
           {written}
