@@ -4,6 +4,7 @@ import type { DayEntry } from '../../lib/journal'
 import { emptyEntry, isEmpty, plainText } from '../../lib/journal'
 import { fetchDayEntry, saveDayEntry } from '../../lib/repo'
 import { useAutoSave } from '../../hooks/useAutoSave'
+import type { SaveStatus } from '../../hooks/useAutoSave'
 import { fmtJst } from '../../lib/timezone'
 import AutoTextarea from '../AutoTextarea'
 import Icon from '../Icon'
@@ -35,7 +36,7 @@ interface Props {
   onChanged: () => void
   onAdd?: () => void
   /** 保存の様子を上に出すため、外へ伝える */
-  onSaveState?: (state: 'idle' | 'saving' | 'saved' | 'error') => void
+  onSaveState?: (status: SaveStatus) => void
 }
 
 export default function JournalPage({
@@ -62,15 +63,15 @@ export default function JournalPage({
     }
   }, [day])
 
-  const state = useAutoSave(entry, saveDayEntry, {
+  const status = useAutoSave(entry, saveDayEntry, {
     paused: loading || !!readOnly,
     // 開いただけの日に、空の行を作らない
     skip: isEmpty,
   })
 
   useEffect(() => {
-    onSaveState?.(state)
-  }, [state, onSaveState])
+    onSaveState?.(status)
+  }, [status, onSaveState])
 
   function set<K extends keyof DayEntry>(key: K, value: DayEntry[K]) {
     setEntry((e) => ({ ...e, [key]: value }))

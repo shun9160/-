@@ -1,5 +1,6 @@
 import { createPortal } from 'react-dom'
 import type { CSSProperties, ReactNode } from 'react'
+import type { SaveStatus } from '../../hooks/useAutoSave'
 import { fmtJst } from '../../lib/timezone'
 import SwipePager from '../SwipePager'
 import Icon from '../Icon'
@@ -44,8 +45,8 @@ interface Props {
   /** 横に振って移れる日。真ん中がいま開いている日 */
   swipeDays: string[]
   onPickDay: (day: string) => void
-  /** 書いたものが保存できているか。右上に小さく出す */
-  saveState?: 'idle' | 'saving' | 'saved' | 'error'
+  /** 書いたものが保存できているか。上に小さく出す */
+  save?: SaveStatus
   children: ReactNode
 }
 
@@ -61,16 +62,16 @@ export default function DayScreen({
   onAdd,
   swipeDays,
   onPickDay,
-  saveState = 'idle',
+  save = { state: 'idle', error: null },
   children,
 }: Props) {
   const iso = `${day}T00:00:00+09:00`
   const saveLabel =
-    saveState === 'saving'
+    save.state === 'saving'
       ? '保存中…'
-      : saveState === 'saved'
+      : save.state === 'saved'
         ? '保存しました'
-        : saveState === 'error'
+        : save.state === 'error'
           ? '保存できませんでした'
           : ''
 
@@ -97,20 +98,38 @@ export default function DayScreen({
           className="relative px-4 pb-32"
           style={{ paddingTop: 'calc(env(safe-area-inset-top, 0px) + 1.25rem)' }}
         >
-          {/* 保存の様子。書くことの邪魔にならないよう、右上に小さく */}
-          <div className="mx-auto flex h-4 max-w-[42rem] items-center justify-end">
-            {isToday && !saveLabel && (
-              <span className="text-[10px] font-bold tracking-wider text-brand/70">TODAY</span>
-            )}
-            {saveLabel && (
-              <span
-                aria-live="polite"
-                className={`text-[11px] font-semibold ${
-                  saveState === 'error' ? 'text-down' : 'text-ink3'
-                }`}
-              >
-                {saveLabel}
-              </span>
+          {/*
+            保存の様子。
+            書いている最中はページの下のほうにいるので、上に固定して
+            いつでも見えるようにする。以前は上端に置いていて、
+            少し下へ書き進んだ時点で画面の外に出ていた
+          */}
+          <div className="sticky top-0 z-20 -mx-4 bg-page px-4 py-1">
+            <div className="mx-auto flex min-h-[1rem] max-w-[42rem] items-center justify-end">
+              {isToday && !saveLabel && (
+                <span className="text-[10px] font-bold tracking-wider text-brand/70">TODAY</span>
+              )}
+              {saveLabel && (
+                <span
+                  aria-live="polite"
+                  className={`text-[11px] font-semibold ${
+                    save.state === 'error' ? 'text-down' : 'text-ink3'
+                  }`}
+                >
+                  {saveLabel}
+                </span>
+              )}
+            </div>
+
+            {/*
+              失敗したときは理由まで出す。「保存できませんでした」だけだと
+              何を直せばいいのか分からず、書いたものが消えるのを
+              黙って待つことになる
+            */}
+            {save.state === 'error' && save.error && (
+              <p className="mx-auto mt-1 max-w-[42rem] rounded-lg bg-down-soft px-3 py-2 text-[12px] leading-relaxed text-down">
+                {save.error}
+              </p>
             )}
           </div>
 

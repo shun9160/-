@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
+import { friendlyError } from '../lib/errors'
 
 /**
  * 書いたそばから勝手に保存する。
@@ -13,6 +14,12 @@ import { useEffect, useRef, useState } from 'react'
 
 export type SaveState = 'idle' | 'saving' | 'saved' | 'error'
 
+export interface SaveStatus {
+  state: SaveState
+  /** 失敗したときの理由。画面に出して、原因が分かるようにする */
+  error: string | null
+}
+
 interface Options<T> {
   /** 手が止まってから送るまでの待ち時間(ms) */
   delay?: number
@@ -26,8 +33,14 @@ export function useAutoSave<T>(
   value: T,
   save: (value: T) => Promise<void>,
   { delay = 900, paused = false, skip }: Options<T> = {},
-): SaveState {
+): SaveStatus {
   const [state, setState] = useState<SaveState>('idle')
+  /**
+   * 失敗したときの理由。
+   * 「保存できませんでした」だけだと、直しようがない。
+   * データベース側の言い分をそのまま見せる
+   */
+  const [error, setError] = useState<string | null>(null)
 
   const saveRef = useRef(save)
   saveRef.current = save
@@ -78,10 +91,12 @@ export function useAutoSave<T>(
     try {
       await saveRef.current(v)
       savedRef.current = json
+      setError(null)
       setState('saved')
       // しばらくしたら消す。ずっと出ていると視界の邪魔になる
       clear.current = window.setTimeout(() => setState('idle'), 2200)
-    } catch {
+    } catch (e) {
+      setError(friendlyError(e))
       setState('error')
     } finally {
       busy.current = false
@@ -109,5 +124,5 @@ export function useAutoSave<T>(
     }
   }, [])
 
-  return state
+  return { state, error }
 }

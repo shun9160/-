@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import type { Account, EnrichedTrade } from '../lib/types'
 import { jstDayKey } from '../lib/timezone'
+import type { SaveStatus } from '../hooks/useAutoSave'
 import DayScreen from './diary/DayScreen'
 import Icon from './Icon'
 import DayPreviewCard from './calendar/DayPreviewCard'
@@ -68,8 +69,8 @@ export default function Diary({
   const [anim, setAnim] = useState<'in' | 'out' | null>(null)
   /** 押した場所（画面の上からの距離）。そこを軸に開く */
   const [originY, setOriginY] = useState(0)
-  /** 日記が保存できているか。記事から上がってきて、画面の右上に出る */
-  const [saveState, setSaveState] = useState<'idle' | 'saving' | 'saved' | 'error'>('idle')
+  /** 日記が保存できているか。記事から上がってきて、画面の上に出る */
+  const [save, setSave] = useState<SaveStatus>({ state: 'idle', error: null })
   const timer = useRef<number | undefined>(undefined)
 
   useEffect(() => () => window.clearTimeout(timer.current), [])
@@ -200,7 +201,7 @@ export default function Diary({
           onAdd={onAdd}
           swipeDays={swipeDays}
           onPickDay={setSelected}
-          saveState={saveState}
+          save={save}
         >
           <JournalPage
             key={selected}
@@ -210,7 +211,7 @@ export default function Diary({
             readOnly={readOnly}
             onChanged={onChanged}
             onAdd={onAdd}
-            onSaveState={setSaveState}
+            onSaveState={setSave}
           />
         </DayScreen>
       )}
