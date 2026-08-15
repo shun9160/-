@@ -11,6 +11,13 @@ interface Props {
   email: string | null
   onOpenAccount: () => void
   accountActive?: boolean
+  /**
+   * サンプルを見ている人を、ログインへ送る。
+   * 渡されたときは、いちばん下を「アカウント」ではなくこちらに差し替える。
+   * まだアカウントが無い人にアカウントの設定を開かせても、
+   * 「ログイン中 —」と出るだけで行き止まりになる
+   */
+  onSignIn?: () => void
 }
 
 /** デスクトップの左サイドバー。モバイルでは下タブ(BottomNav)を使う */
@@ -21,6 +28,7 @@ export default function Sidebar({
   email,
   onOpenAccount,
   accountActive,
+  onSignIn,
 }: Props) {
   return (
     <aside className="sticky top-0 hidden h-screen w-60 shrink-0 flex-col border-r border-line bg-surface md:flex">
@@ -57,31 +65,56 @@ export default function Sidebar({
 
       {/* 自分の情報。押すと基本情報と連携の設定を開く */}
       <div className="border-t border-line p-3">
-        <button
-          onClick={onOpenAccount}
-          aria-current={accountActive ? 'page' : undefined}
-          title="アカウントと連携"
-          className={`flex w-full items-center gap-2.5 rounded-xl px-3 py-2 text-left transition-colors ${
-            accountActive ? 'bg-brand-soft' : 'hover:bg-sunken'
-          }`}
-        >
-          <Avatar email={email} size={32} />
-          <span className="min-w-0 flex-1">
-            <span
-              className={`block truncate text-xs font-semibold ${
-                accountActive ? 'text-brand' : 'text-ink'
-              }`}
+        {onSignIn ? (
+          /*
+            色は塗らない。塗ったボタンは上のバーに1つだけにしておく。
+            同じ画面に同じ色のボタンが2つあると、どちらを押せばいいのか
+            考えさせることになる。ここは「いまサンプルを見ている」ことを
+            伝えるのが主で、入口は添えるだけでいい
+          */
+          <>
+            {/* いま何を見ているかの説明。読ませたい文なので ink3 では薄すぎる
+                （白の上で 2.73。ink2 なら 5.29 出る） */}
+            <p className="px-1 pb-2 text-[12px] leading-relaxed text-ink2">
+              サンプルを表示中です。ログインすると、自分の記録を残せます。
+            </p>
+            <button
+              onClick={onSignIn}
+              // ロゴの紫そのままだと、薄い紫の上で 4.49 しか出ない。
+              // 同じ色みのまま一段だけ暗くしてある（6.25）
+              className="flex w-full items-center justify-center gap-1.5 rounded-xl bg-brand-soft px-3 py-2 text-[13px] font-bold text-[#5433E0] transition-colors hover:bg-brand hover:text-white"
             >
-              {email ?? 'サンプル表示'}
+              ログイン / 新規登録
+              <Icon name="right" size={14} />
+            </button>
+          </>
+        ) : (
+          <button
+            onClick={onOpenAccount}
+            aria-current={accountActive ? 'page' : undefined}
+            title="アカウントと連携"
+            className={`flex w-full items-center gap-2.5 rounded-xl px-3 py-2 text-left transition-colors ${
+              accountActive ? 'bg-brand-soft' : 'hover:bg-sunken'
+            }`}
+          >
+            <Avatar email={email} size={32} />
+            <span className="min-w-0 flex-1">
+              <span
+                className={`block truncate text-xs font-semibold ${
+                  accountActive ? 'text-brand' : 'text-ink'
+                }`}
+              >
+                {email ?? 'サンプル表示'}
+              </span>
+              <span className="block truncate text-[11px] text-ink3">アカウントと連携</span>
             </span>
-            <span className="block truncate text-[11px] text-ink3">アカウントと連携</span>
-          </span>
-          <Icon
-            name="right"
-            size={15}
-            className={accountActive ? 'shrink-0 text-brand' : 'shrink-0 text-ink3'}
-          />
-        </button>
+            <Icon
+              name="right"
+              size={15}
+              className={accountActive ? 'shrink-0 text-brand' : 'shrink-0 text-ink3'}
+            />
+          </button>
+        )}
       </div>
     </aside>
   )

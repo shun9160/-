@@ -207,6 +207,7 @@ export default function App() {
         email={userEmail}
         onOpenAccount={openAccount}
         accountActive={showAccount}
+        onSignIn={demo && configured ? () => setPreviewMode(false) : undefined}
       />
 
       {/* 下のタブバーとiPhoneのホームバーのぶんだけ、中身の下に余白をとる */}
@@ -225,9 +226,11 @@ export default function App() {
           <div className="mx-auto flex max-w-6xl items-center gap-2">
             {/* スマホ。タブの画面は下のバーで場所が分かるので、上には名前を出す。
                 下のバーに無い画面（アカウントなど）のときだけ、そこの名前に差し替える。 */}
-            <span className="min-w-0 md:hidden">
+            {/* 名前は縮めない（読めない字になる）。
+                画面の名前のほうは、長ければ後ろを省く */}
+            <span className={`min-w-0 md:hidden ${subScreen ? 'overflow-hidden' : 'shrink-0'}`}>
               {subScreen ? (
-                <span className="truncate text-base font-bold text-ink">{subScreen}</span>
+                <span className="block truncate text-base font-bold text-ink">{subScreen}</span>
               ) : (
                 <Wordmark size={21} onDark={heroFlush} />
               )}
@@ -240,7 +243,7 @@ export default function App() {
             <div className="ml-auto flex min-w-0 items-center gap-2">
               {/* 見ている口座。ここに置くと、面をひとつ減らせる */}
               {!showAccount && !showAccounts && !loading && accounts.length > 1 && (
-                <span className={heroFlush ? 'hidden md:block' : ''}>
+                <span className={`min-w-0 ${heroFlush ? 'hidden md:block' : ''}`}>
                   <AccountSwitcher
                     accounts={accounts}
                     value={accountId}
@@ -250,21 +253,45 @@ export default function App() {
                 </span>
               )}
 
-              {/* 自分のところ。押すと基本情報と連携の設定を開く */}
-              <button
-                onClick={openAccount}
-                className={`flex shrink-0 items-center rounded-full p-0.5 transition-colors md:hidden ${
-                  showAccount
-                    ? 'ring-2 ring-brand'
-                    : heroFlush
-                      ? 'ring-2 ring-white/40'
-                      : 'hover:bg-sunken'
-                }`}
-                title="アカウントと連携"
-                aria-label="アカウントと連携"
-              >
-                <Avatar email={userEmail} size={28} />
-              </button>
+              {/*
+                サンプルを見ている人が、いつでも入れるように。
+
+                この画面で唯一の、色を塗ったボタンにしてある。
+                サンプルは「見て回るところ」なので、どこを見ていても
+                入口が同じ場所にあるほうがいい。
+                下のタブや画面の中に混ぜると、そのタブを開いている人にしか
+                見えなくなる。
+
+                自分の丸（アバター）は、このときは出さない。
+                アカウントがまだ無いので中身が「?」にしかならず、
+                意味のない丸のためにボタンの場所を削ることになる。
+              */}
+              {demo && configured ? (
+                <button
+                  onClick={() => setPreviewMode(false)}
+                  className="shrink-0 whitespace-nowrap rounded-full bg-brand px-3.5 py-1.5 text-[13px] font-bold text-white transition-transform active:scale-95"
+                  aria-label="ログイン・新規登録"
+                >
+                  ログイン
+                  <span className="hidden sm:inline"> / 新規登録</span>
+                </button>
+              ) : (
+                /* 自分のところ。押すと基本情報と連携の設定を開く */
+                <button
+                  onClick={openAccount}
+                  className={`flex shrink-0 items-center rounded-full p-0.5 transition-colors md:hidden ${
+                    showAccount
+                      ? 'ring-2 ring-brand'
+                      : heroFlush
+                        ? 'ring-2 ring-white/40'
+                        : 'hover:bg-sunken'
+                  }`}
+                  title="アカウントと連携"
+                  aria-label="アカウントと連携"
+                >
+                  <Avatar email={userEmail} size={28} />
+                </button>
+              )}
             </div>
           </div>
         </header>

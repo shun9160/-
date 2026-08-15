@@ -89,14 +89,19 @@ export default function AccountSwitcher({ accounts, value, onChange, onManage }:
   }
 
   return (
-    <div className="flex items-center">
+    // min-w-0 を切らさないこと。ここで切れると、狭い画面で
+    // 口座の名前が縮まず、隣にあるボタンを画面の外へ押し出す
+    <div className="flex min-w-0 items-center">
       <div ref={boxRef} className="relative min-w-0">
         <button
           type="button"
           onClick={() => setOpen((v) => !v)}
           aria-haspopup="listbox"
           aria-expanded={open}
-          className={`flex h-9 max-w-[15rem] items-center gap-2 rounded-full px-2.5 pr-2 text-left transition-colors ${CHIP}`}
+          // 100% を上限に入れておくこと。これが無いと、狭い画面で
+          // 親が縮んでもこの札だけ中身の幅のまま残り、
+          // 中の truncate が効かずに隣のボタンの上へはみ出して描かれる
+          className={`flex h-9 max-w-[min(15rem,100%)] items-center gap-2 rounded-full px-2.5 pr-2 text-left transition-colors ${CHIP}`}
         >
           {selected ? (
             <BrokerMark broker={selected.broker} size={22} />
