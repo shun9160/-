@@ -1,12 +1,12 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import type { Account, EnrichedTrade } from '../lib/types'
-import { fetchTradeImageCounts } from '../lib/repo'
 import { jstDayKey } from '../lib/timezone'
 import DayScreen from './diary/DayScreen'
+import Icon from './Icon'
 import DayPreviewCard from './calendar/DayPreviewCard'
+import WeekStrip from './calendar/WeekStrip'
 import TradeEmbed from './diary/TradeEmbed'
 import JournalPage from './diary/JournalPage'
-import DiaryAgenda from './diary/DiaryAgenda'
 
 interface Props {
   trades: EnrichedTrade[]
@@ -24,6 +24,8 @@ interface Props {
    * 一覧を出しているあいだは null。日ではなく口座が動くようにする
    */
   onDayChange?: (day: string | null) => void
+  /** ひと月の升目（カレンダータブ）へ */
+  onOpenCalendar?: () => void
 }
 
 /**
@@ -38,19 +40,13 @@ export default function Diary({
   dayNotes,
   dayTitles,
   onChanged,
+  onOpenCalendar,
   focusDay,
   readOnly,
   onAdd,
   onDayChange,
 }: Props) {
   const today = useMemo(() => jstDayKey(new Date().toISOString()), [])
-
-  // 取引のある最新日。今日の記録がまだ無くても、直前の日から見返せるようにする
-  const latestTradeDay = useMemo(() => {
-    let latest: string | null = null
-    for (const t of trades) if (!latest || t.jstDay > latest) latest = t.jstDay
-    return latest
-  }, [trades])
 
   const [selected, setSelected] = useState<string>(focusDay ?? today)
   /**
@@ -116,18 +112,6 @@ export default function Diary({
     }
   }, [focusDay])
 
-  // 今日にまだ何も無く、過去に記録があるなら、そちらを開いておく
-  useEffect(() => {
-    if (focusDay) return
-    setSelected((cur) => {
-      if (cur !== today) return cur
-      const hasToday = trades.some((t) => t.jstDay === today) || dayNotes[today]
-      return hasToday || !latestTradeDay ? cur : latestTradeDay
-    })
-    // 初回と、取引の読み込みが終わったときだけでよい
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [latestTradeDay])
-
   // 横に振って日を移れるよう、いま見ている日を外へ知らせる。
   // 一覧のときは知らせない（一覧で振っても日が動くのは分かりにくい）
   useEffect(() => {
@@ -138,8 +122,10 @@ export default function Diary({
     () => trades.filter((t) => t.jstDay === selected),
     [trades, selected],
   )
-  const todayTrades = useMemo(() => trades.filter((t) => t.jstDay === today), [trades, today])
   const isToday = selected === today
+
+  /** 取引のあった日。週の並びに点を打つのに使う */
+  const activeDays = useMemo(() => new Set(trades.map((t) => t.jstDay)), [trades])
 
   /** 日をずらす。カレンダーは「カレンダー」タブにあるので、ここでは前後の移動だけ */
   function shiftDay(delta: number) {
@@ -147,16 +133,6 @@ export default function Diary({
     d.setUTCDate(d.getUTCDate() + delta)
     setSelected(d.toISOString().slice(0, 10))
   }
-
-  // 一覧に「写真あり」を出すための枚数。重い画像そのものは読まない
-  const [imageCounts, setImageCounts] = useState<Record<string, number>>({})
-  useEffect(() => {
-    fetchTradeImageCounts()
-      .then(setImageCounts)
-      .catch(() => {
-        /* 数えられなくても一覧は出せる */
-      })
-  }, [trades.length])
 
   /** 動きの終わり。子の animation が上がってくることがあるので、自分のぶんだけ見る */
   function onAnimEnd(e: React.AnimationEvent<HTMLDivElement>) {
@@ -173,45 +149,44 @@ export default function Diary({
     <div>
       {/* 入口の一覧。開いている間も残しておく。
           後ろに残っているから、上にかぶさってくる動きが見える */}
-      {/* 見出しは軽く。数と使い方は、下の帯が受け持つ */}
-      <h2 className="mb-2.5 text-base font-bold">日記</h2>
-
       {/*
-        いちばん上は今日の1枚。書いてあれば冒頭を見せ、
-        書いていなければ書き始める入口になる。
-        押すとその日が開く。
+        上のひとかたまり。日を選ぶところと、その日の日記を
+        1枚の白い面に収める。「選ぶ→見る」でひと続きだから。
+        狭い画面では端まで広げ、下だけ丸めて、面がここで終わるように見せる
       */}
-      <DayPreviewCard
-        day={today}
-        title={dayTitles?.[today] ?? ''}
-        note={dayNotes[today] ?? ''}
-        isToday
-        onOpen={open}
-      />
+      <div className="-mx-4 rounded-b-3xl bg-surface px-4 pb-5 pt-1 sm:mx-0 sm:rounded-2xl sm:px-5 sm:pt-4">
+        <WeekStrip value={selected} onChange={setSelected} activeDays={activeDays} max={today} />
 
-      {/* その下は今日のトレード。日記の中と同じ形で出す */}
+        <div className="mt-4">
+          <DayPreviewCard
+            day={selected}
+            title={dayTitles?.[selected] ?? ''}
+            note={dayNotes[selected] ?? ''}
+            isToday={isToday}
+            onOpen={open}
+          />
+        </div>
+      </div>
+
+      {/* その下はその日のトレード。日記の中と同じ形で出す */}
       <TradeEmbed
-        trades={todayTrades}
+        trades={dayTrades}
         accounts={accounts}
         readOnly={readOnly}
         onChanged={onChanged}
         onAdd={onAdd}
-        title="今日のトレード"
+        title={isToday ? '今日のトレード' : 'この日のトレード'}
         bare
       />
 
-      {/* ここから下は積み上がってきたもの。今日は上で出したので昨日から */}
-      <div className="mt-9">
-        <DiaryAgenda
-          trades={trades}
-          dayNotes={dayNotes}
-          dayTitles={dayTitles}
-          imageCounts={imageCounts}
-          today={today}
-          startFrom={shiftDayKey(today, -1)}
-          onOpen={open}
-        />
-      </div>
+      <button
+        type="button"
+        onClick={() => onOpenCalendar?.()}
+        className="mt-8 flex w-full items-center justify-center gap-1.5 rounded-xl py-2.5 text-[13px] font-semibold text-ink3 transition-colors hover:bg-sunken hover:text-ink"
+      >
+        <Icon name="calendar" size={15} />
+        ひと月ぶんをまとめて見る
+      </button>
 
       {openDay && (
         <DayScreen

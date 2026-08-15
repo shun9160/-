@@ -6,6 +6,8 @@ import Icon from './Icon'
 
 interface Props {
   trades: EnrichedTrade[]
+  /** 日記を書いた日。升目に小さな点を打つ */
+  writtenDays?: Set<string>
   onSelectDay?: (day: string) => void
 }
 
@@ -23,7 +25,7 @@ const MONTH_ORDERS: { value: MonthOrder; label: string }[] = [
   { value: 'loss', label: '損益が小さい順' },
 ]
 
-export default function PnlCalendar({ trades, onSelectDay }: Props) {
+export default function PnlCalendar({ trades, writtenDays, onSelectDay }: Props) {
   const byDay = useMemo(() => groupNetByDay(trades), [trades])
 
   // 取引のある最新月を初期表示にする
@@ -164,7 +166,13 @@ export default function PnlCalendar({ trades, onSelectDay }: Props) {
 
       <div className="mt-3 sm:mt-4">
         {mode === 'daily' ? (
-          <DailyGrid year={year} month={month} byDay={byDay} onSelectDay={onSelectDay} />
+          <DailyGrid
+            year={year}
+            month={month}
+            byDay={byDay}
+            writtenDays={writtenDays}
+            onSelectDay={onSelectDay}
+          />
         ) : (
           <MonthlyGrid year={year} byMonth={byMonth} order={monthOrder} />
         )}
@@ -241,11 +249,13 @@ function DailyGrid({
   year,
   month,
   byDay,
+  writtenDays,
   onSelectDay,
 }: {
   year: number
   month: number
   byDay: Record<string, number>
+  writtenDays?: Set<string>
   onSelectDay?: (day: string) => void
 }) {
   const first = new Date(Date.UTC(year, month, 1))
@@ -271,14 +281,17 @@ function DailyGrid({
           if (d == null) return <div key={i} />
           const key = `${year}-${String(month + 1).padStart(2, '0')}-${String(d).padStart(2, '0')}`
           const net = byDay[key]
+          const wrote = writtenDays?.has(key) ?? false
           const has = net != null
           const pos = has && net > 0
           const neg = has && net < 0
+          // 取引が無くても、日記を書いた日は押して開けるようにする
+          const open = has || wrote
           return (
             <button
               key={i}
-              onClick={() => has && onSelectDay?.(key)}
-              disabled={!has}
+              onClick={() => open && onSelectDay?.(key)}
+              disabled={!open}
               className={[
                 // スマホは正方形が収まりよい。
                 // 画面が広いと正方形のままでは背が高くなりすぎ、
@@ -291,10 +304,12 @@ function DailyGrid({
                     : neg
                       ? 'bg-down-soft hover:bg-down/12'
                       : 'bg-sunken'
-                  : '',
+                  : wrote
+                    ? 'bg-brand-soft hover:bg-brand/15'
+                    : '',
               ].join(' ')}
             >
-              <span className={`text-xs font-semibold ${has ? 'text-ink' : 'text-ink3'}`}>{d}</span>
+              <span className={`text-xs font-semibold ${open ? 'text-ink' : 'text-ink3'}`}>{d}</span>
               {has && (
                 <span
                   className={`text-[10px] font-bold leading-none tabular-nums ${
@@ -303,6 +318,11 @@ function DailyGrid({
                 >
                   {shorten(net)}
                 </span>
+              )}
+              {/* 日記を書いた日の印。金額とは別の情報なので、
+                  数字ではなく点で出して、升目を混み合わせない */}
+              {wrote && (
+                <span aria-hidden="true" className="h-1 w-1 rounded-full bg-brand" />
               )}
             </button>
           )

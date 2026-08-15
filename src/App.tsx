@@ -383,13 +383,9 @@ export default function App() {
               {screen === 'calendar' && (
                 <CalendarScreen
                   trades={trades}
-                  accounts={accounts}
                   dayNotes={dayNotes}
                   dayTitles={dayTitles}
-                  readOnly={demo}
-                  onChanged={reload}
                   onSelectDay={openDay}
-                  onAdd={() => go('add')}
                 />
               )}
               {screen === 'add' && (
@@ -421,6 +417,7 @@ export default function App() {
                   focusDay={focusDay}
                   readOnly={demo}
                   onAdd={() => go('add')}
+                  onOpenCalendar={() => go('calendar')}
                   onDayChange={setDiaryDay}
                 />
               )}
