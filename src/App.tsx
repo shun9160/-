@@ -380,7 +380,18 @@ export default function App() {
                   heroFlush={heroFlush}
                 />
               )}
-              {screen === 'calendar' && <CalendarScreen trades={trades} onSelectDay={openDay} />}
+              {screen === 'calendar' && (
+                <CalendarScreen
+                  trades={trades}
+                  accounts={accounts}
+                  dayNotes={dayNotes}
+                  dayTitles={dayTitles}
+                  readOnly={demo}
+                  onChanged={reload}
+                  onSelectDay={openDay}
+                  onAdd={() => go('add')}
+                />
+              )}
               {screen === 'add' && (
                 <UploadPanel
                   allTrades={allTrades}
