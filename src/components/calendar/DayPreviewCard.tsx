@@ -9,7 +9,7 @@ import Icon from '../Icon'
  * だと目で分かる。
  *
  * 役目は2つあって、書いてあるかどうかで入れ替わる。
- *  - 書いてある → 冒頭を見せて、続きへ入る扉になる
+ *  - 書いてある → 冒頭を、この面に入るぶんだけ見せる
  *  - 書いていない → 書き始める入口になる
  *
  * 数字は出さない。数字はすぐ下の履歴が受け持つ。
@@ -30,10 +30,35 @@ interface Props {
   onOpen: (day: string, y: number) => void
 }
 
+/**
+ * 冒頭を、見出しと続きに分ける。
+ *
+ * 題名があればそれが見出し。無ければ本文の1行目を見出しに借りる。
+ * 借りるだけで、続きにも同じ文字を出さない（同じ文が二度出ると、
+ * 読んだのに進んでいない感じになる）。
+ *
+ * 続きのほうは改行を潰して1本の文にする。日記の改行をそのまま残すと、
+ * 1文字しかない行で1行ぶん使ってしまい、この面がすかすかになる。
+ * ここは読む場所ではなく「どんな日だったか思い出す」場所なので、
+ * 入るところまで詰めて見せたほうがいい。
+ */
+function splitPreview(title: string, note: string) {
+  const clean = note.replace(/\r/g, '').trim()
+  if (title) return { headline: title, body: clean.replace(/\s+/g, ' ') }
+
+  const nl = clean.indexOf('\n')
+  if (nl === -1) return { headline: clean, body: '' }
+  return {
+    headline: clean.slice(0, nl).trim(),
+    body: clean.slice(nl + 1).replace(/\s+/g, ' ').trim(),
+  }
+}
+
 export default function DayPreviewCard({ day, title, note, isToday, onOpen }: Props) {
   const iso = `${day}T00:00:00+09:00`
   const wd = WEEKDAYS_JA[new Date(`${day}T00:00:00Z`).getUTCDay()]
   const written = !!(title || note)
+  const { headline, body } = splitPreview(title, note)
 
   return (
     <button
@@ -44,22 +69,26 @@ export default function DayPreviewCard({ day, title, note, isToday, onOpen }: Pr
       className="relative w-full overflow-hidden rounded-2xl bg-gradient-to-br from-[#5433E0] to-[#3A2FC0] px-5 py-5 text-left text-white transition-transform active:scale-[0.995]"
     >
       <div className="flex items-start gap-3">
-        <div className="min-w-0 flex-1">
+        {/*
+          高さを下限で揃えておく。書いてある日と書いていない日で
+          面の大きさが変わると、日を移すたびに下の履歴が飛び跳ねる。
+          「続きを読む」は mt-auto で下に貼り付け、
+          冒頭の文がその手前まで伸びられるようにしてある
+        */}
+        <div className="flex min-h-[6.75rem] min-w-0 flex-1 flex-col">
           <p className="text-[12px] font-semibold text-white/85">
             {fmtJst(iso, 'M月d日')}（{wd}）{isToday && <span className="ml-1">・今日</span>}
           </p>
 
           {written ? (
             <>
-              <p className="mt-1.5 line-clamp-2 text-[19px] font-bold leading-snug">
-                {title || note}
-              </p>
-              {title && note && (
-                <p className="mt-1.5 line-clamp-2 text-[13px] leading-relaxed text-white/85">
-                  {note}
+              <p className="mt-1.5 line-clamp-2 text-[19px] font-bold leading-snug">{headline}</p>
+              {body && (
+                <p className="mt-1.5 line-clamp-4 text-[13.5px] leading-relaxed text-white/85">
+                  {body}
                 </p>
               )}
-              <p className="mt-3 flex items-center gap-1 text-[13px] font-bold">
+              <p className="mt-auto flex items-center gap-1 pt-3 text-[13px] font-bold">
                 続きを読む
                 <Icon name="right" size={15} />
               </p>
@@ -72,7 +101,7 @@ export default function DayPreviewCard({ day, title, note, isToday, onOpen }: Pr
               <p className="mt-1.5 text-[13px] leading-relaxed text-white/85">
                 チャートを貼って、そのとき考えていたことを残しておく
               </p>
-              <p className="mt-3 flex items-center gap-1 text-[13px] font-bold">
+              <p className="mt-auto flex items-center gap-1 pt-3 text-[13px] font-bold">
                 書きはじめる
                 <Icon name="right" size={15} />
               </p>
