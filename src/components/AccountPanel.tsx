@@ -26,6 +26,10 @@ interface Props {
   onOpenAccounts?: () => void
   /** 登録済みの口座数 */
   accountCount?: number
+  /** 料金のページを開く */
+  onOpenPricing?: () => void
+  /** いまのプラン名。「無料」など */
+  planName?: string
 }
 
 export default function AccountPanel({
@@ -33,6 +37,8 @@ export default function AccountPanel({
   onSignOut,
   onOpenAccounts,
   accountCount,
+  onOpenPricing,
+  planName,
 }: Props) {
   const [tokens, setTokens] = useState<IngestToken[]>([])
   const [loading, setLoading] = useState(true)
@@ -134,6 +140,27 @@ export default function AccountPanel({
             <span className="block text-sm text-ink2">
               ブローカー・口座番号・原資の設定
               {accountCount != null && <span className="ml-1.5 text-ink3">{accountCount}件</span>}
+            </span>
+          </span>
+          <Icon name="right" size={18} className="shrink-0 text-ink3" />
+        </button>
+      )}
+
+      {/* プランと料金。口座のすぐ下に置く。
+          どちらも「自分の設定」で、探すときに同じところを見る */}
+      {onOpenPricing && (
+        <button
+          onClick={onOpenPricing}
+          className="card flex items-center gap-3 p-5 text-left transition-colors hover:bg-sunken"
+        >
+          <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-brand-soft text-brand">
+            <Icon name="sparkle" size={20} />
+          </span>
+          <span className="min-w-0 flex-1">
+            <span className="block text-base font-bold">プランと料金</span>
+            <span className="block text-sm text-ink2">
+              読み返せる範囲と、チャートを置ける枚数
+              {planName && <span className="ml-1.5 font-semibold text-brand">{planName}</span>}
             </span>
           </span>
           <Icon name="right" size={18} className="shrink-0 text-ink3" />

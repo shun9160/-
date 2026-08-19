@@ -27,6 +27,9 @@ import { TRADE_ORDERS } from './lib/tradeSort'
 import { searchTrades } from './lib/tradeSearch'
 import type { TradeOrder } from './lib/tradeSort'
 import Diary from './components/Diary'
+import PricingScreen from './components/PricingScreen'
+import { usePlan } from './hooks/usePlan'
+import { PLANS } from './lib/plan'
 
 export default function App() {
   const { session, ready, userEmail, signOut } = useAuth()
@@ -37,6 +40,7 @@ export default function App() {
     trades, allTrades, accounts, accountId, setAccountId, account, writeAccount,
     dayNotes, dayTitles, settings, loading, error, configured, demo, reload,
   } = useTrades(authed)
+  const { plan, loading: planLoading } = usePlan(authed)
   const [screen, setScreen] = useState<ScreenKey>('home')
   const [focusDay, setFocusDay] = useState<string | null>(null)
   /** ホームから開く「すべての取引」。タブではなくサブ画面 */
@@ -44,6 +48,8 @@ export default function App() {
   const [showAccount, setShowAccount] = useState(false)
   /** 口座の管理画面。タブではなくサブ画面 */
   const [showAccounts, setShowAccounts] = useState(false)
+  /** 料金のページ。タブではなくサブ画面 */
+  const [showPricing, setShowPricing] = useState(false)
   /** 初期設定を「あとで」にした場合、この画面では出さない */
   const [skipOnboarding, setSkipOnboarding] = useState(false)
   /** 記録できたことを、移った先の画面で知らせる */
@@ -79,6 +85,7 @@ export default function App() {
     setShowAllTrades(false)
     setShowAccount(false)
     setShowAccounts(false)
+    setShowPricing(false)
     window.scrollTo({ top: 0 })
   }
 
@@ -86,6 +93,15 @@ export default function App() {
     setShowAccounts(true)
     setShowAllTrades(false)
     setShowAccount(false)
+    setShowPricing(false)
+    window.scrollTo({ top: 0 })
+  }
+
+  function openPricing() {
+    setShowPricing(true)
+    setShowAllTrades(false)
+    setShowAccount(false)
+    setShowAccounts(false)
     window.scrollTo({ top: 0 })
   }
 
@@ -98,6 +114,7 @@ export default function App() {
     setShowAllTrades(false)
     setShowAccount(false)
     setShowAccounts(false)
+    setShowPricing(false)
     setFlash(message)
     window.scrollTo({ top: 0 })
   }
@@ -108,6 +125,7 @@ export default function App() {
     setShowAllTrades(false)
     setShowAccount(false)
     setShowAccounts(false)
+    setShowPricing(false)
     window.scrollTo({ top: 0 })
   }
 
@@ -125,9 +143,11 @@ export default function App() {
     ? 'アカウント'
     : showAccounts
       ? '口座'
-      : showAllTrades
-        ? 'すべての取引'
-        : null
+      : showPricing
+        ? '料金'
+        : showAllTrades
+          ? 'すべての取引'
+          : null
 
   // ホームは、上部バーからそのままブランドの色の面がつながる作りにする。
   // ただし口座の切り替えやお知らせが間に入るときは、つなげずに普通のカードで出す。
@@ -195,6 +215,7 @@ export default function App() {
     setShowAccount(true)
     setShowAllTrades(false)
     setShowAccounts(false)
+    setShowPricing(false)
     window.scrollTo({ top: 0 })
   }
 
@@ -326,8 +347,12 @@ export default function App() {
                 onSignOut={signOut}
                 onOpenAccounts={demo ? undefined : openAccounts}
                 accountCount={accounts.length}
+                onOpenPricing={demo ? undefined : openPricing}
+                planName={PLANS[plan.plan].name}
               />
             </>
+          ) : showPricing ? (
+            <PricingScreen state={plan} loading={planLoading} onBack={() => setShowPricing(false)} />
           ) : showAccounts ? (
             <>
               <button className="btn btn-ghost mb-3 -ml-2" onClick={() => setShowAccounts(false)}>

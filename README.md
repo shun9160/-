@@ -120,12 +120,41 @@ npm run dev               # http://localhost:5173
    | `SUPABASE_URL` | Project URL | MT5からの受信 / タイプ診断 |
    | `SUPABASE_SERVICE_ROLE_KEY` | **service_role** キー | MT5からの受信 / タイプ診断 |
    | `SUPABASE_ANON_KEY` | anon public キー（任意） | タイプ診断のログイン確認 |
+   | `STRIPE_SECRET_KEY` | `sk_live_…` / `sk_test_…` | 課金 |
+   | `STRIPE_PRICE_PRO` | 月額プランの `price_…` | 課金 |
+   | `STRIPE_PRICE_CREDIT` | 画像の枠の `price_…` | 課金 |
+   | `STRIPE_WEBHOOK_SECRET` | `whsec_…` | 課金（通知の署名確認） |
 
-   > `SUPABASE_SERVICE_ROLE_KEY` は `VITE_` を付けません。付けると画面側に埋め込まれて漏れます。
-   > これは `/api/ingest`（MT5からの受信）と `/api/trader-diagnosis`（タイプ診断の採点）だけが
-   > サーバー側で使います。
+   > `SUPABASE_SERVICE_ROLE_KEY` と `STRIPE_` で始まるものには `VITE_` を付けません。
+   > 付けると画面側に埋め込まれて漏れます。
+   > これらは `/api/ingest`（MT5からの受信）、`/api/trader-diagnosis`（タイプ診断の採点）、
+   > `/api/checkout`・`/api/stripe-webhook`（課金）だけがサーバー側で使います。
 
 4. Deploy
+
+### 5. 課金（Stripe）
+
+課金を使わないなら、この節は飛ばして構いません。上の `STRIPE_` を登録しなければ、
+料金ページは開けますが「お支払いの準備がまだ整っていません」と出ます。
+
+1. **Supabase → SQL Editor** で [`supabase/migrations/2026-08-19_billing.sql`](./supabase/migrations/2026-08-19_billing.sql) を流す
+   - プランとクレジットの表ができ、**無料プランは直近30日ぶんしか読めない**壁が入ります
+   - 壁はデータベース側（RLS）にあります。画面の判定ではないので、書き換えても抜けられません
+2. **Stripe → 商品** を2つ作る
+   - 月額プラン … 980円・継続課金 → `price_…` を `STRIPE_PRICE_PRO` へ
+   - 画像の枠 … 500円・1回きり → `price_…` を `STRIPE_PRICE_CREDIT` へ
+   - 金額は [`src/lib/plan.ts`](./src/lib/plan.ts) の数字と合わせること（画面の表示はこのファイルから出ています）
+3. **Stripe → 開発者 → Webhook** で送信先を追加
+   - URL: `https://<あなたのサイト>/api/stripe-webhook`
+   - 送るイベント: `checkout.session.completed` /
+     `customer.subscription.created` / `.updated` / `.deleted`
+   - 出てきた `whsec_…` を `STRIPE_WEBHOOK_SECRET` へ
+4. テストモードのカード（`4242 4242 4242 4242`）で、一度通してみる
+
+> **まだ足りないもの**：日本でお金を受け取るには
+> 「特定商取引法に基づく表記」「利用規約」「プライバシーポリシー」が要ります。
+> 表記には氏名・住所・電話番号など、こちらでは用意できない情報が入るため、
+> ページはまだ作っていません。
 
 ---
 

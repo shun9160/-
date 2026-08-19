@@ -5,6 +5,8 @@ import type { Account, DayNote, Settings, Trade, TradeImage, TradeInput } from '
 import type { DayEntry } from './journal'
 import { emptyEntry, parseEntry, plainText } from './journal'
 import { demoTradeImages, isDemoId } from './demo'
+import type { PlanState } from './plan'
+import { FREE_STATE } from './plan'
 
 const NO_CLIENT = 'Supabase が未設定です (.env / Netlify の環境変数を確認してください)'
 const NO_USER = 'ログインが必要です'
@@ -872,4 +874,47 @@ export async function migrateImagesToStorage(): Promise<MigrationProgress> {
   }
 
   return { remaining: await countUnmigratedImages(), moved, failed, errors }
+}
+
+// =============================================================
+// プラン（課金）
+// =============================================================
+
+/**
+ * いまのプランを読む。
+ *
+ * データベース側の my_plan() を1回呼ぶだけ。引数が無いので、
+ * 他人のプランは聞けない。
+ *
+ * ここで返す値は「画面に出すため」のもので、これで機能を止めてはいない。
+ * 本当の壁は RLS で、無料プランなら31日より前の行はそもそも降りてこない。
+ * 画面の判定を書き換えても、読めない日記が読めるようにはならない。
+ *
+ * 課金のSQLをまだ流していない環境では、関数が無いので無料として返す。
+ * ここで例外にすると、移行前にアプリ全体が止まってしまう。
+ */
+export async function fetchPlanState(): Promise<PlanState> {
+  if (!supabase) return FREE_STATE
+  const { data, error } = await supabase.rpc('my_plan')
+  if (error) return FREE_STATE
+
+  const row = (Array.isArray(data) ? data[0] : data) as
+    | {
+        plan?: string
+        current_period_end?: string | null
+        cancel_at_period_end?: boolean | null
+        extra_images?: number | null
+        used_images?: number | null
+      }
+    | null
+    | undefined
+  if (!row) return FREE_STATE
+
+  return {
+    plan: row.plan === 'pro' ? 'pro' : 'free',
+    periodEnd: row.current_period_end ?? null,
+    cancelAtPeriodEnd: !!row.cancel_at_period_end,
+    extraImages: row.extra_images ?? 0,
+    usedImages: row.used_images ?? 0,
+  }
 }
