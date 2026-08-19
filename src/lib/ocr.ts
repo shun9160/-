@@ -418,33 +418,175 @@ async function recognizeOne(
   const lines = toLines(data)
 
   // 色から損益の符号を決める。読めない場合は文字どおりの値を使う。
-  const redOf = (box: Bbox): boolean | null =>
-    prepared.canvas ? isRedText(prepared.canvas, box) : null
-
-  // 詳細パネル（ポジション番号あり）は1件として詳しく読む
-  const single = parseMt5Screenshot(text)
-  const hasDetail = single.ticket != null
-
-  if (hasDetail) {
-    const all = lines.flatMap((l) => l.words)
-    if (single.profit != null) {
-      const w = findWordForNumber(all, single.profit)
-      if (w && redOf(w.bbox) === true) single.profit = -Math.abs(single.profit)
+  // MT5 は損失を赤で出す。マイナス記号は細くて読み落とすことがあるので、
+  // 色でも確かめる
+  const { trades, mainIndex } = collectTrades(lines, text, (trade, word) => {
+    if (trade.profit != null && word && prepared.canvas) {
+      if (isRedText(prepared.canvas, word.bbox) === true) {
+        trade.profit = -Math.abs(trade.profit)
+      }
     }
+  })
+
+  if (trades.length === 0) {
+    const single = parseMt5Screenshot(text)
     return { parsed: single, trades: [single], text }
   }
+  return { parsed: trades[mainIndex], trades, text }
+}
 
-  // 一覧画面は、写っている取引をすべて取り出す
-  const rows = parseListRows(lines)
-  const trades = rows.map(({ trade, profitWord }) => {
-    if (trade.profit != null && profitWord && redOf(profitWord.bbox) === true) {
-      trade.profit = -Math.abs(trade.profit)
-    }
+/**
+ * 1枚に写っている取引を、すべて取り出す。
+ *
+ * 1枚の中に、一覧と詳細パネルが両方写っていることが多い。
+ * 履歴を見ていて、1件を押して開いたまま撮った画面がそれにあたる。
+ *
+ * 以前はどちらか片方しか読んでいなかった。番号(#…)が見つかったら
+ * 詳細として1件だけ読み、その上に写っている9件も10件も捨てていた。
+ * せっかく全部写っているのに、1件ずつ開いて撮り直すことになる。
+ *
+ * いまは両方読む。
+ *   一覧から … 写っている全部の取引
+ *   詳細から … その1件にしか出ない番号・入った時刻・S/L・T/P・手数料
+ * 同じ取引なら1件にまとめる。
+ *
+ * @param fixSign 損益の符号を色から直す。色を見られないときは省く
+ * @returns mainIndex は「その画面の主役」の位置。
+ *   詳細パネルが開いていればその1件。1件だけ記録する画面（TradeForm）は
+ *   ここを使う。わざわざ開いて撮ったのだから、いちばん上の行ではなく
+ *   その1件が出ないと、毎回選び直すことになる
+ */
+function collectTrades(
+  lines: OcrLine[],
+  text: string,
+  fixSign?: (trade: ParsedTrade, word: OcrWord | undefined) => void,
+): { trades: ParsedTrade[]; mainIndex: number } {
+  /*
+    詳細パネルは番号の行から下。一覧を読むときはそこから上だけを見る。
+    分けておかないと、パネルの見出し（"XAUUSD.raw buy 0.02  #19378981"）を
+    もう1件の取引として数えたうえ、行末の番号を損益として拾ってしまう。
+  */
+  const at = lines.findIndex((l) => /#\s*\d{5,}/.test(l.text))
+  const listLines = at >= 0 ? lines.slice(0, at) : lines
+
+  const trades = parseListRows(listLines).map(({ trade, profitWord }) => {
+    fixSign?.(trade, profitWord)
     return trade
   })
 
-  if (trades.length === 0) return { parsed: single, trades: [single], text }
-  return { parsed: trades[0], trades, text }
+  // 詳細パネル。番号が読めたときだけ、詳細として扱う
+  const detail = at >= 0 ? parseMt5Screenshot(text) : null
+  if (detail?.ticket != null) {
+    fixSign?.(
+      detail,
+      findWordForNumber(lines.slice(at).flatMap((l) => l.words), detail.profit ?? NaN),
+    )
+    return { trades, mainIndex: mergeDetail(trades, detail) }
+  }
+  return { trades, mainIndex: 0 }
+}
+
+/**
+ * 文字だけから読み取る。
+ * 色が見られない場面と、テストのための入口。
+ * 画像から読むときと同じ道を通るので、片方だけ直すことにならない。
+ */
+export function parseMt5Text(rawText: string): ParsedTrade[] {
+  return collectTrades(toTextLines(rawText), rawText).trades
+}
+
+/** 詳細パネルを開いて撮った1枚から、その1件を読む */
+export function parseMt5Main(rawText: string): ParsedTrade | undefined {
+  const { trades, mainIndex } = collectTrades(toTextLines(rawText), rawText)
+  return trades[mainIndex]
+}
+
+function toTextLines(rawText: string): OcrLine[] {
+  return rawText
+    .split(/\r?\n/)
+    .map((t) => ({ text: t.trim(), words: [] }))
+    .filter((l) => l.text)
+}
+
+/**
+ * 詳細パネルで読んだ1件を、一覧から読んだ取引に合流させる。
+ *
+ * 一覧に同じ取引があればそこへ足す。無ければ1件として加える。
+ *
+ * 詳細パネルは一覧の上に重なって開くので、その裏の行は
+ * 下半分（価格と時刻）が隠れていることが多い。
+ * 隠れていたぶんを詳細側から補えるのが、まとめるいちばんの利点。
+ *
+ * @returns 合流させた（または加えた）位置
+ */
+function mergeDetail(trades: ParsedTrade[], detail: ParsedTrade): number {
+  const i = matchIndex(trades, detail)
+  if (i < 0) {
+    trades.push(detail)
+    return trades.length - 1
+  }
+
+  const row = trades[i]
+  // 番号・入った時刻・S/L・T/P・手数料は一覧には出ない。必ず詳細のものを使う
+  if (detail.ticket != null) row.ticket = detail.ticket
+  if (detail.sl != null) row.sl = detail.sl
+  if (detail.tp != null) row.tp = detail.tp
+  if (detail.commission != null) row.commission = detail.commission
+  if (detail.openTime != null) row.openTime = detail.openTime
+
+  // 一覧側が読めていない（パネルに隠れていた）ぶんだけ補う
+  if (row.openPrice == null && detail.openPrice != null) row.openPrice = detail.openPrice
+  if (row.closePrice == null && detail.closePrice != null) row.closePrice = detail.closePrice
+  if (row.closeTime == null && detail.closeTime != null) row.closeTime = detail.closeTime
+  if (row.profit == null && detail.profit != null) row.profit = detail.profit
+  if (row.symbol == null && detail.symbol != null) row.symbol = detail.symbol
+  if (row.side == null && detail.side != null) row.side = detail.side
+  if (row.volume == null && detail.volume != null) row.volume = detail.volume
+  return i
+}
+
+/**
+ * 詳細と同じ取引が一覧のどこにあるか。無ければ -1。
+ *
+ * 同じ銘柄・売買・ロットの行が何件も並ぶので、それだけでは決められない。
+ * 値段か損益まで一致した行だけを同じ取引とみなす。
+ * 迷ったときは「合流させない」（別件として増える）ほうを選ぶ。
+ * 取り違えて別の取引の番号や時刻を書き込むほうが、はるかに厄介なため。
+ */
+function matchIndex(trades: ParsedTrade[], d: ParsedTrade): number {
+  const sameKind = (t: ParsedTrade) =>
+    (d.symbol == null || t.symbol == null || t.symbol === d.symbol) &&
+    (d.side == null || t.side == null || t.side === d.side) &&
+    (d.volume == null || t.volume == null || t.volume === d.volume)
+
+  // 値段が両方そろって一致する行
+  const byPrice = trades.findIndex(
+    (t) =>
+      sameKind(t) &&
+      d.openPrice != null &&
+      d.closePrice != null &&
+      t.openPrice === d.openPrice &&
+      t.closePrice === d.closePrice,
+  )
+  if (byPrice >= 0) return byPrice
+
+  // 損益が一致する行（符号の読み違いがあるので絶対値で見る）
+  const byProfit = trades.findIndex(
+    (t) =>
+      sameKind(t) &&
+      d.profit != null &&
+      t.profit != null &&
+      Math.abs(t.profit) === Math.abs(d.profit),
+  )
+  if (byProfit >= 0) return byProfit
+
+  // パネルに隠れて、値段も損益も読めなかった行。
+  // 下半分が隠れるのはいちばん下の行なので、後ろから探す
+  for (let i = trades.length - 1; i >= 0; i--) {
+    const t = trades[i]
+    if (sameKind(t) && t.openPrice == null && t.closePrice == null && t.profit == null) return i
+  }
+  return -1
 }
 
 /** 認識に使う画像と、色を調べるためのキャンバスを用意する */
