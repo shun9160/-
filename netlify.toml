@@ -11,3 +11,29 @@
   from = "/*"
   to = "/index.html"
   status = 200
+
+# -------------------------------------------------------------
+# ホーム画面に置いたときのための設定
+# -------------------------------------------------------------
+
+# 受け付け係(sw.js)は、絶対に長く持たせない。
+# ここを持たせてしまうと、新しい版を配信しても古い係が居座り、
+# 利用者の端末がいつまでも古い画面のままになる。
+# 直す手立てが「アプリを消して入れ直す」しか無くなるので、いちばん危ない
+[[headers]]
+  for = "/sw.js"
+  [headers.values]
+    Cache-Control = "public, max-age=0, must-revalidate"
+
+# 置き場所の説明書も、変えたらすぐ反映されてほしい
+[[headers]]
+  for = "/manifest.webmanifest"
+  [headers.values]
+    Cache-Control = "public, max-age=0, must-revalidate"
+    Content-Type = "application/manifest+json; charset=utf-8"
+
+# アイコンは名前が変わらないので、ほどほどに持たせる（1日）
+[[headers]]
+  for = "/icons/*"
+  [headers.values]
+    Cache-Control = "public, max-age=86400"

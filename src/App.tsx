@@ -28,8 +28,10 @@ import { searchTrades } from './lib/tradeSearch'
 import type { TradeOrder } from './lib/tradeSort'
 import Diary from './components/Diary'
 import PricingScreen from './components/PricingScreen'
+import InstallHint from './components/InstallHint'
 import { usePlan } from './hooks/usePlan'
 import { PLANS } from './lib/plan'
+import { readEnv, shouldShowInstallHint } from './lib/install'
 
 export default function App() {
   const { session, ready, userEmail, signOut } = useAuth()
@@ -60,6 +62,11 @@ export default function App() {
   const [statsTab, setStatsTab] = useState<StatsTabKey>('summary')
   /** 日記でいま見ている日。横に振って移るために持つ */
   const [diaryDay, setDiaryDay] = useState<string | null>(null)
+  /**
+   * ホーム画面への置き方を案内するか。
+   * 最初に一度だけ決める。描くたびに調べると、閉じた瞬間にまた出てくる
+   */
+  const [installHint, setInstallHint] = useState(() => shouldShowInstallHint(readEnv()))
   /** 「すべての取引」の並び順と絞り込み */
   const [allOrder, setAllOrder] = useState<TradeOrder>('new')
   const [allQuery, setAllQuery] = useState('')
@@ -187,7 +194,8 @@ export default function App() {
               go: setAccountId,
             }
   const switcherShown = !showAccount && !showAccounts && !loading && accounts.length > 1
-  const heroFlush = onHome && !switcherShown && !demo && flash == null
+  // 上のバーからそのまま色の面をつなげられるのは、間に何も挟まらないときだけ
+  const heroFlush = onHome && !switcherShown && !demo && !installHint && flash == null
 
   // 認証状態の確認中
   if (!ready) {
@@ -318,6 +326,9 @@ export default function App() {
         </header>
 
         <main className="mx-auto w-full max-w-6xl flex-1 px-4 pb-5 pt-1">
+
+          {/* iPhone の Safari で、ホーム画面への置き方を一度だけ案内する */}
+          {installHint && <InstallHint onClose={() => setInstallHint(false)} />}
 
           {demo && <DemoNotice />}
 

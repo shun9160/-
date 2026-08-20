@@ -4,9 +4,36 @@
     <meta charset="UTF-8" />
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
-    <meta name="theme-color" content="#ffffff" />
+
+    <!--
+      上のバーの色。画面の下地(page)と同じにしてある。
+      白のままだと、ホーム画面から開いたときに上端だけ白い帯が残る
+    -->
+    <meta name="theme-color" content="#F1F0F6" />
     <meta name="description" content="MT5の取引履歴を、日本時間で記録・分析するトレード日誌" />
     <title>FX BOOK — トレードを記録し、成長を積み重ねる</title>
+
+    <!-- ホーム画面に置けるようにする -->
+    <link rel="manifest" href="/manifest.webmanifest" />
+
+    <!--
+      iPhone / iPad 用。
+
+      iOS はマニフェストのアイコンを見ない。ここの apple-touch-icon を使う。
+      透明なところがあると黒く塗られるので、端まで色が入った PNG を置いている。
+
+      status-bar-style は default にしてある。black-translucent にすると
+      中身が時計の裏まで伸びて、上のバーのロゴと重なる。
+      その形にするなら、ヘッダーに safe-area ぶんの余白を足す必要がある。
+    -->
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="default" />
+    <meta name="apple-mobile-web-app-title" content="FX BOOK" />
+    <link rel="apple-touch-icon" href="/icons/apple-touch-icon.png" />
+
+    <!-- 電話番号らしき数字（取引番号やロット）を勝手にリンクにさせない -->
+    <meta name="format-detection" content="telephone=no" />
   </head>
   <body>
     <div id="root"></div>
