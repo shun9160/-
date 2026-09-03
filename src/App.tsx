@@ -29,12 +29,13 @@ import type { TradeOrder } from './lib/tradeSort'
 import Diary from './components/Diary'
 import PricingScreen from './components/PricingScreen'
 import InstallHint from './components/InstallHint'
+import Loading from './components/Loading'
 import { usePlan } from './hooks/usePlan'
 import { PLANS } from './lib/plan'
 import { readEnv, shouldShowInstallHint } from './lib/install'
 
 export default function App() {
-  const { session, ready, userEmail, signOut } = useAuth()
+  const { session, ready, stalled, userEmail, signOut } = useAuth()
   const [previewMode, setPreviewMode] = useState(false)
   const authed = Boolean(session)
 
@@ -198,13 +199,13 @@ export default function App() {
   const heroFlush = onHome && !switcherShown && !demo && !installHint && flash == null
 
   // 認証状態の確認中
-  if (!ready) {
-    return <div className="py-32 text-center text-sm text-ink3">読み込み中…</div>
-  }
+  if (!ready) return <Loading />
 
   // 未ログイン。Supabase未設定のときはサンプル閲覧だけ許す。
   if (isSupabaseConfigured && !authed && !previewMode) {
-    return <AuthScreen onSkip={() => setPreviewMode(true)} />
+    // stalled は「確認が終わらなかった」印。ログインしていないのか
+    // 確かめられなかっただけなのかは別のことなので、そのまま伝える
+    return <AuthScreen onSkip={() => setPreviewMode(true)} unknown={stalled} />
   }
 
   // ログイン直後で初期設定がまだのとき
@@ -346,7 +347,7 @@ export default function App() {
           )}
 
           {loading ? (
-            <div className="py-24 text-center text-sm text-ink3">読み込み中…</div>
+            <Loading />
           ) : showAccount ? (
             <>
               <button className="btn btn-ghost mb-3 -ml-2" onClick={() => setShowAccount(false)}>

@@ -21,6 +21,40 @@ export function registerServiceWorker(): void {
   })
 }
 
+/** 「困ったときの入口」の合言葉。/?reset=1 で全部やり直す */
+export const RESET_PARAM = 'reset'
+
+/** いま、やり直しを頼まれているか */
+export function isResetRequested(): boolean {
+  if (typeof window === 'undefined') return false
+  return new URLSearchParams(window.location.search).has(RESET_PARAM)
+}
+
+/**
+ * 受け付け係と控えを、まるごと捨てる。
+ *
+ * 万が一おかしな係を配ってしまうと、利用者の端末では
+ * 古い画面が出続ける。iPhone では「アプリを消して入れ直す」以外に
+ * 直す手立てが無く、そこまでする人はまずいない。
+ *
+ * だから逃げ道をひとつ作っておく。/?reset=1 を開けば元に戻る。
+ * 保存したものには触らない。捨てるのは控えだけ。
+ */
+export async function resetServiceWorker(): Promise<void> {
+  try {
+    if ('serviceWorker' in navigator) {
+      const regs = await navigator.serviceWorker.getRegistrations()
+      await Promise.all(regs.map((r) => r.unregister().catch(() => false)))
+    }
+    if ('caches' in window) {
+      const names = await caches.keys()
+      await Promise.all(names.map((n) => caches.delete(n).catch(() => false)))
+    }
+  } catch {
+    // 消せなくても、このあと開き直すところまでは進める
+  }
+}
+
 /**
  * いま開くのに使ったファイルを、受け付け係に控えてもらう。
  *

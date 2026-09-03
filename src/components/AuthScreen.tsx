@@ -11,9 +11,15 @@ type Mode = 'signin' | 'signup'
 interface Props {
   /** ログインせずにサンプルを見る */
   onSkip?: () => void
+  /**
+   * ログイン状態を確かめられなかったか。
+   * 「ログインしていない」と「確かめられなかった」は別のことなので、
+   * 後者のときは黙ってログイン画面を出さず、そう伝える
+   */
+  unknown?: boolean
 }
 
-export default function AuthScreen({ onSkip }: Props) {
+export default function AuthScreen({ onSkip, unknown }: Props) {
   const [mode, setMode] = useState<Mode>('signin')
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
@@ -83,6 +89,27 @@ export default function AuthScreen({ onSkip }: Props) {
           <h1 className="text-2xl font-bold tracking-tight">ログイン</h1>
           <p className="mt-1 text-sm text-ink2">{BRAND.tagline}</p>
         </div>
+
+        {/*
+          ログイン状態を確かめられなかったとき。
+          いちばん先に目に入るところへ置く。下に置くと、
+          すでにログインしている人が気づかず入り直すことになる
+        */}
+        {unknown && (
+          <div className="mb-6 rounded-xl bg-down-soft px-4 py-3">
+            <p className="text-[13px] leading-relaxed text-down">
+              <span className="font-bold">ログイン状態を確かめられませんでした。</span>
+              電波の届くところで
+              <button
+                onClick={() => window.location.reload()}
+                className="font-bold underline underline-offset-2"
+              >
+                開き直す
+              </button>
+              と、すでにログインしている場合は入り直さなくても元に戻ります。
+            </p>
+          </div>
+        )}
 
         <div className="grid gap-6 md:grid-cols-[1fr_auto_1fr] md:gap-8">
           {/* 左：パスキー */}
