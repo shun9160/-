@@ -5,6 +5,8 @@ import { BRAND } from '../lib/brand'
 import { passkeyErrorMessage, passkeySupported, signInWithPasskey } from '../lib/passkey'
 import Logo from './Logo'
 import Icon from './Icon'
+import ConnectionCheck from './ConnectionCheck'
+import { isNetworkError } from '../lib/errors'
 
 type Mode = 'signin' | 'signup'
 
@@ -220,10 +222,21 @@ export default function AuthScreen({ onSkip, unknown }: Props) {
         {(err || info) && (
           <div className="mt-5">
             {err && (
-              <p className="flex gap-2 rounded-xl border border-down/25 bg-down-soft px-4 py-3 text-sm text-down">
-                <Icon name="info" size={17} className="mt-0.5 shrink-0" />
-                <span className="whitespace-pre-wrap">{err}</span>
-              </p>
+              <div className="rounded-xl border border-down/25 bg-down-soft px-4 py-3">
+                <p className="flex gap-2 text-sm text-down">
+                  <Icon name="info" size={17} className="mt-0.5 shrink-0" />
+                  <span className="whitespace-pre-wrap">{err}</span>
+                </p>
+                {/*
+                  通信そのものが失敗したときだけ、調べる手を出す。
+                  「つながりません」で終わると、利用者にできることが何も無い
+                */}
+                {isNetworkError(err) && (
+                  <div className="pl-6">
+                    <ConnectionCheck />
+                  </div>
+                )}
+              </div>
             )}
             {info && (
               <p className="flex gap-2 rounded-xl border border-up/25 bg-up-soft px-4 py-3 text-sm text-up">

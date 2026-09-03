@@ -66,8 +66,35 @@ export function friendlyError(e: unknown): string {
   if (/settings/i.test(raw) && /relation|table|schema cache|does not exist/i.test(raw)) {
     return `${raw}\n\n→ 原資を保存する表がまだありません。Supabase の SQL Editor で supabase/migrations/2026-08-05_fix_settings.sql を実行してください。`
   }
-  if (/Failed to fetch|NetworkError/i.test(raw)) {
-    return `${raw}\n\n→ ネットワークかSupabaseの設定(URL/キー)をご確認ください。`
-  }
+  if (isNetworkError(raw)) return NETWORK_MESSAGE
   return raw
+}
+
+/**
+ * 通信そのものが失敗したときに出す文。
+ *
+ * 決まった文にしてあるのは、画面側が「これは通信の失敗だ」と
+ * 分かるようにするため。言い換えたものを渡されても見分けられるよう、
+ * 判定は下の isNetworkError が両方を見る。
+ */
+export const NETWORK_MESSAGE =
+  'サーバーに接続できませんでした。\n電波の状態を確かめて、もう一度お試しください。'
+
+/**
+ * 通信そのものが失敗したときの文言か。
+ *
+ * ブラウザごとに言い方が違う。ここを取りこぼすと、
+ * Safari の「Load failed」のような英語がそのまま画面に出る。
+ * 何が起きたのか分からないうえ、次に何をすればいいかも伝わらない。
+ *
+ *   Safari  … Load failed
+ *   Chrome  … Failed to fetch
+ *   Firefox … NetworkError when attempting to fetch resource.
+ */
+export function isNetworkError(raw: string): boolean {
+  // 日本語に直したあとの文も見る。画面はこちらしか持っていないため
+  if (raw.includes(NETWORK_MESSAGE)) return true
+  return /Load failed|Failed to fetch|NetworkError|The Internet connection appears to be offline|ネットワーク接続が失われました/i.test(
+    raw,
+  )
 }

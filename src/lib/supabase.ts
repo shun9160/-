@@ -7,6 +7,14 @@ const anonKey = import.meta.env.VITE_SUPABASE_ANON_KEY as string | undefined
 export const isSupabaseConfigured = Boolean(url && anonKey)
 
 /**
+ * 接続先。つながらないときに、どこへ届いていないのかを調べるために出している。
+ * anon キーは画面に埋め込まれる前提のもので、これだけでは他人のデータは読めない
+ * （読める範囲は RLS がデータベース側で決めている）。
+ */
+export const supabaseUrl = url
+export const supabaseAnonKey = anonKey
+
+/**
  * Supabase クライアント。未設定時は null（UI 側で設定案内を表示する）。
  */
 export const supabase: SupabaseClient | null = isSupabaseConfigured
