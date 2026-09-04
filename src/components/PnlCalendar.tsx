@@ -2,6 +2,7 @@ import { useMemo, useState } from 'react'
 import type { EnrichedTrade } from '../lib/types'
 import { groupNetByDay } from '../lib/analytics'
 import { colorOf, fmtMoney } from '../lib/format'
+import { jstDayKey } from '../lib/timezone'
 import Icon from './Icon'
 import SwipePager from './SwipePager'
 
@@ -29,16 +30,22 @@ const MONTH_ORDERS: { value: MonthOrder; label: string }[] = [
 export default function PnlCalendar({ trades, writtenDays, onSelectDay }: Props) {
   const byDay = useMemo(() => groupNetByDay(trades), [trades])
 
-  // 取引のある最新月を初期表示にする
-  const initial = useMemo(() => {
-    const days = Object.keys(byDay).sort()
-    const latest = days.length ? days[days.length - 1] : null
-    return latest ? new Date(latest + 'T00:00:00') : new Date()
-  }, [byDay])
+  /**
+   * 今日（日本時間）。
+   *
+   * 暦は「いま」を出すもの。開いたときに今月が出ていないと、
+   * 9月なのに8月が出ていて、今日を探すのに毎回めくることになる。
+   *
+   * 端末の時計ではなく日本時間で出す。ほかの画面も日本時間で
+   * 日付を切っているので、ここだけずれると日付が1日食い違う。
+   */
+  const today = useMemo(() => jstDayKey(new Date()), [])
+  const [todayYear, todayMonth] = today.split('-').map(Number)
 
   const [mode, setMode] = useState<Mode>('daily')
-  const [year, setYear] = useState(initial.getFullYear())
-  const [month, setMonth] = useState(initial.getMonth())
+  const [year, setYear] = useState(todayYear)
+  // 月は 0 はじまりで持つ。表示のときだけ +1 する
+  const [month, setMonth] = useState(todayMonth - 1)
   /** 月別のときの並び順 */
   const [monthOrder, setMonthOrder] = useState<MonthOrder>('month')
 
@@ -60,6 +67,19 @@ export default function PnlCalendar({ trades, writtenDays, onSelectDay }: Props)
     }
     return out
   }, [byDay])
+
+  /**
+   * 記録のある、いちばん新しい月（YYYY-MM）。無ければ null。
+   *
+   * 暦は今月から開く。ただ、しばらく取引していないと
+   * まっさらな月がいきなり出る。「壊れているのか、
+   * 自分が記録していないだけなのか」が分からないので、
+   * そのときだけ行き先を1つ添える。
+   */
+  const latestMonth = useMemo(() => {
+    const keys = [...Object.keys(byDay), ...(writtenDays ?? [])].map((d) => d.slice(0, 7))
+    return keys.length ? keys.sort()[keys.length - 1] : null
+  }, [byDay, writtenDays])
 
   const monthTotal = useMemo(() => {
     const prefix = `${year}-${String(month + 1).padStart(2, '0')}`
@@ -96,6 +116,13 @@ export default function PnlCalendar({ trades, writtenDays, onSelectDay }: Props)
   }
 
   const total = mode === 'daily' ? monthTotal : yearTotal
+
+  /** いま見ている月に、取引か日記があるか */
+  const shownMonth = `${year}-${String(month + 1).padStart(2, '0')}`
+  const hasAnything =
+    Object.keys(byDay).some((d) => d.startsWith(shownMonth)) ||
+    [...(writtenDays ?? [])].some((d) => d.startsWith(shownMonth))
+  const jumpTo = !hasAnything && latestMonth && latestMonth !== shownMonth ? latestMonth : null
 
   /*
     横に振ったら、隣の月へ。
@@ -195,12 +222,30 @@ export default function PnlCalendar({ trades, writtenDays, onSelectDay }: Props)
               month={month}
               byDay={byDay}
               writtenDays={writtenDays}
+              today={today}
               onSelectDay={onSelectDay}
             />
           ) : (
             <MonthlyGrid year={year} byMonth={byMonth} order={monthOrder} />
           )}
         </div>
+
+        {mode === 'daily' && jumpTo && (
+          <div className="mt-3 text-center">
+            <p className="text-[12px] text-ink2">この月には、まだ記録がありません。</p>
+            <button
+              onClick={() => {
+                const [y, m] = jumpTo.split('-').map(Number)
+                setYear(y)
+                setMonth(m - 1)
+              }}
+              className="mt-1 inline-flex items-center gap-1 rounded-lg px-2 py-1 text-[13px] font-bold text-brand transition-colors hover:bg-brand-soft"
+            >
+              最後に記録した {Number(jumpTo.slice(5))}月 を見る
+              <Icon name="right" size={14} />
+            </button>
+          </div>
+        )}
       </div>
     </SwipePager>
   )
@@ -287,12 +332,15 @@ function DailyGrid({
   month,
   byDay,
   writtenDays,
+  today,
   onSelectDay,
 }: {
   year: number
   month: number
   byDay: Record<string, number>
   writtenDays?: Set<string>
+  /** 今日（YYYY-MM-DD、日本時間）。その升目だけ枠で囲う */
+  today: string
   onSelectDay?: (day: string) => void
 }) {
   const first = new Date(Date.UTC(year, month, 1))
@@ -324,11 +372,13 @@ function DailyGrid({
           const neg = has && net < 0
           // 取引が無くても、日記を書いた日は押して開けるようにする
           const open = has || wrote
+          const isToday = key === today
           return (
             <button
               key={i}
               onClick={() => open && onSelectDay?.(key)}
               disabled={!open}
+              aria-current={isToday ? 'date' : undefined}
               className={[
                 // スマホは正方形が収まりよい。
                 // 画面が広いと正方形のままでは背が高くなりすぎ、
@@ -342,11 +392,27 @@ function DailyGrid({
                   : neg
                     ? 'bg-down-fill hover:bg-down/15'
                     : 'bg-surface hover:bg-sunken',
+                /*
+                  今日。枠で囲うだけにして、中の色は変えない。
+                  塗ってしまうと、その日の損益（緑か赤か）が読めなくなる。
+                  暦で「今日はどこか」は真っ先に探すものなので、
+                  取引が無い日でも分かるようにする
+                */
+                isToday ? 'ring-2 ring-inset ring-brand' : '',
               ].join(' ')}
             >
               {/* 取引の無い日も、日付は読めること。暦なので
                   「21日はどこか」を探すのに使う。薄すぎると探せない */}
-              <span className={`text-[13px] font-bold ${open ? 'text-ink' : 'text-ink2'}`}>{d}</span>
+              {/*
+                今日の数字は色を変えない。囲いだけで十分に分かるし、
+                紫にすると緑や赤の升目の上で 3.9〜4.2 しか出ず読みにくい。
+                取引の無い日でも薄くしないのは、今日だけは必ず読めてほしいため
+              */}
+              <span
+                className={`text-[13px] font-bold ${isToday || open ? 'text-ink' : 'text-ink2'}`}
+              >
+                {d}
+              </span>
               {has && (
                 <span
                   className={`text-[11px] font-bold leading-none tabular-nums ${
