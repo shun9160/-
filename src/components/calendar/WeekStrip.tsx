@@ -12,11 +12,18 @@ import Icon from '../Icon'
  * 横に流して過去へ辿れる。1週間ずつ矢印で送るより、
  * 指で流したほうが速いし、途中の日も目に入る。
  * 矢印は残してある（画面が広いときや、正確に1週間送りたいとき用）。
+ * 止まる位置は日の切れ目に吸い付かせる。半分だけ見えている日を作らない。
  *
  * 組み方:
  *   年と月は左に2段。そこから細い縦線1本で日付と分ける。
  *   囲いを作らず、線1本だけで「暦の見出し」と「日付」を分ける。
- *   年月は、いま左端に見えている日のものに合わせて変わる。
+ *   年月は、選んでいる日のものを出す。
+ *   以前は「左端に見えている日」に合わせていたが、
+ *   9月4日を選んでいるのに見出しが「8月」になることがあり、
+ *   すぐ下のカードの日付と食い違って読めた。
+ *
+ * 紫の面の上に載せることもある（日記の入口カードと1つにまとめたとき）。
+ * そのときは onDark を立てる。色を白系に入れ替える。
  *
  * 取引があった日は下に点を打つ。数字を入れると窮屈になるうえ、
  * 金額はすぐ下のカードと履歴に出るので、ここでは「あったか無いか」だけ。
@@ -38,12 +45,13 @@ interface Props {
   activeDays: Set<string>
   /** ここから先へは進ませない（ふつうは今日） */
   max: string
+  /** 濃い面（紫）の上に置くか。色を白系に入れ替える */
+  onDark?: boolean
 }
 
-export default function WeekStrip({ value, onChange, activeDays, max }: Props) {
+export default function WeekStrip({ value, onChange, activeDays, max, onDark }: Props) {
   const boxRef = useRef<HTMLDivElement>(null)
-  /** 左端に見えている日。左の年月はこれに合わせる */
-  const [headDay, setHeadDay] = useState(value)
+  const [tail, setTail] = useState(0)
 
   // 過去 SPAN 日ぶん。古い順に並べ、いちばん新しい日が右端に来る
   const days = useMemo(
@@ -51,35 +59,63 @@ export default function WeekStrip({ value, onChange, activeDays, max }: Props) {
     [max],
   )
 
+  /*
+    右端の余り。
+    いちばん新しい日は右端にあるので、そこを見ているときは
+    それ以上流せない位置で止まる。その止まる位置は日の切れ目とは限らず、
+    左端の日が途中で切れて、隣の縦線とぶつかって残る。
+    見えている幅は端末ごとに違うので、余りぶんだけ後ろに空きを足して、
+    行き止まりのほうを切れ目に合わせる。
+  */
+  useEffect(() => {
+    const el = boxRef.current
+    if (!el) return
+    const step = CELL + GAP
+    const measure = () => {
+      const body = days.length * step - GAP // 空きを除いた中身の幅
+      setTail((((el.clientWidth - body - GAP) % step) + step) % step)
+    }
+    measure()
+    const ro = new ResizeObserver(measure)
+    ro.observe(el)
+    return () => ro.disconnect()
+  }, [days])
+
   /** 選んだ日が見えるところまで寄せる */
   function scrollTo(day: string, smooth: boolean) {
     const el = boxRef.current
     if (!el) return
     const i = days.indexOf(day)
     if (i < 0) return
-    // 真ん中あたりに置く。端に寄せると前後が見えなくなる
-    const left = i * (CELL + GAP) - el.clientWidth / 2 + CELL / 2
+    // 真ん中あたりに置く。端に寄せると前後が見えなくなる。
+    // ただし止める位置は日の切れ目に合わせる。
+    // 途中で切った日が左端に残ると、隣の縦線とぶつかって
+    // 「1」や「0」だけが取り残されたように見える
+    const step = CELL + GAP
+    const back = Math.round(el.clientWidth / 2 / step)
+    const left = (i - back) * step
     el.scrollTo({ left: Math.max(0, left), behavior: smooth ? 'smooth' : 'auto' })
   }
 
-  // 開いたときと、外から日が変わったときに寄せる
+  // 開いたときと、外から日が変わったときに寄せる。
+  // 右端の余りが決まると行き止まりの位置も変わるので、そのときも寄せ直す
   useEffect(() => {
     scrollTo(value, false)
-    setHeadDay(value)
     // days は max が変わったときだけ作り直される
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [value, days])
+  }, [value, days, tail])
 
-  const iso = `${headDay}T00:00:00+09:00`
+  const iso = `${value}T00:00:00+09:00`
   const canNext = value < max
 
   return (
     <div>
       {/* 週ごとに送る矢印。指で流せるので、こちらは控えめに */}
       <div className="flex justify-end gap-0.5">
-        <Nav dir="left" onClick={() => onChange(shift(value, -7))} />
+        <Nav dir="left" onDark={onDark} onClick={() => onChange(shift(value, -7))} />
         <Nav
           dir="right"
+          onDark={onDark}
           onClick={() => canNext && onChange(min(shift(value, 7), max))}
           disabled={!canNext}
         />
@@ -88,24 +124,23 @@ export default function WeekStrip({ value, onChange, activeDays, max }: Props) {
       <div className="flex items-stretch gap-3">
         {/* 年と月。囲わず、細い線1本だけで日付と分ける */}
         <div className="w-10 shrink-0 pt-1.5">
-          <p className="text-[11px] font-semibold leading-none text-ink3">
+          <p
+            className={`text-[11px] font-semibold leading-none ${
+              onDark ? 'text-white/80' : 'text-ink3'
+            }`}
+          >
             {fmtJst(iso, 'yyyy')}
           </p>
           <p className="mt-1 text-[18px] font-bold leading-none tracking-tight">
             {fmtJst(iso, 'M')}月
           </p>
         </div>
-        <div aria-hidden="true" className="w-px shrink-0 bg-line" />
+        <div aria-hidden="true" className={`w-px shrink-0 ${onDark ? 'bg-white/25' : 'bg-line'}`} />
 
         <div
           ref={boxRef}
           className="flex min-w-0 flex-1 snap-x snap-mandatory overflow-x-auto"
           style={{ gap: GAP, scrollbarWidth: 'none', overscrollBehaviorX: 'contain' }}
-          onScroll={(e) => {
-            const i = Math.round(e.currentTarget.scrollLeft / (CELL + GAP))
-            const d = days[Math.max(0, Math.min(days.length - 1, i))]
-            if (d) setHeadDay(d)
-          }}
         >
           {days.map((day) => {
             const on = day === value
@@ -121,20 +156,40 @@ export default function WeekStrip({ value, onChange, activeDays, max }: Props) {
                   scrollTo(day, true)
                 }}
                 style={{ width: CELL }}
-                className={`flex shrink-0 snap-center flex-col items-center gap-1 rounded-xl py-1.5 transition-colors ${
-                  on ? 'bg-night text-white' : 'text-ink2'
+                className={`flex shrink-0 snap-start flex-col items-center gap-1 rounded-xl py-1.5 transition-colors ${
+                  on
+                    ? onDark
+                      ? 'bg-white text-[#3A2FC0]'
+                      : 'bg-night text-white'
+                    : onDark
+                      ? 'text-white'
+                      : 'text-ink2'
                 }`}
               >
+                {/*
+                  紫の上では、土日の青と赤が沈んで読めない。
+                  白の濃さだけで出す（白80%で 5.15、選んだ日は白地なので十分）
+                */}
                 <span
                   className={`text-[10px] font-semibold ${
-                    on ? 'text-white/70' : wd === 5 ? 'text-[#4A6BFF]' : wd === 6 ? 'text-down' : ''
+                    on
+                      ? onDark
+                        ? 'text-[#3A2FC0]/80'
+                        : 'text-white/70'
+                      : onDark
+                        ? 'text-white/80'
+                        : wd === 5
+                          ? 'text-[#4A6BFF]'
+                          : wd === 6
+                            ? 'text-down'
+                            : ''
                   }`}
                 >
                   {WEEKDAYS_JA[wd]}
                 </span>
                 <span
                   className={`text-[16px] font-bold leading-none tabular-nums ${
-                    on ? '' : 'text-ink'
+                    on ? '' : onDark ? 'text-white' : 'text-ink'
                   }`}
                 >
                   {fmtJst(`${day}T00:00:00+09:00`, 'd')}
@@ -144,12 +199,22 @@ export default function WeekStrip({ value, onChange, activeDays, max }: Props) {
                 <span
                   aria-hidden="true"
                   className={`h-1 w-1 rounded-full ${
-                    has ? (on ? 'bg-white' : 'bg-brand') : 'bg-transparent'
+                    has
+                      ? on
+                        ? onDark
+                          ? 'bg-[#3A2FC0]'
+                          : 'bg-white'
+                        : onDark
+                          ? 'bg-white'
+                          : 'bg-brand'
+                      : 'bg-transparent'
                   }`}
                 />
               </button>
             )
           })}
+          {/* 行き止まりを日の切れ目に合わせるための空き */}
+          <div aria-hidden="true" className="shrink-0" style={{ width: tail }} />
         </div>
       </div>
     </div>
@@ -160,10 +225,12 @@ function Nav({
   dir,
   onClick,
   disabled,
+  onDark,
 }: {
   dir: 'left' | 'right'
   onClick: () => void
   disabled?: boolean
+  onDark?: boolean
 }) {
   return (
     <button
@@ -171,7 +238,11 @@ function Nav({
       onClick={onClick}
       disabled={disabled}
       aria-label={dir === 'left' ? '前の週' : '次の週'}
-      className="flex h-7 w-7 items-center justify-center rounded-lg text-ink3 transition-colors hover:bg-sunken hover:text-ink disabled:text-ink3/40"
+      className={`flex h-7 w-7 items-center justify-center rounded-lg transition-colors ${
+        onDark
+          ? 'text-white/75 hover:bg-white/15 hover:text-white disabled:text-white/35'
+          : 'text-ink3 hover:bg-sunken hover:text-ink disabled:text-ink3/40'
+      }`}
     >
       <Icon name={dir} size={16} />
     </button>

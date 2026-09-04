@@ -159,17 +159,27 @@ export default function Diary({
         区切りは細い線と余白だけで作れば、上から下まで続いて見える。
       */}
       <div className="pt-1">
-        <WeekStrip value={selected} onChange={setSelected} activeDays={activeDays} max={today} />
-
-        <div className="mt-4">
-          <DayPreviewCard
-            day={selected}
-            title={dayTitles?.[selected] ?? ''}
-            note={dayNotes[selected] ?? ''}
-            isToday={isToday}
-            onOpen={open}
-          />
-        </div>
+        {/*
+          日付の並びと、その日のカードは1つの面にする。
+          どちらも「どの日を見るか」の話なので、離して置くと、
+          上で日を選んだこととカードの中身がつながって見えない
+        */}
+        <DayPreviewCard
+          day={selected}
+          title={dayTitles?.[selected] ?? ''}
+          note={dayNotes[selected] ?? ''}
+          isToday={isToday}
+          onOpen={open}
+          header={
+            <WeekStrip
+              value={selected}
+              onChange={setSelected}
+              activeDays={activeDays}
+              max={today}
+              onDark
+            />
+          }
+        />
 
         <TradeEmbed
           trades={dayTrades}

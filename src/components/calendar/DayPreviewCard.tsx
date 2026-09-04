@@ -1,3 +1,4 @@
+import type { ReactNode } from 'react'
 import { fmtJst } from '../../lib/timezone'
 import Icon from '../Icon'
 
@@ -26,6 +27,15 @@ interface Props {
   /** 本文の文字。冒頭だけ見せる */
   note: string
   isToday: boolean
+  /**
+   * 上にのせるもの。日付の並び（WeekStrip）が入る。
+   *
+   * 日付の並びとこのカードは、別々の面に見えていた。
+   * どちらも「どの日を見るか」の話なので、1つの面にまとめる。
+   * 離れていると、上で日を選んだこととカードの中身が
+   * つながって見えない。
+   */
+  header?: ReactNode
   /** y は押した場所の高さ。そこを軸に開く動きに使う */
   onOpen: (day: string, y: number) => void
 }
@@ -54,20 +64,32 @@ function splitPreview(title: string, note: string) {
   }
 }
 
-export default function DayPreviewCard({ day, title, note, isToday, onOpen }: Props) {
+export default function DayPreviewCard({ day, title, note, isToday, header, onOpen }: Props) {
   const iso = `${day}T00:00:00+09:00`
   const wd = WEEKDAYS_JA[new Date(`${day}T00:00:00Z`).getUTCDay()]
   const written = !!(title || note)
   const { headline, body } = splitPreview(title, note)
 
   return (
-    <button
-      type="button"
-      onClick={(e) => onOpen(day, e.currentTarget.getBoundingClientRect().top)}
-      // ロゴの紫そのままだと、上に載る小さな白文字が読める濃さに届かない
-      // （白100%でも 5.15 しか出ない）。同じ色みのまま一段だけ暗くしてある
-      className="relative w-full overflow-hidden rounded-2xl bg-gradient-to-br from-[#5433E0] to-[#3A2FC0] px-5 py-5 text-left text-white transition-transform active:scale-[0.995]"
-    >
+    // ロゴの紫そのままだと、上に載る小さな白文字が読める濃さに届かない
+    // （白100%でも 5.15 しか出ない）。同じ色みのまま一段だけ暗くしてある
+    <div className="relative overflow-hidden rounded-2xl bg-gradient-to-br from-[#5433E0] to-[#3A2FC0] text-white">
+      {/*
+        日付の並び。押せるところが中に入るので、外側は button にできない。
+        button の中に button は置けず、置くと横に流すこともできなくなる
+      */}
+      {header && (
+        <>
+          <div className="px-4 pt-3">{header}</div>
+          <div aria-hidden="true" className="mx-4 mt-3 h-px bg-white/20" />
+        </>
+      )}
+
+      <button
+        type="button"
+        onClick={(e) => onOpen(day, e.currentTarget.getBoundingClientRect().top)}
+        className="block w-full px-5 py-5 text-left transition-transform active:scale-[0.995]"
+      >
       <div className="flex items-start gap-3">
         {/*
           高さを下限で揃えておく。書いてある日と書いていない日で
@@ -113,6 +135,7 @@ export default function DayPreviewCard({ day, title, note, isToday, onOpen }: Pr
           <Icon name={written ? 'book' : 'pencil'} size={18} />
         </span>
       </div>
-    </button>
+      </button>
+    </div>
   )
 }

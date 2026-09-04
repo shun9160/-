@@ -83,6 +83,34 @@ describe('DayPreviewCard', () => {
     expect(t).toContain('続きを読む')
   })
 
+  it('上に日付の並びを載せても、押せるところと入れ子にならない', () => {
+    // button の中に button があると、内側が押せない・横に流せないの両方が起きる。
+    // 日付の並びは押す場所であり流す場所でもあるので、ここは崩せない
+    let opened = 0
+    const { container } = render(
+      <DayPreviewCard
+        day="2026-08-14"
+        title="題"
+        note=""
+        isToday={false}
+        onOpen={() => {
+          opened += 1
+        }}
+        header={
+          <button type="button" onClick={() => {}}>
+            9月4日
+          </button>
+        }
+      />,
+    )
+    expect(container.textContent).toContain('9月4日')
+    expect(container.querySelector('button button')).toBeNull()
+
+    // 日付を押しても、日記は開かない
+    container.querySelectorAll('button')[0].click()
+    expect(opened).toBe(0)
+  })
+
   it('押すと、その日と押した高さを返す', () => {
     let got: [string, number] | null = null
     const { container } = render(
