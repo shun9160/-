@@ -30,6 +30,8 @@ import Diary from './components/Diary'
 import PricingScreen from './components/PricingScreen'
 import InstallHint from './components/InstallHint'
 import Loading from './components/Loading'
+import UpdateBar from './components/UpdateBar'
+import { useAppUpdate } from './hooks/useAppUpdate'
 import { usePlan } from './hooks/usePlan'
 import { PLANS } from './lib/plan'
 import { readEnv, shouldShowInstallHint } from './lib/install'
@@ -44,6 +46,8 @@ export default function App() {
     dayNotes, dayTitles, settings, loading, error, configured, demo, reload,
   } = useTrades(authed)
   const { plan, loading: planLoading } = usePlan(authed)
+  /** 新しい版が配信されているか。ホーム画面から開き直したときに拾う */
+  const updateReady = useAppUpdate()
   const [screen, setScreen] = useState<ScreenKey>('home')
   const [focusDay, setFocusDay] = useState<string | null>(null)
   /** ホームから開く「すべての取引」。タブではなくサブ画面 */
@@ -196,7 +200,8 @@ export default function App() {
             }
   const switcherShown = !showAccount && !showAccounts && !loading && accounts.length > 1
   // 上のバーからそのまま色の面をつなげられるのは、間に何も挟まらないときだけ
-  const heroFlush = onHome && !switcherShown && !demo && !installHint && flash == null
+  const heroFlush =
+    onHome && !switcherShown && !demo && !installHint && !updateReady && flash == null
 
   // 認証状態の確認中
   if (!ready) return <Loading />
@@ -327,6 +332,9 @@ export default function App() {
         </header>
 
         <main className="mx-auto w-full max-w-6xl flex-1 px-4 pb-5 pt-1">
+
+          {/* 新しい版が出ていたら知らせる。押すまで読み込み直さない */}
+          {updateReady && <UpdateBar />}
 
           {/* iPhone の Safari で、ホーム画面への置き方を一度だけ案内する */}
           {installHint && <InstallHint onClose={() => setInstallHint(false)} />}
