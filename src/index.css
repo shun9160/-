@@ -28,6 +28,15 @@ body {
   background-color: #f1f0f6;
 }
 
+/* 指で横に払って使う場所は、スクロールの棒を出さない。
+   出すと、そこが「スクロールできる箱」に見えてしまう */
+.no-bar {
+  scrollbar-width: none;
+}
+.no-bar::-webkit-scrollbar {
+  display: none;
+}
+
 /* iOS のセーフエリアぶんだけ下タブを持ち上げる */
 .pb-safe {
   padding-bottom: env(safe-area-inset-bottom, 0px);

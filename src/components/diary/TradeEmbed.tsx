@@ -1,11 +1,13 @@
 import { useMemo, useState } from 'react'
 import type { Account, EnrichedTrade } from '../../lib/types'
-import { updateTrade } from '../../lib/repo'
+import { deleteTrade, updateTrade } from '../../lib/repo'
 import { colorOf, fmtMoney, fmtNum, fmtRR } from '../../lib/format'
+import { friendlyError } from '../../lib/errors'
 import { fmtJst } from '../../lib/timezone'
 import { currencyLabel } from '../../lib/appConfig'
 import { knownSetups } from '../../lib/setups'
 import TradeForm from '../TradeForm'
+import SwipeRow from '../SwipeRow'
 import Icon from '../Icon'
 
 /**
@@ -46,7 +48,28 @@ export default function TradeEmbed({
 }: Props) {
   const [open, setOpen] = useState<string | null>(null)
   const [editing, setEditing] = useState<string | null>(null)
+  const [err, setErr] = useState<string | null>(null)
   const setups = useMemo(() => knownSetups(trades), [trades])
+
+  /**
+   * 1件消す。
+   *
+   * 消す前に必ず訊く。取り消せないうえ、貼ってあった画像も一緒に消える。
+   * どれを消すのかを文の中に入れる。指で払って出したボタンは
+   * 隣の行のものかもしれない。
+   */
+  async function remove(t: EnrichedTrade) {
+    const what = `${fmtJst(t.open_time, 'HH:mm')} ${t.symbol} ${t.side === 'buy' ? 'BUY' : 'SELL'}`
+    if (!confirm(`${what} の取引を削除します。\n貼ってあるチャートも一緒に消えます。よろしいですか？`))
+      return
+    try {
+      await deleteTrade(t.id)
+      setErr(null)
+      onChanged()
+    } catch (e) {
+      setErr(friendlyError(e))
+    }
+  }
 
   const rows = useMemo(
     () => [...trades].sort((a, b) => a.openJst.getTime() - b.openJst.getTime()),
@@ -112,55 +135,67 @@ export default function TradeEmbed({
         <Stat label="平均RR" value={sum.avgRR != null ? fmtNum(sum.avgRR, 2) : '—'} />
       </dl>
 
+      {err && (
+        <p className="mt-3 rounded-xl border border-down/25 bg-down-soft px-3 py-2 text-[13px] text-down">
+          {err}
+        </p>
+      )}
+
       <ul>
         {rows.map((t) => {
           const isOpen = open === t.id
           return (
             <li key={t.id} className="border-b border-line last:border-0">
-              <button
-                type="button"
-                onClick={() => {
-                  setOpen(isOpen ? null : t.id)
-                  setEditing(null)
-                }}
-                aria-expanded={isOpen}
-                className="flex w-full items-start gap-3 py-3.5 text-left transition-colors hover:bg-brand-soft/40"
+              <SwipeRow
+                label={`${fmtJst(t.open_time, 'HH:mm')} ${t.symbol}`}
+                disabled={readOnly}
+                onDelete={() => remove(t)}
               >
-                <span className="w-11 shrink-0 pt-0.5 text-[12px] font-bold tabular-nums text-ink3">
-                  {fmtJst(t.open_time, 'HH:mm')}
-                </span>
-
-                <span className="min-w-0 flex-1">
-                  <span className="flex flex-wrap items-center gap-x-2 gap-y-0.5">
-                    <span className="text-[15px] font-bold">{t.symbol}</span>
-                    <span
-                      className={`text-[12px] font-bold ${
-                        t.side === 'buy' ? 'text-brand' : 'text-ink2'
-                      }`}
-                    >
-                      {t.side === 'buy' ? 'BUY' : 'SELL'}
-                    </span>
-                    <span className="text-[12px] text-ink3">· {fmtNum(t.volume, 2)} lot</span>
-                    {t.setup && (
-                      <span className="rounded-md bg-brand-soft px-1.5 text-[11px] font-semibold text-brand">
-                        {t.setup}
-                      </span>
-                    )}
-                  </span>
-                  <span className="mt-0.5 block text-[13px] tabular-nums text-ink3">
-                    {fmtNum(t.open_price)}
-                    {t.close_price != null && <> → {fmtNum(t.close_price)}</>}
-                  </span>
-                </span>
-
-                <span
-                  className={`shrink-0 whitespace-nowrap pt-0.5 text-[15px] font-bold tabular-nums ${colorOf(
-                    t.netProfit,
-                  )}`}
+                <button
+                  type="button"
+                  onClick={() => {
+                    setOpen(isOpen ? null : t.id)
+                    setEditing(null)
+                  }}
+                  aria-expanded={isOpen}
+                  className="flex w-full items-start gap-3 py-3.5 text-left transition-colors hover:bg-brand-soft/40"
                 >
-                  {fmtMoney(t.netProfit, { sign: true })}
-                </span>
-              </button>
+                  <span className="w-11 shrink-0 pt-0.5 text-[12px] font-bold tabular-nums text-ink3">
+                    {fmtJst(t.open_time, 'HH:mm')}
+                  </span>
+
+                  <span className="min-w-0 flex-1">
+                    <span className="flex flex-wrap items-center gap-x-2 gap-y-0.5">
+                      <span className="text-[15px] font-bold">{t.symbol}</span>
+                      <span
+                        className={`text-[12px] font-bold ${
+                          t.side === 'buy' ? 'text-brand' : 'text-ink2'
+                        }`}
+                      >
+                        {t.side === 'buy' ? 'BUY' : 'SELL'}
+                      </span>
+                      <span className="text-[12px] text-ink3">· {fmtNum(t.volume, 2)} lot</span>
+                      {t.setup && (
+                        <span className="rounded-md bg-brand-soft px-1.5 text-[11px] font-semibold text-brand">
+                          {t.setup}
+                        </span>
+                      )}
+                    </span>
+                    <span className="mt-0.5 block text-[13px] tabular-nums text-ink3">
+                      {fmtNum(t.open_price)}
+                      {t.close_price != null && <> → {fmtNum(t.close_price)}</>}
+                    </span>
+                  </span>
+
+                  <span
+                    className={`shrink-0 whitespace-nowrap pt-0.5 text-[15px] font-bold tabular-nums ${colorOf(
+                      t.netProfit,
+                    )}`}
+                  >
+                    {fmtMoney(t.netProfit, { sign: true })}
+                  </span>
+                </button>
+              </SwipeRow>
 
               {isOpen && (
                 <div className="pb-4 pl-14">
@@ -209,13 +244,27 @@ export default function TradeEmbed({
                       )}
 
                       {!readOnly && (
-                        <button
-                          type="button"
-                          className="mt-3 text-[12px] font-semibold text-brand hover:underline"
-                          onClick={() => setEditing(t.id)}
-                        >
-                          この取引を直す
-                        </button>
+                        <div className="mt-3 flex flex-wrap items-center gap-x-4 gap-y-2">
+                          <button
+                            type="button"
+                            className="text-[12px] font-semibold text-brand hover:underline"
+                            onClick={() => setEditing(t.id)}
+                          >
+                            この取引を直す
+                          </button>
+                          {/*
+                            指で払っても消せるが、こちらも残す。
+                            指のない画面（パソコン・読み上げ）では、
+                            払う動きが無いぶん、ここが唯一の入口になる
+                          */}
+                          <button
+                            type="button"
+                            className="text-[12px] font-semibold text-down hover:underline"
+                            onClick={() => remove(t)}
+                          >
+                            この取引を削除
+                          </button>
+                        </div>
                       )}
                     </>
                   )}

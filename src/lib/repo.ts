@@ -264,10 +264,38 @@ export async function updateTradeNote(id: string, note: string): Promise<void> {
   if (error) throw error
 }
 
+/**
+ * 取引を1件消す。
+ *
+ * 貼ってあった画像の置き場所も一緒に片づける。
+ * 行のほうはデータベースが連れて消してくれるが、
+ * 置き場のファイルは残るので、放っておくと容量だけを食い続ける。
+ */
 export async function deleteTrade(id: string): Promise<void> {
   if (!supabase) throw new Error(NO_CLIENT)
+
+  // 先に置き場所を控える。行を消したあとでは分からなくなる
+  const paths: (string | null | undefined)[] = []
+  try {
+    const { data: t } = await supabase
+      .from('trades')
+      .select('screenshot_path')
+      .eq('id', id)
+      .maybeSingle()
+    paths.push((t as { screenshot_path?: string | null } | null)?.screenshot_path)
+
+    const { data: imgs } = await supabase
+      .from('trade_images')
+      .select('image_path')
+      .eq('trade_id', id)
+    for (const r of (imgs ?? []) as { image_path?: string | null }[]) paths.push(r.image_path)
+  } catch {
+    // 置き場所が分からなくても、取引そのものは消す
+  }
+
   const { error } = await supabase.from('trades').delete().eq('id', id)
   if (error) throw error
+  await removeImages(paths)
 }
 
 export async function deleteAllTrades(): Promise<void> {
