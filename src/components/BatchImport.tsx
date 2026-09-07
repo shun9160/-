@@ -4,7 +4,8 @@ import { friendlyError } from '../lib/errors'
 import { fileToDownscaledDataUrl } from '../lib/image'
 import { readTradesFromImages } from '../lib/ocr'
 import { hashFile } from '../lib/imageHash'
-import { findSavedScreenshotHashes } from '../lib/repo'
+import { duplicateIndexes, tradeKey } from '../lib/tradeDedup'
+import { findSavedScreenshotHashes, findSavedTradeKeys } from '../lib/repo'
 import { addTradeImages, insertTrades } from '../lib/repo'
 import { getAppConfig } from '../lib/appConfig'
 import { parseMt5DateTime } from '../lib/timezone'
@@ -42,6 +43,8 @@ interface Draft {
   charts: PickedImage[]
   /** 取込元スクショの指紋 */
   shotHash: string
+  /** すでに入っている取引と重なりそうか。印を出すだけで、消しはしない */
+  dup?: boolean
 }
 
 const numOrNull = (s: string) => (s.trim() === '' ? null : Number(s))
@@ -59,6 +62,15 @@ function shotDuplicateMessage(kept: number, already: number, past: number): stri
   return kept > 0
     ? `${dup}枚は${where}と同じだったので除きました`
     : `${where}と同じです。読み取っていません`
+}
+
+/**
+ * 取引番号が読み取れなかったぶんの、二重登録の知らせ。
+ * 外したことと、戻せることの両方を書く。
+ */
+function dupTradeMessage(n: number): string | null {
+  if (n === 0) return null
+  return `${n}件は、すでに入っている取引と同じかもしれません（銘柄・売買・時刻・ロットが一致）。登録しない印を付けました。必要なら選び直せます`
 }
 
 export default function BatchImport({ onSaved, disabled, accountId }: Props) {
@@ -99,7 +111,8 @@ export default function BatchImport({ onSaved, disabled, accountId }: Props) {
       seen.current.add(h)
       fresh.push({ file: f, hash: h })
     })
-    setErr(shotDuplicateMessage(fresh.length, already, past))
+    const shotMsg = shotDuplicateMessage(fresh.length, already, past)
+    setErr(shotMsg)
     if (fresh.length === 0) return
 
     setReading(true)
@@ -155,7 +168,50 @@ export default function BatchImport({ onSaved, disabled, accountId }: Props) {
           })
         })
       }
-      setDrafts((prev) => [...prev, ...made])
+      /*
+        取引番号が読み取れなかったぶんだけ、中身で二重登録を見る。
+        番号があるものは、記録するときに番号で上書きされるので増えない。
+
+        照合するのは「同じ時刻の取引」だけにしぼる。
+        取引が何千件あっても、引いてくる量は読み取った枚数ぶんで済む。
+      */
+      const keys = made.map((d) =>
+        d.ticket.trim()
+          ? null
+          : tradeKey({
+              symbol: d.symbol,
+              side: d.side,
+              openTime: parseMt5DateTime(d.open_time),
+              volume: d.volume,
+            }),
+      )
+      const times = made
+        .map((d, i) => (keys[i] ? parseMt5DateTime(d.open_time)?.toISOString() : null))
+        .filter((t): t is string => Boolean(t))
+      const savedKeys = await findSavedTradeKeys([...new Set(times)], accountId).catch(
+        () => new Set<string>(), // 照合できなくても取り込みは止めない
+      )
+
+      // いま画面に出ているぶんとも重ねて見る
+      const known = new Set(savedKeys)
+      for (const d of drafts) {
+        if (d.ticket.trim()) continue
+        const k = tradeKey({
+          symbol: d.symbol,
+          side: d.side,
+          openTime: parseMt5DateTime(d.open_time),
+          volume: d.volume,
+        })
+        if (k) known.add(k)
+      }
+
+      const dupIdx = new Set(duplicateIndexes(keys, known))
+      const marked = made.map((d, i) =>
+        dupIdx.has(i) ? { ...d, dup: true, include: false } : d,
+      )
+
+      setDrafts((prev) => [...prev, ...marked])
+      setErr([shotMsg, dupTradeMessage(dupIdx.size)].filter(Boolean).join('\n') || null)
     } catch (e) {
       setErr(`読み取りに失敗しました: ${friendlyError(e)}`)
     } finally {
@@ -202,8 +258,14 @@ export default function BatchImport({ onSaved, disabled, accountId }: Props) {
           currency: getAppConfig().accountCurrency,
           note: null,
           screenshot: d.screenshot || null,
-          // 指紋は1件目にだけ付ける（画像を付けた行と対応させる）
-          screenshot_hash: d.screenshot ? d.shotHash : null,
+          /*
+            画像そのものは1件目にだけ付ける（同じ画像を何件にも持たせると重くなる）。
+            指紋のほうは、その画像から作った全部の行に付ける。
+            以前は画像と同じく1件目だけに付けていたので、
+            1件目の選択を外して登録すると、その画像の指紋がどこにも残らず、
+            後日おなじ画像を選び直しても「取り込み済み」と言えなかった。
+          */
+          screenshot_hash: d.shotHash || null,
           source: 'screenshot',
         }
       })
@@ -401,6 +463,7 @@ function DraftCard({
             </Pill>
             <span className="text-xs text-ink2">{d.volume || '—'} lot</span>
             <Pill tone={ok ? 'up' : 'down'}>{ok ? `${d.filled}項目` : '入力が必要'}</Pill>
+            {d.dup && <Pill tone="down">前に入れたものと同じかも</Pill>}
           </div>
           <p className="mt-1 truncate text-xs text-ink3">
             {d.open_time || 'エントリー時刻が読み取れませんでした'}

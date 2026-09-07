@@ -5,6 +5,7 @@ import type { Account, DayNote, Settings, Trade, TradeImage, TradeInput } from '
 import type { DayEntry } from './journal'
 import { emptyEntry, parseEntry, plainText } from './journal'
 import { demoTradeImages, isDemoId } from './demo'
+import { tradeKey } from './tradeDedup'
 import type { PlanState } from './plan'
 import { FREE_STATE } from './plan'
 
@@ -587,6 +588,48 @@ export function findSavedImageHashes(hashes: string[]): Promise<Set<string>> {
 /** すでに取り込み済みのスクショの指紋を返す */
 export function findSavedScreenshotHashes(hashes: string[]): Promise<Set<string>> {
   return lookupHashes('trades', 'screenshot_hash', hashes)
+}
+
+/**
+ * すでに入っている取引のうち、渡した時刻のものを「鍵」にして返す。
+ *
+ * 取引番号が読み取れなかった取引が、別の写真からもう一度入ってこないかを見るのに使う。
+ * 時刻でしぼってから鍵にするので、取引が何千件あっても引く量は増えない。
+ *
+ * ここで失敗しても取り込みは止めない。あくまで注意書きを出すための照合。
+ */
+export async function findSavedTradeKeys(
+  openTimes: string[],
+  accountId?: string | null,
+): Promise<Set<string>> {
+  const found = new Set<string>()
+  if (!supabase || openTimes.length === 0) return found
+  const userId = await requireUserId()
+
+  try {
+    let q = supabase
+      .from('trades')
+      .select('symbol,side,volume,open_time')
+      .eq('user_id', userId)
+      .in('open_time', openTimes)
+    // 同じ口座の中だけを見る（別口座の同じ取引は別物）
+    const target = accountId ?? null
+    q = target == null ? q.is('account_id', null) : q.eq('account_id', target)
+
+    const { data, error } = await q
+    if (error) {
+      if (!isMissingColumn(error)) console.warn('取引の照合に失敗しました', error)
+      return found
+    }
+    type Row = { symbol?: string | null; side?: string | null; volume?: number | null; open_time?: string | null }
+    for (const r of (data ?? []) as Row[]) {
+      const k = tradeKey({ symbol: r.symbol, side: r.side, openTime: r.open_time, volume: r.volume })
+      if (k) found.add(k)
+    }
+  } catch (e) {
+    console.warn('取引の照合に失敗しました', e)
+  }
+  return found
 }
 
 /** チャート画像の説明を書き換える */
