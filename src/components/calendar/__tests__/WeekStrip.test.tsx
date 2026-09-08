@@ -34,8 +34,10 @@ const base = {
  * 画面全体の文字を見ると、日の「8」と隣の曜日の「月」がつながって
  * 「8月」に読めてしまい、見出しを見ていることにならない
  */
+const headingButton = (c: HTMLElement) =>
+  c.querySelector('button[aria-haspopup="dialog"]') as HTMLButtonElement
 const heading = (c: HTMLElement) =>
-  [...c.querySelectorAll('p')].map((p) => p.textContent).join(' ')
+  [...headingButton(c).querySelectorAll('span')].map((s) => s.textContent).join(' ')
 
 describe('WeekStrip', () => {
   it('年月は、選んでいる日のものを出す', () => {

@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { fmtJst } from '../../lib/timezone'
 import Icon from '../Icon'
+import MonthPicker from './MonthPicker'
 
 /**
  * 上に置く、日付の並び。
@@ -52,11 +53,22 @@ interface Props {
 export default function WeekStrip({ value, onChange, activeDays, max, onDark }: Props) {
   const boxRef = useRef<HTMLDivElement>(null)
   const [tail, setTail] = useState(0)
+  const [picking, setPicking] = useState(false)
 
-  // 過去 SPAN 日ぶん。古い順に並べ、いちばん新しい日が右端に来る
+  /*
+    並べる範囲。
+    選んでいる月の終わりから少し先まで（ただし今日は超えない）を右端にして、
+    そこから SPAN 日ぶんさかのぼる。
+
+    ずっと「今日まで」で作っていたが、それだと見出しから何ヶ月も前の月へ
+    飛んだときに、その日が並びの外に出てしまい、どこにも印が付かなくなる。
+    かといって今日までを全部並べると、古い月を開くほど目盛りが増えていく。
+    月の区切りで決めておけば、同じ月の中で日を移しても並びは作り直されない。
+  */
+  const end = useMemo(() => min(shift(endOfMonth(value), 30), max), [value, max])
   const days = useMemo(
-    () => Array.from({ length: SPAN }, (_, i) => shift(max, -(SPAN - 1 - i))),
-    [max],
+    () => Array.from({ length: SPAN }, (_, i) => shift(end, -(SPAN - 1 - i))),
+    [end],
   )
 
   /*
@@ -122,19 +134,38 @@ export default function WeekStrip({ value, onChange, activeDays, max, onDark }: 
       </div>
 
       <div className="flex items-stretch gap-3">
-        {/* 年と月。囲わず、細い線1本だけで日付と分ける */}
-        <div className="w-10 shrink-0 pt-1.5">
-          <p
-            className={`text-[11px] font-semibold leading-none ${
+        {/*
+          年と月。囲わず、細い線1本だけで日付と分ける。
+          押すと月を選べる。指で流して何ヶ月も戻るのは骨が折れる。
+          押せることは、年のとなりの小さな印で出す。
+          月のほうに付けると「12月」で幅からはみ出す
+        */}
+        <button
+          type="button"
+          onClick={() => setPicking(true)}
+          aria-haspopup="dialog"
+          aria-label={`${fmtJst(iso, 'yyyy')}年${fmtJst(iso, 'M')}月。押すと年と月を選べます`}
+          /*
+            見た目は今までと同じ場所のまま、押せる幅だけを 44px にする。
+            カードの内側の余白へ 4px はみ出し、その分を左の余白で戻しているので、
+            字の位置も仕切り線の位置も動かない
+          */
+          className={`-ml-1 w-11 shrink-0 pl-1 pt-1.5 text-left transition-opacity active:opacity-60 ${
+            onDark ? '' : 'text-ink'
+          }`}
+        >
+          <span
+            className={`flex items-center gap-0.5 text-[11px] font-semibold leading-none ${
               onDark ? 'text-white/80' : 'text-ink3'
             }`}
           >
             {fmtJst(iso, 'yyyy')}
-          </p>
-          <p className="mt-1 text-[18px] font-bold leading-none tracking-tight">
+            <Icon name="down" size={10} className="shrink-0" />
+          </span>
+          <span className="mt-1 block text-[18px] font-bold leading-none tracking-tight">
             {fmtJst(iso, 'M')}月
-          </p>
-        </div>
+          </span>
+        </button>
         <div aria-hidden="true" className={`w-px shrink-0 ${onDark ? 'bg-white/25' : 'bg-line'}`} />
 
         <div
@@ -217,6 +248,19 @@ export default function WeekStrip({ value, onChange, activeDays, max, onDark }: 
           <div aria-hidden="true" className="shrink-0" style={{ width: tail }} />
         </div>
       </div>
+
+      {picking && (
+        <MonthPicker
+          value={value}
+          max={max}
+          activeDays={activeDays}
+          onPick={(day) => {
+            setPicking(false)
+            onChange(day)
+          }}
+          onClose={() => setPicking(false)}
+        />
+      )}
     </div>
   )
 }
@@ -258,4 +302,12 @@ function shift(day: string, delta: number): string {
 
 function min(a: string, b: string): string {
   return a < b ? a : b
+}
+
+/** その月の末日（YYYY-MM-DD）。翌月の0日目を数えると出る */
+function endOfMonth(day: string): string {
+  const y = Number(day.slice(0, 4))
+  const m = Number(day.slice(5, 7))
+  const last = new Date(Date.UTC(y, m, 0)).getUTCDate()
+  return `${day.slice(0, 7)}-${String(last).padStart(2, '0')}`
 }
