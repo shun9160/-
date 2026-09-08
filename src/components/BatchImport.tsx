@@ -7,7 +7,8 @@ import { hashFile } from '../lib/imageHash'
 import { duplicateIndexes, tradeKey } from '../lib/tradeDedup'
 import { findSavedScreenshotHashes, findSavedTradeKeys } from '../lib/repo'
 import { addTradeImages, insertTrades } from '../lib/repo'
-import { getAppConfig } from '../lib/appConfig'
+import { getAppConfig, currencyLabel } from '../lib/appConfig'
+import { colorOf, fmtMoney } from '../lib/format'
 import { parseMt5DateTime } from '../lib/timezone'
 import ChartPicker, { type PickedImage } from './ChartPicker'
 import Icon from './Icon'
@@ -48,6 +49,35 @@ interface Draft {
 }
 
 const numOrNull = (s: string) => (s.trim() === '' ? null : Number(s))
+
+/**
+ * 読み取れた損益。手数料を引いたあとの、実際に記録される額。
+ *
+ * 読み取れていなければ null。0 と「読めなかった」は別のことなので、
+ * 0 に丸めない。0円のつもりで入れてしまう
+ */
+export function draftNet(d: { profit: string; commission: string }): number | null {
+  if (d.profit.trim() === '') return null
+  const p = Number(d.profit)
+  if (!Number.isFinite(p)) return null
+  const fee = Number(d.commission)
+  return p + (Number.isFinite(fee) ? fee : 0)
+}
+
+/** 登録するぶんの合計。読み取れなかったものは足しようがないので数だけ返す */
+export function draftTotal(list: { profit: string; commission: string }[]): {
+  sum: number
+  unknown: number
+} {
+  let sum = 0
+  let unknown = 0
+  for (const d of list) {
+    const n = draftNet(d)
+    if (n == null) unknown++
+    else sum += n
+  }
+  return { sum, unknown }
+}
 
 /** 同じスクショだったことを、どこと重なったかまで含めて伝える */
 function shotDuplicateMessage(kept: number, already: number, past: number): string | null {
@@ -227,6 +257,7 @@ export default function BatchImport({ onSaved, disabled, accountId }: Props) {
   const invalid = chosen.filter(
     (d) => !parseMt5DateTime(d.open_time) || !(Number(d.volume) > 0) || !d.symbol.trim(),
   )
+  const total = draftTotal(chosen)
 
   async function saveAll() {
     setErr(null)
@@ -394,11 +425,28 @@ export default function BatchImport({ onSaved, disabled, accountId }: Props) {
             ))}
           </div>
 
-          <div className="sticky bottom-20 z-10 flex flex-wrap items-center gap-3 rounded-2xl border border-line bg-surface p-3 shadow-raised md:bottom-4">
+          <div className="sticky bottom-20 z-10 flex flex-wrap items-center gap-x-3 gap-y-1 rounded-2xl border border-line bg-surface p-3 shadow-raised md:bottom-4">
             <p className="text-sm">
               <span className="font-bold">{chosen.length}件</span> を登録します
               {invalid.length > 0 && (
                 <span className="ml-2 text-down">（{invalid.length}件に不足あり）</span>
+              )}
+            </p>
+
+            {/*
+              選んだぶんの合計。入れる・外すたびにここが動くので、
+              いくらぶんを取り込もうとしているのかが、押す前に分かる
+            */}
+            <p className="text-sm">
+              {/* 20px。18px だと「大きい字」に届かず、緑が基準を割る */}
+              <span className={`text-xl font-bold tabular-nums ${colorOf(total.sum)}`}>
+                {fmtMoney(total.sum, { sign: true })}
+              </span>
+              <span className="ml-0.5 text-[11px] font-semibold text-ink3">{currencyLabel()}</span>
+              {total.unknown > 0 && (
+                <span className="ml-1.5 text-[11px] text-ink3">
+                  （損益を読めなかった{total.unknown}件を除く）
+                </span>
               )}
             </p>
             <button
@@ -412,6 +460,37 @@ export default function BatchImport({ onSaved, disabled, accountId }: Props) {
         </>
       )}
     </div>
+  )
+}
+
+/**
+ * 1件ぶんの損益。
+ *
+ * 手数料を引いたあとの額を出す。登録したあと日記や一覧に並ぶのと同じ数字にして、
+ * 「取り込む前と後で額が違う」を起こさない。
+ * 手数料があったときだけ、そのぶんを小さく添える。
+ */
+function Money({ profit, commission }: { profit: string; commission: string }) {
+  const net = draftNet({ profit, commission })
+  if (net == null) return <span className="shrink-0 text-xs text-ink3">損益 読み取れず</span>
+
+  const fee = Number(commission)
+  return (
+    <span className="shrink-0">
+      {/*
+        19px。勝ちの緑は白の上で 3.3 しかなく、小さい字だと基準（4.5）を割る。
+        太字で 18.66px を超えると「大きい字」として 3 でよくなる。
+        ここは決め手になる数字なので、大きくするほうが筋も通る
+      */}
+      <span className={`text-[19px] font-bold leading-tight tabular-nums ${colorOf(net)}`}>
+        {fmtMoney(net, { sign: true })}
+      </span>
+      {Number.isFinite(fee) && fee !== 0 && (
+        <span className="ml-1 whitespace-nowrap text-[11px] tabular-nums text-ink3">
+          手数料 {fmtMoney(fee, { sign: true })} 込み
+        </span>
+      )}
+    </span>
   )
 }
 
@@ -465,10 +544,20 @@ function DraftCard({
             <Pill tone={ok ? 'up' : 'down'}>{ok ? `${d.filled}項目` : '入力が必要'}</Pill>
             {d.dup && <Pill tone="down">前に入れたものと同じかも</Pill>}
           </div>
-          <p className="mt-1 truncate text-xs text-ink3">
-            {d.open_time || 'エントリー時刻が読み取れませんでした'}
-            {d.profit && <span className="ml-2 font-semibold text-ink2">損益 {d.profit}</span>}
-          </p>
+          {/*
+            損益と時刻。どちらも切らない。
+            以前は1行に流して端から切っていたので、時刻が長いと
+            「2026.09.08 06:12:22 損…」となり、
+            いくらの取引なのかが分からなかった。ここを見て
+            入れる・外すを決める人がいるので、額のほうを先に置く。
+            狭ければ時刻が下に回る。切れて消えるよりは行が増えるほうがいい
+          */}
+          <div className="mt-1 flex flex-wrap items-baseline gap-x-2">
+            <Money profit={d.profit} commission={d.commission} />
+            <span className="text-xs tabular-nums text-ink3">
+              {d.open_time || 'エントリー時刻が読み取れませんでした'}
+            </span>
+          </div>
         </div>
         <div className="flex shrink-0 gap-1">
           <button className="btn btn-ghost px-2" onClick={() => setOpen(!open)}>

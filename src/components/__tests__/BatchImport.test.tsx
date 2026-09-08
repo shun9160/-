@@ -3,6 +3,7 @@ import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/re
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { tradeKey } from '../../lib/tradeDedup'
 import { parseMt5DateTime } from '../../lib/timezone'
+import { fmtMoney } from '../../lib/format'
 
 /**
  * スクショからの取り込みで、同じ取引が二重に入らないこと。
@@ -31,7 +32,9 @@ vi.mock('../../lib/repo', () => ({
   insertTrades: (...a: unknown[]) => insertTrades(...(a as [])),
 }))
 
-const BatchImport = (await import('../BatchImport')).default
+const mod = await import('../BatchImport')
+const BatchImport = mod.default
+const { draftNet, draftTotal } = mod
 
 /** MT5 の一覧から読めた1件ぶん */
 const trade = (over: Record<string, unknown> = {}) => ({
@@ -210,5 +213,114 @@ describe('スクショ取り込みの二重登録', () => {
     ])
     // 別の口座の同じ取引は別物なので、口座も渡す
     expect(account).toBe('acc-1')
+  })
+})
+
+/**
+ * 読み取り結果に出す損益。
+ *
+ * ここを見て「入れる・外す」を決める人がいるので、
+ * 切れて見えない・0円に見える、のどちらも起こしてはいけない。
+ */
+/**
+ * 行の中の、額そのものを持つところ。
+ * 下の合計にも同じ額が出るし、額は入れ物の span に包まれているので、
+ * 「行の中」かつ「中に何も入っていない」ところまで絞る
+ */
+const moneyInRow = (text: string) => {
+  const row = document.querySelector('article') as HTMLElement
+  const el = [...row.querySelectorAll('span')].find(
+    (x) => x.textContent === text && x.children.length === 0,
+  )
+  if (!el) throw new Error(`行の中に ${text} が見つからない`)
+  return el
+}
+
+describe('読み取り結果の損益', () => {
+  it('手数料を引いたあとの額を出す。登録後に並ぶ数字と同じにする', () => {
+    expect(draftNet({ profit: '1262', commission: '-20' })).toBe(1242)
+    expect(draftNet({ profit: '-3970', commission: '0' })).toBe(-3970)
+  })
+
+  it('手数料が読めていなければ、損益だけで出す', () => {
+    expect(draftNet({ profit: '86', commission: '' })).toBe(86)
+  })
+
+  it('損益が読めていなければ、0円にしない', () => {
+    // 0 と「読めなかった」は別のこと。0 に丸めると、
+    // 0円の取引として登録してしまう
+    expect(draftNet({ profit: '', commission: '0' })).toBeNull()
+    expect(draftNet({ profit: 'よめない', commission: '0' })).toBeNull()
+  })
+
+  it('合計は、選んだぶんだけを足す。読めなかったぶんは数で出す', () => {
+    expect(
+      draftTotal([
+        { profit: '1262', commission: '-20' },
+        { profit: '-3970', commission: '0' },
+        { profit: '', commission: '' },
+      ]),
+    ).toEqual({ sum: -2728, unknown: 1 })
+  })
+
+  it('チェックを外すと合計から抜ける', async () => {
+    readTradesFromImages.mockResolvedValue([
+      {
+        file: new File(['x'], 'shot.png'),
+        trades: [
+          trade({ profit: 1262 }),
+          trade({ profit: -3970, openTime: '2026.09.08 07:39:01' }),
+        ],
+      },
+    ])
+    render(<BatchImport onSaved={() => {}} accountId="acc-1" />)
+    await pick()
+
+    // 数の書き方はアプリの決まりに任せる（マイナス記号の形など）
+    const bar = () => screen.getByText(/を登録します/).parentElement as HTMLElement
+    expect(bar().textContent).toContain(fmtMoney(-2708, { sign: true }))
+
+    // 負けのほうを外す
+    fireEvent.click(document.querySelectorAll<HTMLInputElement>('input[type="checkbox"]')[1])
+    expect(bar().textContent).toContain(fmtMoney(1262, { sign: true }))
+  })
+
+  it('時刻が長くても、額は切れずに出る', async () => {
+    // 「2026.09.08 06:12:22 損…」で切れていた。
+    // 額のほうは縮めない場所に置く
+    readTradesFromImages.mockResolvedValue([
+      { file: new File(['x'], 'shot.png'), trades: [trade({ profit: 5431 })] },
+    ])
+    render(<BatchImport onSaved={() => {}} accountId="acc-1" />)
+    await pick()
+
+    const money = moneyInRow(fmtMoney(5431, { sign: true }))
+    expect(money.className).not.toContain('truncate')
+    const shrinkable = money.closest('.shrink-0')
+    expect(shrinkable).not.toBeNull()
+  })
+
+  it('額は大きい字で出す。小さいままだと勝ちの緑が基準を割る', async () => {
+    // 勝ちの緑は白の上で 3.3 しかない。
+    // 太字で 18.66px を超えていれば「大きい字」として通る
+    readTradesFromImages.mockResolvedValue([
+      { file: new File(['x'], 'shot.png'), trades: [trade({ profit: 5431 })] },
+    ])
+    render(<BatchImport onSaved={() => {}} accountId="acc-1" />)
+    await pick()
+
+    const money = moneyInRow(fmtMoney(5431, { sign: true }))
+    expect(money.className).toContain('text-[19px]')
+    expect(money.className).toContain('font-bold')
+  })
+
+  it('損益が読めなかった行は、そう言う。空欄にしない', async () => {
+    readTradesFromImages.mockResolvedValue([
+      { file: new File(['x'], 'shot.png'), trades: [trade({ profit: null })] },
+    ])
+    render(<BatchImport onSaved={() => {}} accountId="acc-1" />)
+    await pick()
+
+    expect(screen.getByText('損益 読み取れず')).toBeTruthy()
   })
 })
