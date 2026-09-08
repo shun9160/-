@@ -268,3 +268,63 @@ describe('1件だけ記録する画面（記録タブのカメラ）', () => {
     expect(parseMt5Main(LIST)).toMatchObject({ profit: 1609, openPrice: 4259.49 })
   })
 })
+
+/**
+ * ロットが読めなかった行。
+ *
+ * 実物のスクショで起きた形をそのまま置いてある。
+ * MT5 の浮いているタブ（Positions / Orders / Deals）の下に入った行が薄くなり、
+ * 「0.05」が「u.us」に化けた。銘柄も損益も時刻も読めているのに、
+ * ロット1つのために行ごと消えていた。
+ */
+const FADED_LOT = `XAUUSD.raw buy u.us 161
+4433.24 → 4433.45 2026.09.08 07:39:01
+XAUUSD.raw sell 0.05 346
+4397.21 → 4396.76 2026.09.08 10:40:55`
+
+describe('ロットが読めなかった行', () => {
+  it('行ごと捨てない。読めたところは残す', () => {
+    const rows = parseMt5Text(FADED_LOT)
+    expect(rows).toHaveLength(2)
+    expect(rows[0]).toMatchObject({
+      symbol: 'XAUUSD.raw',
+      side: 'buy',
+      profit: 161,
+      openPrice: 4433.24,
+      closePrice: 4433.45,
+      closeTime: '2026.09.08 07:39:01',
+    })
+  })
+
+  it('読めなかったロットは、空のままにする', () => {
+    // 化けた文字から数を作ろうとしない。人が打ち直せるように空で出す
+    expect(parseMt5Text(FADED_LOT)[0].volume).toBeUndefined()
+  })
+
+  it('となりの行は、これまで通り全部読める', () => {
+    expect(parseMt5Text(FADED_LOT)[1]).toMatchObject({
+      side: 'sell',
+      volume: 0.05,
+      profit: 346,
+      closeTime: '2026.09.08 10:40:55',
+    })
+  })
+
+  it('ロットの一部が化けていても、途中まででは拾わない', () => {
+    // 「0.1O」を 0.1 として入れると、0.10 なのか 0.15 なのか分からないまま
+    // それらしい数が入ってしまう。空にして人に確かめてもらう
+    const rows = parseMt5Text(`XAUUSD.raw buy 0.1O 161
+4433.24 → 4433.45 2026.09.08 07:39:01`)
+    expect(rows).toHaveLength(1)
+    expect(rows[0].volume).toBeUndefined()
+    expect(rows[0].profit).toBe(161)
+  })
+
+  it('ロットが読めた行の損益を、ロットと取り違えない', () => {
+    // 損益の書いていない行では、行末の数がロットそのもの
+    const rows = parseMt5Text(`XAUUSD.raw sell 0.05
+4393.55 → 4393.55 2026.09.08 10:50:26`)
+    expect(rows[0].volume).toBe(0.05)
+    expect(rows[0].profit).toBeUndefined()
+  })
+})

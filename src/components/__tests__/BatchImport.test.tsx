@@ -167,6 +167,19 @@ describe('スクショ取り込みの二重登録', () => {
     expect(boxes()).toEqual([true, false])
   })
 
+  it('ロットが読めなかった行も一覧に出す。直せば登録できる', async () => {
+    // 行ごと消すと、消えたことにすら気づけない
+    readTradesFromImages.mockResolvedValue([
+      { file: new File(['x'], 'shot.png'), trades: [trade({ volume: null })] },
+    ])
+    render(<BatchImport onSaved={() => {}} accountId="acc-1" />)
+    await pick()
+
+    expect(screen.getByText('入力が必要')).toBeTruthy()
+    // 足りないことは、登録する前に分かる
+    expect(screen.getByText(/1件に不足あり/)).toBeTruthy()
+  })
+
   it('取引番号があるものは、印を付けない', async () => {
     // 番号があるものは記録するときに上書きされるので、二重にならない。
     // ここで外してしまうと、直した内容を入れ直せなくなる
