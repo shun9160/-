@@ -14,8 +14,15 @@ import Icon from '../Icon'
  * どこからどこまでが「選ぶところ」なのか分からなくなる。
  */
 
-/** ここより古い年は出さない。空の年をいくらでも遡れても仕方がない */
-const MAX_YEARS_BACK = 10
+/**
+ * 少なくともこれだけは遡れるようにする。
+ *
+ * はじめは「取引のある年まで」にしていたが、それだと取引を入れ始めた年から
+ * 一歩も戻れなかった。まだ取り込んでいない月を先に開いておきたいことも、
+ * 日記だけ書きたいこともあるので、記録の有無で止めない。
+ * 取引がこれより古くからあれば、そこまで遡れる。
+ */
+const MIN_YEARS_BACK = 10
 
 interface Props {
   /** いま選んでいる日（YYYY-MM-DD） */
@@ -35,16 +42,17 @@ export default function MonthPicker({ value, max, activeDays, onPick, onClose }:
   const maxYear = Number(max.slice(0, 4))
   const maxMonth = Number(max.slice(5, 7))
 
-  /** 取引のある月（YYYY-MM）と、いちばん古い年 */
+  /** 取引のある月（YYYY-MM）と、遡れるいちばん古い年 */
   const { months, firstYear } = useMemo(() => {
     const months = new Set<string>()
-    let first = maxYear
+    let oldest = maxYear
     for (const d of activeDays) {
       months.add(d.slice(0, 7))
       const y = Number(d.slice(0, 4))
-      if (y < first) first = y
+      if (y < oldest) oldest = y
     }
-    return { months, firstYear: Math.max(first, maxYear - MAX_YEARS_BACK) }
+    // 取引があればそこまで。無くても10年は戻れる
+    return { months, firstYear: Math.min(oldest, maxYear - MIN_YEARS_BACK) }
   }, [activeDays, maxYear])
 
   useEffect(() => {

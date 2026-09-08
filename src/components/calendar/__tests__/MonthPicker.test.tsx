@@ -84,6 +84,30 @@ describe('年と月を選ぶ', () => {
     expect(onChange).not.toHaveBeenCalled()
   })
 
+  it('取引の無い年へも戻れる', () => {
+    // 取引を入れ始めた年から一歩も戻れないと、
+    // これから取り込む月を先に開くことも、日記だけ書くこともできない
+    open()
+    const back = screen.getByRole('button', { name: '前の年' })
+    expect(back).toHaveProperty('disabled', false)
+
+    fireEvent.click(back)
+    expect(screen.getByText('2025年')).toBeTruthy()
+    fireEvent.click(back)
+    expect(screen.getByText('2024年')).toBeTruthy()
+
+    // 戻った年は、どの月も選べる
+    expect(monthButton('12月').disabled).toBe(false)
+  })
+
+  it('少なくとも10年は戻れる', () => {
+    open()
+    const back = screen.getByRole('button', { name: '前の年' })
+    for (let i = 0; i < 10; i++) fireEvent.click(back)
+    expect(screen.getByText('2016年')).toBeTruthy()
+    expect(back).toHaveProperty('disabled', true)
+  })
+
   it('今日より先の年へは進めない', () => {
     open()
     expect(screen.getByRole('button', { name: '次の年' })).toHaveProperty('disabled', true)
