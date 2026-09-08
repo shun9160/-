@@ -51,6 +51,23 @@ interface Draft {
 const numOrNull = (s: string) => (s.trim() === '' ? null : Number(s))
 
 /**
+ * 下書き1件ぶんの鍵。同じ取引が二重に入らないかを見るのに使う。
+ * 見るところは tradeKey に書いてある（銘柄・売買・ロット・時刻・値段・損益）。
+ */
+function draftKey(d: Draft): string | null {
+  return tradeKey({
+    symbol: d.symbol,
+    side: d.side,
+    volume: d.volume,
+    openTime: parseMt5DateTime(d.open_time),
+    closeTime: parseMt5DateTime(d.close_time),
+    openPrice: d.open_price,
+    closePrice: d.close_price,
+    profit: d.profit,
+  })
+}
+
+/**
  * 読み取れた損益。手数料を引いたあとの、実際に記録される額。
  *
  * 読み取れていなければ null。0 と「読めなかった」は別のことなので、
@@ -100,7 +117,7 @@ function shotDuplicateMessage(kept: number, already: number, past: number): stri
  */
 function dupTradeMessage(n: number): string | null {
   if (n === 0) return null
-  return `${n}件は、すでに入っている取引と同じかもしれません（銘柄・売買・時刻・ロットが一致）。登録しない印を付けました。必要なら選び直せます`
+  return `${n}件は、すでに入っている取引と同じかもしれません（銘柄・売買・ロット・時刻・値段・損益がすべて一致）。登録しない印を付けました。必要なら選び直せます`
 }
 
 export default function BatchImport({ onSaved, disabled, accountId }: Props) {
@@ -205,16 +222,7 @@ export default function BatchImport({ onSaved, disabled, accountId }: Props) {
         照合するのは「同じ時刻の取引」だけにしぼる。
         取引が何千件あっても、引いてくる量は読み取った枚数ぶんで済む。
       */
-      const keys = made.map((d) =>
-        d.ticket.trim()
-          ? null
-          : tradeKey({
-              symbol: d.symbol,
-              side: d.side,
-              openTime: parseMt5DateTime(d.open_time),
-              volume: d.volume,
-            }),
-      )
+      const keys = made.map((d) => (d.ticket.trim() ? null : draftKey(d)))
       const times = made
         .map((d, i) => (keys[i] ? parseMt5DateTime(d.open_time)?.toISOString() : null))
         .filter((t): t is string => Boolean(t))
@@ -226,12 +234,7 @@ export default function BatchImport({ onSaved, disabled, accountId }: Props) {
       const known = new Set(savedKeys)
       for (const d of drafts) {
         if (d.ticket.trim()) continue
-        const k = tradeKey({
-          symbol: d.symbol,
-          side: d.side,
-          openTime: parseMt5DateTime(d.open_time),
-          volume: d.volume,
-        })
+        const k = draftKey(d)
         if (k) known.add(k)
       }
 

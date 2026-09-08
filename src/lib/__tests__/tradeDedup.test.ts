@@ -15,6 +15,10 @@ const base = {
   side: 'buy',
   openTime: '2026-09-04T06:30:12.000Z',
   volume: 0.02,
+  closeTime: '2026-09-04T07:02:41.000Z',
+  openPrice: 147.212,
+  closePrice: 147.44,
+  profit: 460,
 }
 
 describe('同じ取引かを見分ける鍵', () => {
@@ -43,9 +47,73 @@ describe('同じ取引かを見分ける鍵', () => {
     expect(tradeKey({ ...base, side: 'sell' })).not.toBe(k)
     expect(tradeKey({ ...base, volume: 0.03 })).not.toBe(k)
     expect(tradeKey({ ...base, openTime: '2026-09-04T06:30:13.000Z' })).not.toBe(k)
+    expect(tradeKey({ ...base, closeTime: '2026-09-04T07:02:42.000Z' })).not.toBe(k)
+    expect(tradeKey({ ...base, openPrice: 147.213 })).not.toBe(k)
+    expect(tradeKey({ ...base, closePrice: 147.45 })).not.toBe(k)
+    expect(tradeKey({ ...base, profit: 461 })).not.toBe(k)
   })
 
-  it('読み取れていない項目があれば、判定しない', () => {
+  it('値段の書き方が違っても、同じ鍵になる', () => {
+    // 「4402.60」と「4402.6」は同じ値段
+    expect(tradeKey({ ...base, openPrice: '147.2120', closePrice: '147.4400' })).toBe(
+      tradeKey(base),
+    )
+  })
+
+  it('同じ秒に建てた別の取引を、同じものにしない', () => {
+    /*
+      MT5 の履歴に実際に並ぶ形。
+      銘柄・売買・ロット・時刻はすべて同じで、値段と損益だけが違う。
+      ここを見落とすと、2本目を「同じ取引」と言って外してしまう
+    */
+    const at = {
+      symbol: 'XAUUSD.raw',
+      side: 'sell',
+      volume: 0.05,
+      openTime: '2026-09-08T01:42:16.000Z',
+      closeTime: '2026-09-08T01:42:16.000Z',
+    }
+    const a = tradeKey({ ...at, openPrice: 4393.87, closePrice: 4392.23, profit: 1262 })
+    const b = tradeKey({ ...at, openPrice: 4393.97, closePrice: 4392.23, profit: 1339 })
+    expect(a).not.toBe(b)
+  })
+
+  it('同じ秒に3本あっても、それぞれ別のものとして扱う', () => {
+    const at = {
+      symbol: 'XAUUSD.raw',
+      side: 'sell',
+      volume: 0.05,
+      openTime: '2026-09-08T01:50:26.000Z',
+    }
+    const keys = [
+      tradeKey({ ...at, openPrice: 4393.4, closePrice: 4393.55, profit: -115 }),
+      tradeKey({ ...at, openPrice: 4393.55, closePrice: 4393.55, profit: 0 }),
+      tradeKey({ ...at, openPrice: 4395.73, closePrice: 4393.55, profit: 1677 }),
+    ]
+    expect(new Set(keys).size).toBe(3)
+    expect(duplicateIndexes(keys, new Set())).toEqual([])
+  })
+
+  it('損益0と、損益が読めなかったものを、同じにしない', () => {
+    // 分からないものを0とみなすと、中身の違う取引が同じ鍵になる
+    expect(tradeKey({ ...base, profit: 0 })).not.toBe(tradeKey({ ...base, profit: null }))
+  })
+
+  it('中身が全部同じなら、同じ鍵になる', () => {
+    const t = {
+      symbol: 'XAUUSD.raw',
+      side: 'buy',
+      volume: 0.05,
+      openTime: '2026-09-08T04:04:31.000Z',
+      closeTime: '2026-09-08T05:17:22.000Z',
+      openPrice: 4402.6,
+      closePrice: 4399.04,
+      profit: -2741,
+    }
+    expect(tradeKey(t)).toBe(tradeKey({ ...t }))
+  })
+
+  it('決め手になる4つが読めていなければ、判定しない', () => {
     // ここで無理に鍵を作ると、読み取れなかったもの同士が
     // 「全部おなじ取引」に見えてしまう
     expect(tradeKey({ ...base, symbol: '' })).toBeNull()

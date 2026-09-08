@@ -86,15 +86,21 @@ describe('スクショ取り込みの二重登録', () => {
   })
 
   it('すでに入っている取引と同じなら、印を付けて外す', async () => {
+    // 中身は読み取り結果とそろえる。1つでも違えば別の取引なので、印は付かない。
     // MT5 の時刻はブローカーの時計なので、日本時間への直し方は
     // アプリの決まりに任せる。ここで時差を書くと、決まりを変えたときに嘘になる
+    const t = trade()
     findSavedTradeKeys.mockResolvedValue(
       new Set([
         tradeKey({
-          symbol: 'USDJPY',
-          side: 'buy',
-          openTime: parseMt5DateTime('2026.09.04 15:30:12'),
-          volume: 0.02,
+          symbol: t.symbol,
+          side: t.side,
+          volume: t.volume,
+          openTime: parseMt5DateTime(t.openTime),
+          closeTime: parseMt5DateTime(t.closeTime),
+          openPrice: t.openPrice,
+          closePrice: t.closePrice,
+          profit: t.profit,
         })!,
       ]),
     )
@@ -106,6 +112,59 @@ describe('スクショ取り込みの二重登録', () => {
 
     expect(marks()).toHaveLength(1)
     expect(boxes()).toEqual([false])
+  })
+
+  it('同じ秒の別の取引を、同じものにしない', async () => {
+    /*
+      MT5 の履歴に実際に並ぶ形。銘柄・売買・ロット・時刻はすべて同じで、
+      値段と損益だけが違う。ここを見落とすと、
+      その場で建て直した2本目・3本目が「同じ取引」として外れる
+    */
+    const at = {
+      symbol: 'XAUUSD.raw',
+      side: 'sell',
+      volume: 0.05,
+      openTime: '2026.09.08 10:50:26',
+      closeTime: '2026.09.08 10:50:26',
+      ticket: null,
+    }
+    readTradesFromImages.mockResolvedValue([
+      {
+        file: new File(['x'], 'shot.png'),
+        trades: [
+          { ...at, openPrice: 4393.4, closePrice: 4393.55, profit: -115 },
+          { ...at, openPrice: 4393.55, closePrice: 4393.55, profit: 0 },
+          { ...at, openPrice: 4395.73, closePrice: 4393.55, profit: 1677 },
+        ],
+      },
+    ])
+    render(<BatchImport onSaved={() => {}} accountId="acc-1" />)
+    await pick()
+
+    expect(marks()).toHaveLength(0)
+    expect(boxes()).toEqual([true, true, true])
+  })
+
+  it('値段も損益も同じなら、やはり同じものとして印を付ける', async () => {
+    const same = {
+      symbol: 'XAUUSD.raw',
+      side: 'sell',
+      volume: 0.05,
+      openTime: '2026.09.08 10:42:16',
+      closeTime: '2026.09.08 10:42:16',
+      openPrice: 4393.87,
+      closePrice: 4392.23,
+      profit: 1262,
+      ticket: null,
+    }
+    readTradesFromImages.mockResolvedValue([
+      { file: new File(['x'], 'shot.png'), trades: [same, { ...same }] },
+    ])
+    render(<BatchImport onSaved={() => {}} accountId="acc-1" />)
+    await pick()
+
+    expect(marks()).toHaveLength(1)
+    expect(boxes()).toEqual([true, false])
   })
 
   it('取引番号があるものは、印を付けない', async () => {

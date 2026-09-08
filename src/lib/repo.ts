@@ -637,7 +637,7 @@ export async function findSavedTradeKeys(
   try {
     let q = supabase
       .from('trades')
-      .select('symbol,side,volume,open_time')
+      .select('symbol,side,volume,open_time,close_time,open_price,close_price,profit')
       .eq('user_id', userId)
       .in('open_time', openTimes)
     // 同じ口座の中だけを見る（別口座の同じ取引は別物）
@@ -649,9 +649,27 @@ export async function findSavedTradeKeys(
       if (!isMissingColumn(error)) console.warn('取引の照合に失敗しました', error)
       return found
     }
-    type Row = { symbol?: string | null; side?: string | null; volume?: number | null; open_time?: string | null }
+    type Row = {
+      symbol?: string | null
+      side?: string | null
+      volume?: number | null
+      open_time?: string | null
+      close_time?: string | null
+      open_price?: number | null
+      close_price?: number | null
+      profit?: number | null
+    }
     for (const r of (data ?? []) as Row[]) {
-      const k = tradeKey({ symbol: r.symbol, side: r.side, openTime: r.open_time, volume: r.volume })
+      const k = tradeKey({
+        symbol: r.symbol,
+        side: r.side,
+        volume: r.volume,
+        openTime: r.open_time,
+        closeTime: r.close_time,
+        openPrice: r.open_price,
+        closePrice: r.close_price,
+        profit: r.profit,
+      })
       if (k) found.add(k)
     }
   } catch (e) {
