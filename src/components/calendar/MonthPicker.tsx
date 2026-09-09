@@ -27,6 +27,11 @@ const MIN_YEARS_BACK = 10
 interface Props {
   /** いま選んでいる日（YYYY-MM-DD） */
   value: string
+  /**
+   * 開いたときに出す年（YYYY-MM）。省くと選んでいる日の年。
+   * 指で流して別の月を見ているときは、そこを出したほうが探しやすい
+   */
+  focus?: string
   /** これより先へは行けない（ふつうは今日） */
   max: string
   /** 取引のあった日。月に点を打つのと、遡れる年を決めるのに使う */
@@ -35,8 +40,8 @@ interface Props {
   onClose: () => void
 }
 
-export default function MonthPicker({ value, max, activeDays, onPick, onClose }: Props) {
-  const [year, setYear] = useState(() => Number(value.slice(0, 4)))
+export default function MonthPicker({ value, focus, max, activeDays, onPick, onClose }: Props) {
+  const [year, setYear] = useState(() => Number((focus ?? value).slice(0, 4)))
   const panelRef = useRef<HTMLDivElement>(null)
 
   const maxYear = Number(max.slice(0, 4))

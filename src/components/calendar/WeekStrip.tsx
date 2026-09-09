@@ -18,10 +18,12 @@ import MonthPicker from './MonthPicker'
  * 組み方:
  *   年と月は左に2段。そこから細い縦線1本で日付と分ける。
  *   囲いを作らず、線1本だけで「暦の見出し」と「日付」を分ける。
- *   年月は、選んでいる日のものを出す。
- *   以前は「左端に見えている日」に合わせていたが、
- *   9月4日を選んでいるのに見出しが「8月」になることがあり、
+ *   年月は、選んでいる日が見えている間はその日のもの。
+ *   指で流して選んでいる日が見えなくなったら、見えている日のほうに合わせる。
+ *   一度「左端に見えている日」に合わせていたことがあるが、それだと
+ *   9月4日を選んでいるのに見出しが「8月」になり、
  *   すぐ下のカードの日付と食い違って読めた。
+ *   選んでいる日が見えているかどうかで分けると、どちらも起きない。
  *
  * 紫の面の上に載せることもある（日記の入口カードと1つにまとめたとき）。
  * そのときは onDark を立てる。色を白系に入れ替える。
@@ -54,6 +56,11 @@ export default function WeekStrip({ value, onChange, activeDays, max, onDark }: 
   const boxRef = useRef<HTMLDivElement>(null)
   const [tail, setTail] = useState(0)
   const [picking, setPicking] = useState(false)
+  /**
+   * 選んでいる日が流れて見えなくなったときに、いま見えている月（YYYY-MM）。
+   * 選んでいる日が見えている間は null にして、その日の月を出す
+   */
+  const [away, setAway] = useState<string | null>(null)
 
   /*
     並べる範囲。
@@ -112,12 +119,56 @@ export default function WeekStrip({ value, onChange, activeDays, max, onDark }: 
   // 開いたときと、外から日が変わったときに寄せる。
   // 右端の余りが決まると行き止まりの位置も変わるので、そのときも寄せ直す
   useEffect(() => {
+    setAway(null)
     scrollTo(value, false)
     // days は max が変わったときだけ作り直される
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [value, days, tail])
 
-  const iso = `${value}T00:00:00+09:00`
+  /**
+   * 見出しに出す月を決め直す。指で流すたびに呼ばれる。
+   *
+   * 選んでいる日が見えている間は、その日の月を出す。
+   * ここを「左端に見えている日」にすると、月をまたいだ端で
+   * 9月4日を選んでいるのに見出しが8月になり、すぐ下のカードと食い違う。
+   *
+   * 選んでいる日が流れて見えなくなったら、見えている日のほうに合わせる。
+   * 何月あたりを見ているのかが、指の動きと一緒に分かる。
+   */
+  function updateHead() {
+    const el = boxRef.current
+    // 幅が測れないうちは、何が見えているか分からない。選んだ日に任せる
+    if (!el || el.clientWidth === 0) return setAway(null)
+
+    const step = CELL + GAP
+    const first = Math.round(el.scrollLeft / step)
+    const count = Math.max(1, Math.floor(el.clientWidth / step))
+    const last = Math.min(days.length - 1, first + count - 1)
+
+    const sel = days.indexOf(value)
+    if (sel >= first && sel <= last) return setAway(null)
+
+    // 見えている日のうち、いちばん多い月。
+    // 端に1日だけ食い込んだ月に引っぱられないようにする
+    const tally = new Map<string, number>()
+    for (let i = Math.max(0, first); i <= last; i++) {
+      const m = days[i].slice(0, 7)
+      tally.set(m, (tally.get(m) ?? 0) + 1)
+    }
+    let best = value.slice(0, 7)
+    let most = 0
+    for (const [m, n] of tally) {
+      if (n > most) {
+        best = m
+        most = n
+      }
+    }
+    setAway(best)
+  }
+
+  /** 見出しに出す月。ふつうは選んでいる日の月 */
+  const headMonth = away ?? value.slice(0, 7)
+  const iso = `${headMonth}-01T00:00:00+09:00`
   const canNext = value < max
 
   return (
@@ -170,6 +221,7 @@ export default function WeekStrip({ value, onChange, activeDays, max, onDark }: 
 
         <div
           ref={boxRef}
+          onScroll={updateHead}
           className="flex min-w-0 flex-1 snap-x snap-mandatory overflow-x-auto"
           style={{ gap: GAP, scrollbarWidth: 'none', overscrollBehaviorX: 'contain' }}
         >
@@ -252,6 +304,8 @@ export default function WeekStrip({ value, onChange, activeDays, max, onDark }: 
       {picking && (
         <MonthPicker
           value={value}
+          // 開いたときに出す年は、いま見えている月に合わせる
+          focus={headMonth}
           max={max}
           activeDays={activeDays}
           onPick={(day) => {
