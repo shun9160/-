@@ -15,11 +15,6 @@ interface Props {
   todayTrades: EnrichedTrade[]
   /** 全期間の累計損益 */
   netTotal: number
-  /**
-   * 画面のいちばん上にあるか。
-   * 上に何も無いときだけ、上部バーとつなげて画面いっぱいに広げる。
-   */
-  flush?: boolean
   onSeeDetail: () => void
 }
 
@@ -53,7 +48,6 @@ export default function TodayCard({
   today,
   todayTrades,
   netTotal,
-  flush,
   onSeeDetail,
 }: Props) {
   const v = verdict(today)
@@ -84,7 +78,7 @@ export default function TodayCard({
   // 角の丸み。ガラスの層にも同じものを渡す。
   // このカードは裏返る作りのため、面の overflow-hidden だけでは
   // 中の層が角からはみ出す（丸く切り抜かれない）ブラウザがある。
-  const radius = flush ? 'rounded-b-[28px] sm:rounded-2xl' : 'rounded-2xl'
+  const radius = 'rounded-2xl'
 
   // すりガラスの面。色は変えず、少しだけ向こうが透ける濃さにしている。
   // 透かしただけでは平らな板に見えるので、ふち・つや・影で厚みを出す。
@@ -95,7 +89,7 @@ export default function TodayCard({
     // 「色を直接書いた場合の透明度」を落としてしまい、色が消える。
     'bg-gradient-to-br from-[rgba(103,65,255,0.93)] to-[rgba(59,91,255,0.90)] text-white ' +
     radius
-  const pad = flush ? 'px-5 pb-5 pt-6 sm:pt-5' : 'px-5 py-5'
+  const pad = 'px-5 py-5'
 
   // 外の影で浮かせ、内側の細い線でガラスの厚みを出す。
   // 上は光が当たって白く、下はわずかに沈む。
@@ -108,10 +102,7 @@ export default function TodayCard({
   }
 
   return (
-    <div
-      className={flush ? '-mx-4 -mt-5 sm:mx-0 sm:mt-0' : ''}
-      style={{ perspective: '1400px' }}
-    >
+    <div style={{ perspective: '1400px' }}>
       <div
         className="relative transition-[height] duration-500 ease-out"
         style={{ height }}

@@ -161,10 +161,6 @@ export default function App() {
           ? 'すべての取引'
           : null
 
-  // ホームは、上部バーからそのままブランドの色の面がつながる作りにする。
-  // ただし口座の切り替えやお知らせが間に入るときは、つなげずに普通のカードで出す。
-  const onHome = screen === 'home' && subScreen == null
-
   /**
    * スマホで左右に振ったとき、何が動くか。
    *
@@ -198,10 +194,6 @@ export default function App() {
               current: accountId,
               go: setAccountId,
             }
-  const switcherShown = !showAccount && !showAccounts && !loading && accounts.length > 1
-  // 上のバーからそのまま色の面をつなげられるのは、間に何も挟まらないときだけ
-  const heroFlush =
-    onHome && !switcherShown && !demo && !installHint && !updateReady && flash == null
 
   // 認証状態の確認中
   if (!ready) return <Loading />
@@ -253,11 +245,7 @@ export default function App() {
           線で区切ると、そこで画面が分断されて「上と下は別のもの」に見える。
           ロゴ・口座・自分、の3つだけをこの1行にまとめる。
         */}
-        <header
-          className={`sticky top-0 z-20 px-4 pb-2 pt-3 ${
-            heroFlush ? 'bg-[#6741FF] md:bg-page' : 'bg-page'
-          }`}
-        >
+        <header className="sticky top-0 z-20 bg-page px-4 pb-2 pt-3">
           <div className="mx-auto flex max-w-6xl items-center gap-2">
             {/* スマホ。タブの画面は下のバーで場所が分かるので、上には名前を出す。
                 下のバーに無い画面（アカウントなど）のときだけ、そこの名前に差し替える。 */}
@@ -267,7 +255,7 @@ export default function App() {
               {subScreen ? (
                 <span className="block truncate text-base font-bold text-ink">{subScreen}</span>
               ) : (
-                <Wordmark size={21} onDark={heroFlush} />
+                <Wordmark size={21} />
               )}
             </span>
             <nav aria-label="現在地" className="hidden text-sm text-ink3 md:block">
@@ -278,7 +266,7 @@ export default function App() {
             <div className="ml-auto flex min-w-0 items-center gap-2">
               {/* 見ている口座。ここに置くと、面をひとつ減らせる */}
               {!showAccount && !showAccounts && !loading && accounts.length > 1 && (
-                <span className={`min-w-0 ${heroFlush ? 'hidden md:block' : ''}`}>
+                <span className="min-w-0">
                   <AccountSwitcher
                     accounts={accounts}
                     value={accountId}
@@ -315,11 +303,7 @@ export default function App() {
                 <button
                   onClick={openAccount}
                   className={`flex shrink-0 items-center rounded-full p-0.5 transition-colors md:hidden ${
-                    showAccount
-                      ? 'ring-2 ring-brand'
-                      : heroFlush
-                        ? 'ring-2 ring-white/40'
-                        : 'hover:bg-sunken'
+                    showAccount ? 'ring-2 ring-brand' : 'hover:bg-sunken'
                   }`}
                   title="アカウントと連携"
                   aria-label="アカウントと連携"
@@ -454,7 +438,6 @@ export default function App() {
                   onOpenDay={openDay}
                   onChanged={reload}
                   readOnly={demo}
-                  heroFlush={heroFlush}
                 />
               )}
               {screen === 'calendar' && (
