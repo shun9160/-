@@ -80,11 +80,19 @@ self.addEventListener('fetch', (e) => {
   if (url.pathname.startsWith('/api/')) return
   if (url.pathname.startsWith('/tesseract/')) return
 
-  // 画面そのもの。まずインターネット、だめなら控え。
-  // 逆にすると、配信し直しても古い画面が出続ける
+  /*
+    画面そのもの。まずインターネット、だめなら控え。
+    逆にすると、配信し直しても古い画面が出続ける。
+
+    cache: 'reload' を付けて、browser が持っている控えも飛ばして取りにいく。
+    ここを既定のままにすると、ホーム画面から開いたときに
+    端末の中の古い index.html が返ってくることがあり、
+    「Safari では新しいのに、ホーム画面のアプリだけ古い」が起きる。
+    （navigate の Request はそのまま作り直せないので、URL から頼み直す）
+  */
   if (req.mode === 'navigate') {
     e.respondWith(
-      fetch(req)
+      fetch(req.url, { cache: 'reload', credentials: 'same-origin' })
         .then((res) => {
           put(req, res.clone())
           return res
